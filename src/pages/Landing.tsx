@@ -10,6 +10,7 @@ import { HeroBlobs } from '@/components/home/HeroBlobs';
 import { HeroMarquee } from '@/components/home/HeroMarquee';
 import { HeroTrustCard } from '@/components/home/HeroTrustCard';
 import { InteractiveGradient } from '@/components/home/InteractiveGradient';
+import { CareerDNAMarquee } from '@/components/home/CareerDNAMarquee';
 import { IconArrowRight, IconCheckCircle } from '@/lib/icons';
 import { BentoGrid } from '@/components/home/BentoGrid';
 import { FeatureSpotlight } from '@/components/home/FeatureSpotlight';
@@ -61,7 +62,7 @@ export default function Landing() {
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-transparent via-transparent to-background" />
 
-        <div className="container relative z-10 mx-auto grid min-w-0 max-w-full grid-cols-1 items-center gap-10 px-4 pb-16 pt-8 sm:px-5 sm:gap-12 sm:pb-20 sm:pt-10 md:px-6 lg:min-h-[calc(100vh-3.5rem)] lg:gap-12 lg:pb-18 lg:px-8 lg:pt-28">
+        <div className="container relative z-10 mx-auto grid min-w-0 max-w-full grid-cols-1 items-center gap-10 px-4 pb-16 pt-8 sm:px-5 sm:gap-12 sm:pb-20 sm:pt-10 md:px-6 lg:grid-cols-12 lg:min-h-[calc(100vh-3.5rem)] lg:gap-12 lg:pb-18 lg:px-8 lg:pt-28">
           {/* Left column — first row on mobile, left on desktop */}
           <div className="flex min-h-0 min-w-0 flex-col justify-center text-start lg:col-span-7 lg:max-w-2xl">
             <motion.div
@@ -167,6 +168,9 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Career DNA Marquee Banner */}
+      <CareerDNAMarquee />
 
       {/* Stats */}
       <section className="bg-muted/20 py-12 md:py-16">

@@ -9,7 +9,6 @@ import {
   IconSparkle,
   IconMapTrifold,
   IconList,
-  IconDna,
 } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -95,7 +94,7 @@ export function Header() {
           <span className="truncate text-base font-bold gradient-text sm:text-lg">Shyftcut</span>
         </Link>
 
-        {/* Center: Nav links + Career DNA (desktop) */}
+        {/* Center: Nav links (desktop) */}
         <div className="hidden items-center gap-1 md:flex">
           {navItems.map((item) => (
             <Link
@@ -112,16 +111,6 @@ export function Header() {
               {item.label}
             </Link>
           ))}
-          <Link
-            to="/career-dna"
-            className={cn(
-              'btn-career-dna min-touch ml-1 flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white transition-all',
-              'shadow-md shadow-primary/25'
-            )}
-          >
-            <IconDna className="h-4 w-4 shrink-0" />
-            {t('nav.careerDna')}
-          </Link>
         </div>
 
         {/* Right: Theme, Lang, Auth — same order and padding on all viewports */}

@@ -7,7 +7,6 @@ import {
   IconCreditCard,
   IconSparkle,
   IconMapTrifold,
-  IconDna,
 } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,15 +79,6 @@ export function MobileNavSheet({ open, onOpenChange, trigger }: MobileNavSheetPr
               </Button>
             </div>
           )}
-
-          <Link
-            to="/career-dna"
-            onClick={handleNavClick}
-            className="btn-career-dna min-touch mb-4 flex w-full items-center justify-center gap-2 rounded-xl py-4 text-base font-semibold text-white shadow-lg shadow-primary/25"
-          >
-            <IconDna className="h-5 w-5 shrink-0" />
-            {t('nav.careerDna')}
-          </Link>
 
           <nav className="grid gap-0.5 py-2" aria-label="Main">
             {navItems.map((item) => (

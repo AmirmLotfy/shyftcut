@@ -58,10 +58,10 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q1',
     type: 'single',
     options: [
-      { value: 'analyze', labelKey: 'careerDna.q1.analyze', emoji: '📊' },
-      { value: 'brainstorm', labelKey: 'careerDna.q1.brainstorm', emoji: '💡' },
-      { value: 'process', labelKey: 'careerDna.q1.process', emoji: '📋' },
-      { value: 'collaborate', labelKey: 'careerDna.q1.collaborate', emoji: '🤝' },
+      { value: 'analyze', labelKey: 'careerDna.q1.analyze' },
+      { value: 'brainstorm', labelKey: 'careerDna.q1.brainstorm' },
+      { value: 'process', labelKey: 'careerDna.q1.process' },
+      { value: 'collaborate', labelKey: 'careerDna.q1.collaborate' },
     ],
   },
   {
@@ -69,10 +69,10 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q2',
     type: 'single',
     options: [
-      { value: 'excited', labelKey: 'careerDna.q2.excited', emoji: '⚡' },
-      { value: 'stressed', labelKey: 'careerDna.q2.stressed', emoji: '😰' },
-      { value: 'motivated', labelKey: 'careerDna.q2.motivated', emoji: '🔥' },
-      { value: 'anxious', labelKey: 'careerDna.q2.anxious', emoji: '😟' },
+      { value: 'excited', labelKey: 'careerDna.q2.excited' },
+      { value: 'stressed', labelKey: 'careerDna.q2.stressed' },
+      { value: 'motivated', labelKey: 'careerDna.q2.motivated' },
+      { value: 'anxious', labelKey: 'careerDna.q2.anxious' },
     ],
   },
   {
@@ -80,10 +80,10 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q3',
     type: 'single',
     options: [
-      { value: 'fast', labelKey: 'careerDna.q3.fast', emoji: '🏃' },
-      { value: 'structured', labelKey: 'careerDna.q3.structured', emoji: '🏛️' },
-      { value: 'creative', labelKey: 'careerDna.q3.creative', emoji: '🎨' },
-      { value: 'independent', labelKey: 'careerDna.q3.independent', emoji: '🦅' },
+      { value: 'fast', labelKey: 'careerDna.q3.fast' },
+      { value: 'structured', labelKey: 'careerDna.q3.structured' },
+      { value: 'creative', labelKey: 'careerDna.q3.creative' },
+      { value: 'independent', labelKey: 'careerDna.q3.independent' },
     ],
   },
   {
@@ -91,10 +91,10 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q4',
     type: 'single',
     options: [
-      { value: 'lead', labelKey: 'careerDna.q4.lead', emoji: '👑' },
-      { value: 'support', labelKey: 'careerDna.q4.support', emoji: '🤲' },
-      { value: 'create', labelKey: 'careerDna.q4.create', emoji: '✨' },
-      { value: 'analyze', labelKey: 'careerDna.q4.analyze', emoji: '🔍' },
+      { value: 'lead', labelKey: 'careerDna.q4.lead' },
+      { value: 'support', labelKey: 'careerDna.q4.support' },
+      { value: 'create', labelKey: 'careerDna.q4.create' },
+      { value: 'analyze', labelKey: 'careerDna.q4.analyze' },
     ],
   },
   {
@@ -114,9 +114,9 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q7',
     type: 'single',
     options: [
-      { value: 'yes', labelKey: 'careerDna.q7.yes', emoji: '✅' },
-      { value: 'no', labelKey: 'careerDna.q7.no', emoji: '❌' },
-      { value: 'unsure', labelKey: 'careerDna.q7.unsure', emoji: '🤷' },
+      { value: 'yes', labelKey: 'careerDna.q7.yes' },
+      { value: 'no', labelKey: 'careerDna.q7.no' },
+      { value: 'unsure', labelKey: 'careerDna.q7.unsure' },
     ],
   },
   {
@@ -124,10 +124,10 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     questionKey: 'careerDna.q8',
     type: 'single',
     options: [
-      { value: 'wasting_time', labelKey: 'careerDna.q8.wasting_time', emoji: '⏰' },
-      { value: 'wrong_career', labelKey: 'careerDna.q8.wrong_career', emoji: '🔄' },
-      { value: 'competition', labelKey: 'careerDna.q8.competition', emoji: '🏆' },
-      { value: 'falling_behind', labelKey: 'careerDna.q8.falling_behind', emoji: '📉' },
+      { value: 'wasting_time', labelKey: 'careerDna.q8.wasting_time' },
+      { value: 'wrong_career', labelKey: 'careerDna.q8.wrong_career' },
+      { value: 'competition', labelKey: 'careerDna.q8.competition' },
+      { value: 'falling_behind', labelKey: 'careerDna.q8.falling_behind' },
     ],
   },
 ];
