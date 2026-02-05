@@ -22,7 +22,11 @@ const ROOT = join(__dirname, "..");
 const REPO = process.argv[2] || "shyftcut";
 
 function run(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf-8", cwd: ROOT, ...opts });
+  try {
+    return execSync(cmd, { encoding: "utf-8", cwd: ROOT, ...opts });
+  } catch {
+    return null;
+  }
 }
 
 function runSpawn(cmd, args, opts = {}) {
@@ -56,14 +60,14 @@ function main() {
     console.log("3. Staging and committing...");
     run("git add -A");
     run('git commit -m "Initial commit: Shyftcut – AI career roadmap platform"');
-  } else if (!run("git rev-parse HEAD 2>/dev/null")) {
+  } else if (!run("git rev-parse HEAD")) {
     console.log("3. No changes to commit.");
   } else {
     console.log("3. Working tree clean.");
   }
 
   // 4. Create GitHub repo and push
-  const remote = run("git remote get-url origin 2>/dev/null")?.trim();
+  const remote = run("git remote get-url origin")?.trim();
   const targetRepo = REPO.includes("/") ? REPO : `shyftcut/${REPO}`;
 
   if (!remote) {
@@ -87,7 +91,7 @@ function main() {
     if (pushStatus !== 0) process.exit(1);
   }
 
-  const url = run("git remote get-url origin 2>/dev/null")?.trim();
+  const url = run("git remote get-url origin")?.trim();
   console.log("\n✓ Done. Repo:", url || "github.com/shyftcut/shyftcut");
 }
 
