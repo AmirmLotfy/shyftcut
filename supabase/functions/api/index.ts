@@ -2194,6 +2194,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         const checkoutMetadata: Record<string, unknown> = { user_id: user!.id, plan_id: planId ?? undefined };
         if (bodyMetadata?.from) checkoutMetadata.from = bodyMetadata.from;
         if (bodyMetadata?.career_dna_result_id) checkoutMetadata.career_dna_result_id = bodyMetadata.career_dna_result_id;
+        if (bodyMetadata?.affonso_referral) checkoutMetadata.affonso_referral = bodyMetadata.affonso_referral;
         const checkoutPayload: Record<string, unknown> = {
           products: [productIdStr],
           success_url: successUrlStr ?? `${baseUrl}/checkout/success`,

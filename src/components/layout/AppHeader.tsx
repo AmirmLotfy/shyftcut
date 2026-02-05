@@ -35,6 +35,7 @@ import { ThemeToggle } from '@/components/common/ThemeToggle';
 /** Paths that use the app layout (dashboard, roadmap, etc.). */
 export const APP_PATHS = [
   '/dashboard',
+  '/affiliate',
   '/upgrade',
   '/roadmap',
   '/study',

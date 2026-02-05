@@ -56,6 +56,9 @@ export default function Signup() {
     setIsLoading(true);
     try {
       await signUp(email, password, name, captchaToken);
+      if (typeof window !== 'undefined' && (window as unknown as { Affonso?: { signup: (e: string) => void } }).Affonso?.signup) {
+        (window as unknown as { Affonso: { signup: (e: string) => void } }).Affonso.signup(email);
+      }
       const target = returnTo || (fromGuest ? '/wizard?from=guest' : '/dashboard');
       navigate(target.startsWith('/') ? target : `/${target}`, { replace: true });
     } catch {

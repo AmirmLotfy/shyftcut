@@ -37,6 +37,7 @@ import {
   Facebook,
   Wand2,
   Dna,
+  Gift,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -90,3 +91,4 @@ export const IconChartBarTabler = iconWrapper(BarChart3, 'IconChartBarTabler');
 export const IconClockTabler = iconWrapper(Clock, 'IconClockTabler');
 export const IconChartBar = iconWrapper(BarChart3, 'IconChartBar');
 export const IconClock = iconWrapper(Clock, 'IconClock');
+export const IconGift = iconWrapper(Gift, 'IconGift');

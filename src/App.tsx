@@ -47,6 +47,7 @@ const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const CareerDNA = lazy(() => import("./pages/CareerDNA"));
 const CareerDNAResult = lazy(() => import("./pages/CareerDNAResult"));
 const CareerDNASquad = lazy(() => import("./pages/CareerDNASquad"));
+const Affiliate = lazy(() => import("./pages/Affiliate"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 
@@ -99,6 +100,7 @@ const RoutesContent = () => (
         <Route path="/study" element={<ProtectedRoute><Study /></ProtectedRoute>} />
         <Route path="/career-tools" element={<ProtectedRoute><CareerTools /></ProtectedRoute>} />
         <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+        <Route path="/affiliate" element={<Affiliate />} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
         <Route path="/checkout/cancel" element={<ProtectedRoute><CheckoutCancel /></ProtectedRoute>} />

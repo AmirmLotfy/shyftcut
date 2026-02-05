@@ -67,6 +67,16 @@ Used by **Edge Functions** (`api` and `webhook-polar`). Supabase **auto-injects*
 - **Webhook URL:** `https://<your-project-ref>.supabase.co/functions/v1/webhook-polar`
 - **Product/price IDs:** In app, `src/lib/polar-config.ts` must use the same price IDs as in your Polar product.
 
+### Affonso (affiliate program, optional)
+
+If you use [Affonso](https://affonso.io) + Polar for affiliate tracking:
+
+1. **index.html:** Program ID is set in the Affonso script (`data-affonso`).
+2. **VITE_AFFONSO_PORTAL_URL:** Optional. Override the affiliate dashboard link (default: app.affonso.io).
+3. **VITE_AFFONSO_PORTAL_URL:** Set in Vercel if you want a fallback link when embed fails. Optional.
+4. **Polar:** Add Affonso webhook (URL + secret from Affonso) for events `order.created`, `order.refunded`, `subscription.canceled`.
+5. See [Polar Affonso docs](https://docs.polar.sh/features/integrations/affonso) for full setup.
+
 ---
 
 ## 4. Resend (email)

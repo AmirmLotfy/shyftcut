@@ -20,6 +20,7 @@ import {
   IconSparkle,
   IconClock,
   IconBriefcase,
+  IconGift,
 } from '@/lib/icons';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,6 +111,18 @@ export function AppSidebar() {
       {user && (
         <SidebarFooter className="border-t border-sidebar-border bg-sidebar/80 pt-4">
           <SidebarMenu className="gap-0.5">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/affiliate'}
+                className="mx-2 rounded-lg border-l-2 border-transparent rtl:border-l-0 rtl:border-r-2 data-[active=true]:border-primary data-[active=true]:bg-sidebar-accent"
+              >
+                <Link to="/affiliate" className="flex items-center gap-3 py-2.5">
+                  <IconGift className="h-4 w-4 shrink-0" />
+                  <span>{t('affiliate.nav')}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild

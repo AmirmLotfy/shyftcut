@@ -56,6 +56,9 @@ export function CheckoutButton({
       ? `${origin}/checkout/success?returnTo=${encodeURIComponent(returnTo)}`
       : `${origin}/checkout/success`;
     const returnUrl = returnTo ? `${origin}${returnTo}` : `${origin}/upgrade`;
+    const referralId = typeof window !== 'undefined' && (window as unknown as { affonso_referral?: string }).affonso_referral;
+    const metadataWithReferral = { ...metadata };
+    if (referralId) metadataWithReferral.affonso_referral = referralId;
     setIsLoading(true);
     try {
       const data = await apiFetch<{ checkoutUrl?: string }>('/api/checkout/create', {
@@ -67,7 +70,7 @@ export function CheckoutButton({
           productId,
           successUrl,
           returnUrl,
-          metadata,
+          metadata: metadataWithReferral,
         }),
       });
 

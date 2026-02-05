@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User, Mail, Briefcase, Target, Globe, Loader2, Save, CreditCard, AlertCircle, Shield, Lock, Trash2, ImagePlus, Upload, Building2, Link2, Bell, Award, Phone } from 'lucide-react';
+import { User, Mail, Briefcase, Target, Globe, Loader2, Save, CreditCard, AlertCircle, Shield, Lock, Trash2, ImagePlus, Upload, Building2, Link2, Bell, Award, Phone, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1223,6 +1223,25 @@ export default function Profile() {
                     </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Affiliate Program Card */}
+            <Card className="public-glass-card rounded-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Gift className="h-4 w-4" />
+                  {t('affiliate.profileTitle')}
+                </CardTitle>
+                <CardDescription>{t('affiliate.profileDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline" className="w-full gap-2">
+                  <Link to="/affiliate">
+                    {t('affiliate.cta')}
+                    <Link2 className="h-4 w-4" />
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
 
