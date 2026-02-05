@@ -12,6 +12,7 @@ import { HeroTrustCard } from '@/components/home/HeroTrustCard';
 import { InteractiveGradient } from '@/components/home/InteractiveGradient';
 import { CareerDNAMarquee } from '@/components/home/CareerDNAMarquee';
 import { IconArrowRight, IconCheckCircle } from '@/lib/icons';
+import { LazySection } from '@/components/common/LazySection';
 import { BentoGrid } from '@/components/home/BentoGrid';
 import { FeatureSpotlight } from '@/components/home/FeatureSpotlight';
 import { TestimonialMarquee } from '@/components/home/TestimonialMarquee';
@@ -51,10 +52,14 @@ export default function Landing() {
         <div className="absolute inset-0 mesh-gradient" />
         <HeroBlobs />
         <InteractiveGradient />
-        <div
-          className="absolute inset-0 z-0 bg-cover bg-center opacity-[0.12] dark:opacity-[0.08]"
+        <img
+          src="/images/hero-bg.webp"
+          alt=""
+          loading="lazy"
+          fetchPriority="low"
+          decoding="async"
+          className="absolute inset-0 z-0 h-full w-full object-cover object-center opacity-[0.12] dark:opacity-[0.08]"
           style={{
-            backgroundImage: 'url(/images/hero-bg.webp)',
             maskImage: 'linear-gradient(180deg, transparent, black 5%, black 75%, transparent)',
             WebkitMaskImage: 'linear-gradient(180deg, transparent, black 5%, black 75%, transparent)',
           }}
@@ -194,43 +199,50 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Features Section — left-aligned header */}
-      <section id="features" className="py-12 sm:py-16 md:py-24 lg:py-32">
-        <div className="container mx-auto px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-10 text-start sm:mb-12 md:mb-16"
-          >
-            <h2 className="mb-3 text-2xl font-bold sm:text-3xl md:text-4xl">
-              {t('landing.featuresTitle')}
-            </h2>
-            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
-              {t('landing.featuresSubtitle')}
-            </p>
-          </motion.div>
+      {/* Features Section — lazy loaded for perf */}
+      <LazySection className="py-12 sm:py-16 md:py-24 lg:py-32" rootMargin="200px">
+        <section id="features">
+          <div className="container mx-auto px-4 sm:px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="mb-10 text-start sm:mb-12 md:mb-16"
+            >
+              <h2 className="mb-3 text-2xl font-bold sm:text-3xl md:text-4xl">
+                {t('landing.featuresTitle')}
+              </h2>
+              <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+                {t('landing.featuresSubtitle')}
+              </p>
+            </motion.div>
 
-          <FeatureSpotlight />
+            <FeatureSpotlight />
 
-          <BentoGrid />
-        </div>
-      </section>
+            <BentoGrid />
+          </div>
+        </section>
+      </LazySection>
 
-      {/* Testimonials Marquee */}
-      <TestimonialMarquee />
+      <LazySection className="min-h-[180px]" rootMargin="150px">
+        <TestimonialMarquee />
+      </LazySection>
 
-      {/* Platform Integrations */}
-      <PlatformIntegrations />
+      <LazySection className="min-h-[200px]" rootMargin="150px">
+        <PlatformIntegrations />
+      </LazySection>
 
-      {/* Success Stories */}
-      <SuccessStories />
+      <LazySection className="min-h-[300px]" rootMargin="150px">
+        <SuccessStories />
+      </LazySection>
 
-      {/* AI Demo Interactive */}
-      <AIDemo />
+      <LazySection className="min-h-[400px]" rootMargin="150px">
+        <AIDemo />
+      </LazySection>
 
-      {/* How It Works - Interactive Timeline */}
-      <InteractiveTimeline />
+      <LazySection className="min-h-[350px]" rootMargin="150px">
+        <InteractiveTimeline />
+      </LazySection>
 
       {/* Pricing */}
       <section id="pricing" className="bg-muted/20 py-10 sm:py-12 md:py-20">

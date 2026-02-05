@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuthLayout, GoogleIcon } from '@/components/auth/AuthLayout';
+import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
 import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
 import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AUTH_HERO_IMAGE, getAuthTestimonials } from '@/lib/auth-testimonials';
 
 type LoginMode = 'password' | 'magiclink';
@@ -33,6 +35,7 @@ export default function Login() {
   const [captchaToken, setCaptchaToken] = useState<string | undefined>();
   const captchaRef = useRef<AuthCaptchaRef>(null);
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
   const { user, signIn, signInWithMagicLink, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -83,7 +86,10 @@ export default function Login() {
     signInWithGoogle();
   };
 
-  const authTestimonials = getAuthTestimonials(language === 'ar' ? 'ar' : 'en');
+  const Layout = isMobile ? AuthLayoutMobile : AuthLayout;
+  const layoutProps = isMobile
+    ? {}
+    : { heroImageSrc: AUTH_HERO_IMAGE, testimonials: getAuthTestimonials(language === 'ar' ? 'ar' : 'en') };
 
   return (
     <div className="bg-background text-foreground min-h-[100dvh]">
@@ -92,12 +98,9 @@ export default function Login() {
         description={getSeo("/login", language).description}
         path="/login"
       />
-      <AuthLayout
-        heroImageSrc={AUTH_HERO_IMAGE}
-        testimonials={authTestimonials}
-      >
+      <Layout {...layoutProps}>
         <div className="flex flex-col gap-6">
-          <h1 className="animate-element animate-delay-100 text-4xl md:text-5xl font-semibold leading-tight">
+          <h1 className={`text-2xl font-semibold leading-tight sm:text-4xl md:text-5xl ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
             <span className="font-light tracking-tighter">{t('auth.login.title')}</span>
           </h1>
           <p className="animate-element animate-delay-200 text-muted-foreground">
@@ -106,7 +109,7 @@ export default function Login() {
           <p className="animate-element animate-delay-200 text-xs text-muted-foreground" role="status">
             {t('auth.loginGoogleHint')}
           </p>
-          {(fromState || fromWizard) && (
+          {(fromPath || fromWizard) && (
             <p className="animate-element animate-delay-200 text-sm text-muted-foreground" role="status">
               {t('auth.pleaseSignIn')}
             </p>
@@ -241,7 +244,7 @@ export default function Login() {
             </Link>
           </p>
         </div>
-      </AuthLayout>
+      </Layout>
     </div>
   );
 }

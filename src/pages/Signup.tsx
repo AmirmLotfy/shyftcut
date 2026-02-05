@@ -4,6 +4,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { AuthLayout, GoogleIcon } from '@/components/auth/AuthLayout';
+import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
 import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
@@ -23,6 +25,7 @@ export default function Signup() {
   const [captchaToken, setCaptchaToken] = useState<string | undefined>();
   const captchaRef = useRef<AuthCaptchaRef>(null);
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
   const { user, signUp, signInWithGoogle } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -70,7 +73,10 @@ export default function Signup() {
     signInWithGoogle();
   };
 
-  const authTestimonials = getAuthTestimonials(language === 'ar' ? 'ar' : 'en');
+  const Layout = isMobile ? AuthLayoutMobile : AuthLayout;
+  const layoutProps = isMobile
+    ? {}
+    : { heroImageSrc: AUTH_HERO_IMAGE, testimonials: getAuthTestimonials(language === 'ar' ? 'ar' : 'en') };
 
   return (
     <div className="bg-background text-foreground min-h-[100dvh]">
@@ -79,9 +85,9 @@ export default function Signup() {
         description={getSeo("/signup", language).description}
         path="/signup"
       />
-      <AuthLayout heroImageSrc={AUTH_HERO_IMAGE} testimonials={authTestimonials}>
+      <Layout {...layoutProps}>
         <div className="flex flex-col gap-6">
-          <h1 className="animate-element animate-delay-100 text-4xl md:text-5xl font-semibold leading-tight">
+          <h1 className={`text-2xl font-semibold leading-tight sm:text-4xl md:text-5xl ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
             <span className="font-light tracking-tighter">{t('auth.signup.title')}</span>
           </h1>
           <p className="animate-element animate-delay-200 text-muted-foreground">
@@ -205,7 +211,7 @@ export default function Signup() {
             </Link>
           </p>
         </div>
-      </AuthLayout>
+      </Layout>
     </div>
   );
 }

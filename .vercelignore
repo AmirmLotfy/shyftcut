@@ -4,12 +4,6 @@ node_modules
 # Build output
 dist
 
-# Test artifacts (Playwright ~126MB)
-test-results
-playwright-report
-playwright
-e2e/.auth
-
 # Misc
 *.zip
 .DS_Store

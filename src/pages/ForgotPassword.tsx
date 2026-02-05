@@ -4,6 +4,8 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { AuthLayout } from '@/components/auth/AuthLayout';
+import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
 import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
@@ -18,6 +20,7 @@ export default function ForgotPassword() {
   const [captchaToken, setCaptchaToken] = useState<string | undefined>();
   const captchaRef = useRef<AuthCaptchaRef>(null);
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
   const { resetPasswordForEmail } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,7 +39,10 @@ export default function ForgotPassword() {
     }
   };
 
-  const authTestimonials = getAuthTestimonials(language === 'ar' ? 'ar' : 'en');
+  const Layout = isMobile ? AuthLayoutMobile : AuthLayout;
+  const layoutProps = isMobile
+    ? {}
+    : { heroImageSrc: AUTH_HERO_IMAGE, testimonials: getAuthTestimonials(language === 'ar' ? 'ar' : 'en') };
 
   return (
     <div className="bg-background text-foreground min-h-[100dvh]">
@@ -45,7 +51,7 @@ export default function ForgotPassword() {
         description={t('auth.forgotPasswordSubtitle')}
         path="/forgot-password"
       />
-      <AuthLayout heroImageSrc={AUTH_HERO_IMAGE} testimonials={authTestimonials}>
+      <Layout {...layoutProps}>
         <div className="flex flex-col gap-6">
           <h1 className="animate-element animate-delay-100 text-4xl md:text-5xl font-semibold leading-tight">
             <span className="font-light tracking-tighter">{t('auth.forgotPasswordTitle')}</span>
@@ -109,7 +115,7 @@ export default function ForgotPassword() {
             </Link>
           </p>
         </div>
-      </AuthLayout>
+      </Layout>
     </div>
   );
 }

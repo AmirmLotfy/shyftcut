@@ -1,0 +1,55 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: ا
+  - generic [ref=e3]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - link "Shyftcut Home" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e9]: Shyftcut
+        - generic [ref=e10]:
+          - heading "Start Your Journey" [level=1] [ref=e11]
+          - paragraph [ref=e12]: Create an account to get your personalized roadmap
+          - generic [ref=e13]:
+            - generic [ref=e14]:
+              - text: Full Name
+              - textbox "Full Name" [ref=e16]:
+                - /placeholder: John Doe
+                - text: E2E Test User
+            - generic [ref=e17]:
+              - text: Email
+              - textbox "Email" [ref=e19]:
+                - /placeholder: you@example.com
+                - text: e2e-test-1770262397322@example.com
+            - generic [ref=e20]:
+              - text: Password
+              - generic [ref=e22]:
+                - textbox "Password" [ref=e23]:
+                  - /placeholder: ••••••••
+                  - text: TestPassword123!
+                - button "Show password" [ref=e24] [cursor=pointer]:
+                  - img [ref=e25]
+            - button "Create Account" [ref=e28] [cursor=pointer]
+          - generic [ref=e31]: or continue with
+          - button "Google" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - text: Google
+          - paragraph [ref=e38]:
+            - text: Already have an account?
+            - link "Login" [ref=e39] [cursor=pointer]:
+              - /url: /login
+      - generic [ref=e42]:
+        - generic [ref=e44]:
+          - paragraph [ref=e45]: Sarah M.
+          - paragraph [ref=e46]: Product Manager → Tech Lead
+          - paragraph [ref=e47]: Shyftcut gave me a clear 12-week path when I felt completely lost. The AI coach answered my questions at 2 AM. Game changer.
+        - generic [ref=e50]:
+          - paragraph [ref=e51]: James K.
+          - paragraph [ref=e52]: Marketing → Data Analyst
+          - paragraph [ref=e53]: I went from marketing to data analytics in 12 weeks. The roadmap was spot-on and the quizzes kept me accountable.
+```

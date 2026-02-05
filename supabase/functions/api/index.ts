@@ -6,6 +6,7 @@ import { getAuthUser } from "../_shared/auth.ts";
 import { getSupabase } from "../_shared/supabase.ts";
 import { logError, safeErrorMessage } from "../_shared/log.ts";
 import { moderateContent } from "../_shared/moderation.ts";
+import { checkSuperadmin, logAdminAction, requireSuperadmin } from "../_shared/admin.ts";
 import {
   getGeminiConfig,
   getGeminiGenerateContentUrl,
@@ -582,7 +583,47 @@ function route(path: string): string | null {
     if (p1) return "tasks/id";
     return "tasks";
   }
-  if (p0 === "admin" && p1 === "batch") return "admin/batch";
+  if (p0 === "admin") {
+    if (p1 === "batch") return "admin/batch";
+    if (p1 === "users") {
+      if (!p2) return "admin/users";
+      if (p2 === "stats") return "admin/users/stats";
+      if (p3 === "impersonate") return "admin/users/impersonate";
+      if (p3 === "ban") return "admin/users/ban";
+      return "admin/users/id";
+    }
+    if (p1 === "subscriptions") {
+      if (!p2) return "admin/subscriptions";
+      if (p2 === "revenue") return "admin/subscriptions/revenue";
+      return "admin/subscriptions/id";
+    }
+    if (p1 === "analytics") {
+      if (p2 === "insights") return "admin/analytics/insights";
+      return "admin/analytics";
+    }
+    if (p1 === "content") {
+      if (p2 === "roadmaps") {
+        if (p3) return "admin/content/roadmaps/id";
+        return "admin/content/roadmaps";
+      }
+      if (p2 === "chat") {
+        if (p3) return "admin/content/chat/id";
+        return "admin/content/chat";
+      }
+      if (p2 === "community") return "admin/content/community";
+      return null;
+    }
+    if (p1 === "settings") {
+      if (p2 === "feature-flags") return "admin/settings/feature-flags";
+      if (p2) return "admin/settings/key";
+      return "admin/settings";
+    }
+    if (p1 === "audit-log") {
+      if (p2) return "admin/audit-log/id";
+      return "admin/audit-log";
+    }
+    return null;
+  }
   if (p0 === "cv" && p1 === "analyze") return "cv/analyze";
   if (p0 === "jobs") {
     if (p1 === "find") return "jobs/find";
@@ -599,8 +640,9 @@ function route(path: string): string | null {
   if (p0 === "career-dna") {
     if (p1 === "analyze") return "career-dna/analyze";
     if (p1 === "result" && p2) return "career-dna/result";
+    if (p1 === "lead") return "career-dna/lead";
     if (p1 === "squad") {
-      if (!p2) return "career-dna/squad/create"; // POST = create
+      if (!p2 || p2 === "create") return "career-dna/squad/create"; // POST /squad or /squad/create
       return "career-dna/squad/get"; // GET /squad/:slug
     }
     return null;
@@ -696,6 +738,7 @@ Deno.serve(async (req: Request) => {
     "vapid-public",
     "career-dna/analyze",
     "career-dna/result",
+    "career-dna/lead",
     "career-dna/squad/create",
     "career-dna/squad/get",
   ].includes(routeKey);
@@ -2824,13 +2867,14 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
         if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
         if (!checkCareerDnaRateLimit(ip)) return jsonResponse({ error: "Too many quiz attempts. Try again in an hour." }, 429);
-        const { answers, currentField, isStudent, language, sessionId, squadSlug } = body as {
+        const { answers, currentField, isStudent, language, sessionId, squadSlug, displayName } = body as {
           answers?: Record<string, string | number>;
           currentField?: string;
           isStudent?: boolean;
           language?: string;
           sessionId?: string;
           squadSlug?: string;
+          displayName?: string;
         };
         if (!answers || typeof answers !== "object" || !currentField || typeof currentField !== "string" || !currentField.trim()) {
           return jsonResponse({ error: "answers and currentField are required" }, 400);
@@ -2945,6 +2989,7 @@ Analyze and return the structured response.`;
             raw_answers: answers,
             language: lang,
             squad_id: squadId,
+            display_name: typeof displayName === "string" && displayName.trim() ? sanitizeUserText(displayName.trim(), 50) : null,
           })
           .select("id")
           .single();
@@ -3003,6 +3048,25 @@ Analyze and return the structured response.`;
         });
       }
 
+      case "career-dna/lead": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { phone, source, sourceId, consentMarketing } = body as { phone?: string; source?: string; sourceId?: string; consentMarketing?: boolean };
+        if (!phone || typeof phone !== "string" || !phone.trim()) return jsonResponse({ error: "Phone is required" }, 400);
+        const cleaned = phone.replace(/\D/g, "");
+        if (cleaned.length < 8) return jsonResponse({ error: "Invalid phone number" }, 400);
+        const src = source === "squad" || source === "result" ? source : "result";
+        const sid = typeof sourceId === "string" && sourceId.trim() ? sourceId.trim().slice(0, 100) : "";
+        if (!sid) return jsonResponse({ error: "sourceId is required" }, 400);
+        const { error: leadErr } = await supabase.from("career_dna_leads").insert({
+          phone: cleaned,
+          source: src,
+          source_id: sid,
+          consent_marketing: consentMarketing === true,
+        });
+        if (leadErr) return jsonResponse({ error: "Failed to save" }, 500);
+        return jsonResponse({ ok: true });
+      }
+
       case "career-dna/squad/create": {
         if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
         const { resultId } = body as { resultId?: string };
@@ -3030,10 +3094,11 @@ Analyze and return the structured response.`;
         const { data: members } = await supabase.from("career_dna_squad_members").select("result_id").eq("squad_id", sid);
         const resultIds = ((members ?? []) as Array<{ result_id: string }>).map((m) => m.result_id);
         if (resultIds.length === 0) return jsonResponse({ slug, results: [] });
-        const { data: results } = await supabase.from("career_dna_results").select("*").in("id", resultIds).order("created_at", { ascending: true });
+        const { data: results } = await supabase.from("career_dna_results").select("*").in("id", resultIds).order("match_score", { ascending: false });
         const formatted = (results ?? []).map((r: Record<string, unknown>) => ({
           resultId: r.id,
           matchScore: r.match_score,
+          displayName: r.display_name ?? null,
           personalityArchetype: r.personality_archetype,
           archetypeDescription: r.archetype_description,
           superpower: r.superpower,
@@ -3410,6 +3475,988 @@ Skills: ${skillList.join(", ")}
         const { error: updateErr } = await supabase.auth.admin.updateUserById(user!.id, { password: newPassword });
         if (updateErr) return jsonResponse({ error: updateErr.message }, 400);
         return jsonResponse({ success: true });
+      }
+
+      case "admin/users": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const search = url.searchParams.get("search") ?? "";
+          const role = url.searchParams.get("role") ?? "";
+          const tier = url.searchParams.get("tier") ?? "";
+          const status = url.searchParams.get("status") ?? "";
+          const startDate = url.searchParams.get("start_date") ?? "";
+          const endDate = url.searchParams.get("end_date") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
+          let query = supabase
+            .from("profiles")
+            .select("*, subscriptions(tier, status)", { count: "exact" });
+          
+          if (search) {
+            query = query.or(`display_name.ilike.%${search}%,email.ilike.%${search}%`);
+          }
+          if (role) {
+            query = query.eq("role", role);
+          }
+          if (startDate) {
+            query = query.gte("created_at", startDate);
+          }
+          if (endDate) {
+            query = query.lte("created_at", endDate);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
+          if (error) throw error;
+          
+          let filtered = data ?? [];
+          if (tier) {
+            filtered = filtered.filter((p: any) => p.subscriptions?.[0]?.tier === tier);
+          }
+          if (status) {
+            filtered = filtered.filter((p: any) => p.subscriptions?.[0]?.status === status);
+          }
+          
+          await logAdminAction(supabase, user!.id, "list_users", "users", undefined, { filters: { search, role, tier, status } }, req);
+          
+          return jsonResponse({
+            users: filtered,
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/stats": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { count: totalUsers } = await supabase.from("profiles").select("*", { count: "exact", head: true });
+          const { count: freeUsers } = await supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("tier", "free");
+          const { count: premiumUsers } = await supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("tier", "premium");
+          const { count: proUsers } = await supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("tier", "pro");
+          
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const { count: newUsers } = await supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString());
+          
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const { count: activeUsers } = await supabase
+            .from("study_activity")
+            .select("user_id", { count: "exact", head: true })
+            .gte("activity_date", sevenDaysAgo.toISOString().split("T")[0]);
+          
+          await logAdminAction(supabase, user!.id, "view_user_stats", "users", undefined, {}, req);
+          
+          return jsonResponse({
+            total: totalUsers ?? 0,
+            byTier: { free: freeUsers ?? 0, premium: premiumUsers ?? 0, pro: proUsers ?? 0 },
+            newUsersLast30Days: newUsers ?? 0,
+            activeUsersLast7Days: activeUsers ?? 0,
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/id": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const userId = pathSegments[2];
+        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        
+        if (req.method === "GET") {
+          const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", userId).single();
+          if (!profile) return jsonResponse({ error: "User not found" }, 404);
+          
+          const { data: subscription } = await supabase.from("subscriptions").select("*").eq("user_id", userId).single();
+          const { data: roadmaps } = await supabase.from("roadmaps").select("id, title, created_at, progress_percentage").eq("user_id", userId).order("created_at", { ascending: false });
+          const { data: activity } = await supabase.from("study_activity").select("*").eq("user_id", userId).order("activity_date", { ascending: false }).limit(50);
+          
+          await logAdminAction(supabase, user!.id, "view_user", "users", userId, {}, req);
+          
+          return jsonResponse({ profile, subscription, roadmaps: roadmaps ?? [], activity: activity ?? [] });
+        }
+        
+        if (req.method === "PATCH") {
+          const updates = body as Record<string, unknown>;
+          const allowedFields = ["display_name", "email", "role", "job_title", "target_career", "experience_level", "industry", "skills", "learning_style", "weekly_hours", "budget", "preferred_language", "onboarding_completed", "location", "job_work_preference", "find_jobs_enabled", "linkedin_url", "twitter_url", "github_url", "phone"];
+          const updatePayload: Record<string, unknown> = {};
+          
+          for (const field of allowedFields) {
+            if (field in updates) {
+              updatePayload[field] = updates[field];
+            }
+          }
+          
+          const { data, error } = await supabase.from("profiles").update(updatePayload).eq("user_id", userId).select().single();
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "update_user", "users", userId, { fields: Object.keys(updatePayload) }, req);
+          
+          return jsonResponse(data);
+        }
+        
+        if (req.method === "DELETE") {
+          const { cascade } = body as { cascade?: boolean };
+          
+          if (cascade) {
+            await supabase.from("chat_history").delete().eq("user_id", userId);
+            const { data: weekRows } = await supabase.from("roadmap_weeks").select("id").eq("user_id", userId);
+            for (const w of weekRows ?? []) {
+              await supabase.from("quiz_results").delete().eq("roadmap_week_id", (w as { id: string }).id);
+              await supabase.from("course_recommendations").delete().eq("roadmap_week_id", (w as { id: string }).id);
+            }
+            await supabase.from("roadmap_weeks").delete().eq("user_id", userId);
+            await supabase.from("roadmaps").delete().eq("user_id", userId);
+          }
+          
+          await supabase.from("subscriptions").delete().eq("user_id", userId);
+          await supabase.from("profiles").delete().eq("user_id", userId);
+          await supabase.auth.admin.deleteUser(userId);
+          
+          await logAdminAction(supabase, user!.id, "delete_user", "users", userId, { cascade: !!cascade }, req);
+          
+          return jsonResponse({ success: true });
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/impersonate": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "POST") {
+          const userId = pathSegments[2];
+          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          
+          const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+          if (!authUser.user) return jsonResponse({ error: "User not found" }, 404);
+          
+          const { data: session } = await supabase.auth.admin.generateLink({
+            type: "magiclink",
+            email: authUser.user.email ?? "",
+          });
+          
+          await logAdminAction(supabase, user!.id, "impersonate_user", "users", userId, {}, req);
+          
+          return jsonResponse({ impersonationLink: session.properties?.action_link });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/ban": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "POST") {
+          const userId = pathSegments[2];
+          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          const { banned } = body as { banned?: boolean };
+          
+          if (banned === true) {
+            await supabase.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
+            await logAdminAction(supabase, user!.id, "ban_user", "users", userId, {}, req);
+          } else {
+            await supabase.auth.admin.updateUserById(userId, { ban_duration: "none" });
+            await logAdminAction(supabase, user!.id, "unban_user", "users", userId, {}, req);
+          }
+          
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const tier = url.searchParams.get("tier") ?? "";
+          const status = url.searchParams.get("status") ?? "";
+          const startDate = url.searchParams.get("start_date") ?? "";
+          const endDate = url.searchParams.get("end_date") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
+          let query = supabase
+            .from("subscriptions")
+            .select("*, profiles(display_name, email)", { count: "exact" });
+          
+          if (tier) query = query.eq("tier", tier);
+          if (status) query = query.eq("status", status);
+          if (startDate) query = query.gte("created_at", startDate);
+          if (endDate) query = query.lte("created_at", endDate);
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "list_subscriptions", "subscriptions", undefined, { filters: { tier, status } }, req);
+          
+          return jsonResponse({
+            subscriptions: data ?? [],
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/revenue": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data: premiumSubs } = await supabase.from("subscriptions").select("*").eq("tier", "premium").eq("status", "active");
+          const { data: proSubs } = await supabase.from("subscriptions").select("*").eq("tier", "pro").eq("status", "active");
+          
+          const premiumMonthly = 9.99;
+          const premiumYearly = 99.99;
+          const proMonthly = 19.99;
+          const proYearly = 199.99;
+          
+          let mrr = 0;
+          for (const sub of [...(premiumSubs ?? []), ...(proSubs ?? [])]) {
+            const periodEnd = sub.current_period_end ? new Date(sub.current_period_end) : null;
+            const periodStart = sub.current_period_start ? new Date(sub.current_period_start) : null;
+            if (periodEnd && periodStart) {
+              const daysDiff = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
+              const isYearly = daysDiff > 300;
+              if (sub.tier === "premium") {
+                mrr += isYearly ? premiumYearly / 12 : premiumMonthly;
+              } else if (sub.tier === "pro") {
+                mrr += isYearly ? proYearly / 12 : proMonthly;
+              }
+            }
+          }
+          
+          const arr = mrr * 12;
+          
+          await logAdminAction(supabase, user!.id, "view_revenue", "subscriptions", undefined, {}, req);
+          
+          return jsonResponse({
+            mrr: Math.round(mrr * 100) / 100,
+            arr: Math.round(arr * 100) / 100,
+            activeSubscriptions: (premiumSubs?.length ?? 0) + (proSubs?.length ?? 0),
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/id": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const subscriptionId = pathSegments[2];
+        if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) return jsonResponse({ error: "Invalid subscription ID" }, 400);
+        
+        if (req.method === "GET") {
+          const { data, error } = await supabase.from("subscriptions").select("*, profiles(*)").eq("id", subscriptionId).single();
+          if (error) throw error;
+          if (!data) return jsonResponse({ error: "Subscription not found" }, 404);
+          
+          await logAdminAction(supabase, user!.id, "view_subscription", "subscriptions", subscriptionId, {}, req);
+          
+          return jsonResponse(data);
+        }
+        
+        if (req.method === "PATCH") {
+          const updates = body as Record<string, unknown>;
+          const allowedFields = ["tier", "status", "current_period_start", "current_period_end"];
+          const updatePayload: Record<string, unknown> = {};
+          
+          for (const field of allowedFields) {
+            if (field in updates) {
+              updatePayload[field] = updates[field];
+            }
+          }
+          
+          const { data, error } = await supabase.from("subscriptions").update(updatePayload).eq("id", subscriptionId).select().single();
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "update_subscription", "subscriptions", subscriptionId, { fields: Object.keys(updatePayload) }, req);
+          
+          return jsonResponse(data);
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/analytics": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const startDate = url.searchParams.get("start_date");
+          const endDate = url.searchParams.get("end_date");
+          
+          const { count: totalUsers } = await supabase.from("profiles").select("*", { count: "exact", head: true });
+          const { count: activeSubs } = await supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "active").neq("tier", "free");
+          
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const { count: newUsers } = await supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo.toISOString());
+          
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          const { count: dau } = await supabase.from("study_activity").select("user_id", { count: "exact", head: true }).gte("activity_date", sevenDaysAgo.toISOString().split("T")[0]);
+          
+          const { count: totalRoadmaps } = await supabase.from("roadmaps").select("*", { count: "exact", head: true });
+          const { count: totalChatMessages } = await supabase.from("chat_history").select("*", { count: "exact", head: true }).eq("role", "user");
+          
+          // Time-series data for charts (last 30 days)
+          const timeSeriesStart = new Date();
+          timeSeriesStart.setDate(timeSeriesStart.getDate() - 30);
+          timeSeriesStart.setHours(0, 0, 0, 0);
+          
+          // Daily user signups
+          const { data: profilesData } = await supabase
+            .from("profiles")
+            .select("created_at")
+            .gte("created_at", timeSeriesStart.toISOString())
+            .order("created_at", { ascending: true });
+          
+          const dailySignups: Record<string, number> = {};
+          const dailyActiveUsers: Record<string, Set<string>> = {};
+          const dailyRevenue: Record<string, number> = {};
+          
+          // Initialize last 30 days
+          for (let i = 0; i < 30; i++) {
+            const date = new Date(timeSeriesStart);
+            date.setDate(date.getDate() + i);
+            const dateStr = date.toISOString().split("T")[0];
+            dailySignups[dateStr] = 0;
+            dailyActiveUsers[dateStr] = new Set();
+            dailyRevenue[dateStr] = 0;
+          }
+          
+          // Aggregate signups by date
+          if (profilesData) {
+            for (const profile of profilesData) {
+              const dateStr = (profile.created_at as string).split("T")[0];
+              if (dailySignups[dateStr] !== undefined) {
+                dailySignups[dateStr]++;
+              }
+            }
+          }
+          
+          // Daily active users from study_activity
+          const { data: activityData } = await supabase
+            .from("study_activity")
+            .select("user_id, activity_date")
+            .gte("activity_date", timeSeriesStart.toISOString().split("T")[0]);
+          
+          if (activityData) {
+            for (const activity of activityData) {
+              const dateStr = activity.activity_date as string;
+              if (dailyActiveUsers[dateStr]) {
+                dailyActiveUsers[dateStr].add(activity.user_id as string);
+              }
+            }
+          }
+          
+          // Daily revenue (approximate from subscriptions)
+          const { data: subscriptionsData } = await supabase
+            .from("subscriptions")
+            .select("tier, status, current_period_start, current_period_end")
+            .eq("status", "active")
+            .neq("tier", "free");
+          
+          const premiumMonthly = 9.99;
+          const premiumYearly = 99.99;
+          const proMonthly = 19.99;
+          const proYearly = 199.99;
+          
+          if (subscriptionsData) {
+            for (const sub of subscriptionsData) {
+              const periodStart = sub.current_period_start ? new Date(sub.current_period_start) : null;
+              const periodEnd = sub.current_period_end ? new Date(sub.current_period_end) : null;
+              if (periodStart && periodEnd) {
+                const daysDiff = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
+                const isYearly = daysDiff > 300;
+                let dailyAmount = 0;
+                if (sub.tier === "premium") {
+                  dailyAmount = isYearly ? premiumYearly / 365 : premiumMonthly / 30;
+                } else if (sub.tier === "pro") {
+                  dailyAmount = isYearly ? proYearly / 365 : proMonthly / 30;
+                }
+                
+                // Distribute revenue across active days
+                const currentDate = new Date(Math.max(periodStart.getTime(), timeSeriesStart.getTime()));
+                const endDate = new Date(Math.min(periodEnd.getTime(), Date.now()));
+                while (currentDate <= endDate) {
+                  const dateStr = currentDate.toISOString().split("T")[0];
+                  if (dailyRevenue[dateStr] !== undefined) {
+                    dailyRevenue[dateStr] += dailyAmount;
+                  }
+                  currentDate.setDate(currentDate.getDate() + 1);
+                }
+              }
+            }
+          }
+          
+          // Convert to arrays for charts
+          const userGrowthData = Object.keys(dailySignups)
+            .sort()
+            .map((date) => ({ date, value: dailySignups[date] }));
+          
+          const activeUsersData = Object.keys(dailyActiveUsers)
+            .sort()
+            .map((date) => ({ date, value: dailyActiveUsers[date].size }));
+          
+          const revenueData = Object.keys(dailyRevenue)
+            .sort()
+            .map((date) => ({ date, value: Math.round(dailyRevenue[date] * 100) / 100 }));
+          
+          // Subscription distribution
+          const { data: tierData } = await supabase
+            .from("subscriptions")
+            .select("tier")
+            .eq("status", "active");
+          
+          const tierDistribution: Record<string, number> = { free: 0, premium: 0, pro: 0 };
+          if (tierData) {
+            for (const sub of tierData) {
+              const tier = (sub.tier as string) || "free";
+              tierDistribution[tier] = (tierDistribution[tier] || 0) + 1;
+            }
+          }
+          
+          await logAdminAction(supabase, user!.id, "view_analytics", "analytics", undefined, {}, req);
+          
+          return jsonResponse({
+            users: { total: totalUsers ?? 0, newLast30Days: newUsers ?? 0, dau: dau ?? 0 },
+            subscriptions: { active: activeSubs ?? 0, distribution: tierDistribution },
+            content: { roadmaps: totalRoadmaps ?? 0, chatMessages: totalChatMessages ?? 0 },
+            timeSeries: {
+              userGrowth: userGrowthData,
+              activeUsers: activeUsersData,
+              revenue: revenueData,
+            },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/analytics/insights": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          // Get current week start (Monday)
+          const now = new Date();
+          const currentWeekStart = new Date(now);
+          currentWeekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // Monday
+          currentWeekStart.setHours(0, 0, 0, 0);
+          
+          // Get previous week start
+          const previousWeekStart = new Date(currentWeekStart);
+          previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+          
+          const currentWeekEnd = new Date(currentWeekStart);
+          currentWeekEnd.setDate(currentWeekEnd.getDate() + 7);
+          
+          const previousWeekEnd = new Date(previousWeekStart);
+          previousWeekEnd.setDate(previousWeekEnd.getDate() + 7);
+          
+          const weekStartStr = currentWeekStart.toISOString().split("T")[0];
+          
+          // Check cache
+          const { data: cached } = await supabase
+            .from("admin_insights_cache")
+            .select("*")
+            .eq("week_start", weekStartStr)
+            .gt("expires_at", new Date().toISOString())
+            .single();
+          
+          if (cached) {
+            await logAdminAction(supabase, user!.id, "view_insights", "analytics", undefined, { cached: true }, req);
+            return jsonResponse({ insights: cached.insights, cached: true });
+          }
+          
+          // Fetch current week metrics
+          const { count: currentNewUsers } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", currentWeekStart.toISOString())
+            .lt("created_at", currentWeekEnd.toISOString());
+          
+          const { count: currentActiveUsers } = await supabase
+            .from("study_activity")
+            .select("user_id", { count: "exact", head: true })
+            .gte("activity_date", weekStartStr)
+            .lt("activity_date", currentWeekEnd.toISOString().split("T")[0]);
+          
+          const { data: currentSubs } = await supabase
+            .from("subscriptions")
+            .select("tier, status")
+            .eq("status", "active")
+            .neq("tier", "free");
+          
+          const { count: currentRoadmaps } = await supabase
+            .from("roadmaps")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", currentWeekStart.toISOString())
+            .lt("created_at", currentWeekEnd.toISOString());
+          
+          const { count: currentChatMessages } = await supabase
+            .from("chat_history")
+            .select("*", { count: "exact", head: true })
+            .eq("role", "user")
+            .gte("created_at", currentWeekStart.toISOString())
+            .lt("created_at", currentWeekEnd.toISOString());
+          
+          // Calculate current week revenue
+          let currentRevenue = 0;
+          if (currentSubs) {
+            const premiumMonthly = 9.99;
+            const premiumYearly = 99.99;
+            const proMonthly = 19.99;
+            const proYearly = 199.99;
+            for (const sub of currentSubs) {
+              if (sub.tier === "premium") currentRevenue += premiumMonthly;
+              else if (sub.tier === "pro") currentRevenue += proMonthly;
+            }
+          }
+          
+          // Fetch previous week metrics
+          const { count: prevNewUsers } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", previousWeekStart.toISOString())
+            .lt("created_at", previousWeekEnd.toISOString());
+          
+          const { count: prevActiveUsers } = await supabase
+            .from("study_activity")
+            .select("user_id", { count: "exact", head: true })
+            .gte("activity_date", previousWeekStart.toISOString().split("T")[0])
+            .lt("activity_date", previousWeekEnd.toISOString().split("T")[0]);
+          
+          const { count: prevRoadmaps } = await supabase
+            .from("roadmaps")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", previousWeekStart.toISOString())
+            .lt("created_at", previousWeekEnd.toISOString());
+          
+          const { count: prevChatMessages } = await supabase
+            .from("chat_history")
+            .select("*", { count: "exact", head: true })
+            .eq("role", "user")
+            .gte("created_at", previousWeekStart.toISOString())
+            .lt("created_at", previousWeekEnd.toISOString());
+          
+          // Calculate previous week revenue (approximate)
+          const { data: prevSubs } = await supabase
+            .from("subscriptions")
+            .select("tier, status")
+            .eq("status", "active")
+            .neq("tier", "free");
+          
+          let prevRevenue = 0;
+          if (prevSubs) {
+            const premiumMonthly = 9.99;
+            const proMonthly = 19.99;
+            for (const sub of prevSubs) {
+              if (sub.tier === "premium") prevRevenue += premiumMonthly;
+              else if (sub.tier === "pro") prevRevenue += proMonthly;
+            }
+          }
+          
+          // Build prompt for Gemini Flash
+          const metricsPrompt = `Analyze the following platform metrics and provide insights:
+
+Current Week (${weekStartStr}):
+- New users: ${currentNewUsers ?? 0}
+- Active users: ${currentActiveUsers ?? 0}
+- Revenue: $${currentRevenue.toFixed(2)}
+- Roadmaps created: ${currentRoadmaps ?? 0}
+- Chat messages: ${currentChatMessages ?? 0}
+- Active subscriptions: ${currentSubs?.length ?? 0}
+
+Previous Week:
+- New users: ${prevNewUsers ?? 0}
+- Active users: ${prevActiveUsers ?? 0}
+- Revenue: $${prevRevenue.toFixed(2)}
+- Roadmaps created: ${prevRoadmaps ?? 0}
+- Chat messages: ${prevChatMessages ?? 0}
+
+Provide a JSON response with:
+1. key_insights: array of 3-5 key insights (strings)
+2. trends: object with user_growth, revenue, engagement (each: "up", "down", or "stable")
+3. recommendations: array of objects with priority ("high", "medium", "low"), action (string), impact (string)
+4. alerts: array of objects with severity ("critical", "warning", "info"), message (string)
+5. metrics_summary: object with week_over_week_growth (number), top_performing_feature (string), area_needing_attention (string)
+
+Be concise and actionable. Focus on what matters most for platform growth and user engagement.`;
+          
+          const config = getGeminiConfig();
+          if (!config) {
+            return jsonResponse({ error: "AI not configured" }, 500);
+          }
+          
+          const insightsSchema = {
+            type: "object",
+            properties: {
+              key_insights: {
+                type: "array",
+                items: { type: "string" },
+                description: "3-5 key insights about the week",
+              },
+              trends: {
+                type: "object",
+                properties: {
+                  user_growth: { type: "string", enum: ["up", "down", "stable"] },
+                  revenue: { type: "string", enum: ["up", "down", "stable"] },
+                  engagement: { type: "string", enum: ["up", "down", "stable"] },
+                },
+                required: ["user_growth", "revenue", "engagement"],
+              },
+              recommendations: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    priority: { type: "string", enum: ["high", "medium", "low"] },
+                    action: { type: "string" },
+                    impact: { type: "string" },
+                  },
+                  required: ["priority", "action", "impact"],
+                },
+              },
+              alerts: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    severity: { type: "string", enum: ["critical", "warning", "info"] },
+                    message: { type: "string" },
+                  },
+                  required: ["severity", "message"],
+                },
+              },
+              metrics_summary: {
+                type: "object",
+                properties: {
+                  week_over_week_growth: { type: "number" },
+                  top_performing_feature: { type: "string" },
+                  area_needing_attention: { type: "string" },
+                },
+                required: ["week_over_week_growth", "top_performing_feature", "area_needing_attention"],
+              },
+            },
+            required: ["key_insights", "trends", "recommendations", "alerts", "metrics_summary"],
+          };
+          
+          try {
+            const genUrl = getGeminiGenerateContentUrl(config.model);
+            const aiRes = await geminiFetchWithRetry(genUrl, {
+              method: "POST",
+              headers: getGeminiHeaders(config.apiKey),
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: metricsPrompt }] }],
+                generationConfig: {
+                  thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+                  temperature: 0.7,
+                  maxOutputTokens: 2048,
+                  responseMimeType: "application/json",
+                  responseJsonSchema: insightsSchema,
+                },
+              }),
+            });
+            
+            if (!aiRes.ok) {
+              console.error("Gemini insights error:", aiRes.status);
+              return jsonResponse({ error: "Failed to generate insights" }, 500);
+            }
+            
+            const aiJson = (await aiRes.json()) as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+              usageMetadata?: unknown;
+            };
+            
+            logGeminiUsage(aiJson.usageMetadata, "admin/analytics/insights");
+            
+            const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+            const jsonText = parts.map((p) => p.text ?? "").join("").trim();
+            
+            if (!jsonText) {
+              return jsonResponse({ error: "Invalid AI response" }, 500);
+            }
+            
+            let insights: Record<string, unknown>;
+            try {
+              insights = JSON.parse(jsonText) as Record<string, unknown>;
+            } catch {
+              return jsonResponse({ error: "Failed to parse insights" }, 500);
+            }
+            
+            // Cache insights for 1 hour
+            const expiresAt = new Date();
+            expiresAt.setHours(expiresAt.getHours() + 1);
+            
+            await supabase.from("admin_insights_cache").upsert(
+              {
+                week_start: weekStartStr,
+                insights: insights,
+                expires_at: expiresAt.toISOString(),
+              },
+              { onConflict: "week_start" }
+            );
+            
+            await logAdminAction(supabase, user!.id, "view_insights", "analytics", undefined, { cached: false }, req);
+            
+            return jsonResponse({ insights, cached: false });
+          } catch (error) {
+            console.error("Insights generation error:", error);
+            return jsonResponse({ error: "Failed to generate insights" }, 500);
+          }
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/content/roadmaps": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const search = url.searchParams.get("search") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
+          let query = supabase.from("roadmaps").select("*, profiles(display_name, email)", { count: "exact" });
+          
+          if (search) {
+            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "list_roadmaps", "roadmaps", undefined, { search }, req);
+          
+          return jsonResponse({
+            roadmaps: data ?? [],
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/content/roadmaps/id": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const roadmapId = pathSegments[3];
+        if (!roadmapId || !UUID_REGEX.test(roadmapId)) return jsonResponse({ error: "Invalid roadmap ID" }, 400);
+        
+        if (req.method === "DELETE") {
+          await supabase.from("roadmaps").delete().eq("id", roadmapId);
+          
+          await logAdminAction(supabase, user!.id, "delete_roadmap", "roadmaps", roadmapId, {}, req);
+          
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/content/chat": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const userId = url.searchParams.get("user_id");
+          const search = url.searchParams.get("search") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
+          let query = supabase.from("chat_history").select("*, profiles(display_name, email)", { count: "exact" });
+          
+          if (userId && UUID_REGEX.test(userId)) {
+            query = query.eq("user_id", userId);
+          }
+          if (search) {
+            query = query.ilike("content", `%${search}%`);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "list_chat", "chat_history", undefined, { userId, search }, req);
+          
+          return jsonResponse({
+            messages: data ?? [],
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/content/chat/id": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const messageId = pathSegments[3];
+        if (!messageId || !UUID_REGEX.test(messageId)) return jsonResponse({ error: "Invalid message ID" }, 400);
+        
+        if (req.method === "DELETE") {
+          await supabase.from("chat_history").delete().eq("id", messageId);
+          
+          await logAdminAction(supabase, user!.id, "delete_chat_message", "chat_history", messageId, {}, req);
+          
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/content/community": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data: groups } = await supabase.from("study_groups").select("*, profiles(display_name)").order("created_at", { ascending: false }).limit(100);
+          const { data: messages } = await supabase.from("chat_messages").select("*, profiles(display_name)").order("created_at", { ascending: false }).limit(100);
+          
+          await logAdminAction(supabase, user!.id, "view_community", "community", undefined, {}, req);
+          
+          return jsonResponse({ groups: groups ?? [], messages: messages ?? [] });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/settings": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data, error } = await supabase.from("admin_settings").select("*");
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "view_settings", "settings", undefined, {}, req);
+          
+          return jsonResponse({ settings: data ?? [] });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/settings/key": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const key = pathSegments[2];
+        if (!key) return jsonResponse({ error: "Setting key required" }, 400);
+        
+        if (req.method === "PATCH") {
+          const { value, description } = body as { value?: unknown; description?: string };
+          if (value === undefined) return jsonResponse({ error: "Value required" }, 400);
+          
+          const { data, error } = await supabase
+            .from("admin_settings")
+            .upsert({ key, value: value as Record<string, unknown>, description, updated_by: user!.id }, { onConflict: "key" })
+            .select()
+            .single();
+          
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "update_setting", "settings", key, { value }, req);
+          
+          return jsonResponse(data);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/settings/feature-flags": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data } = await supabase.from("admin_settings").select("value").eq("key", "feature_flags").single();
+          await logAdminAction(supabase, user!.id, "view_feature_flags", "settings", undefined, {}, req);
+          return jsonResponse({ featureFlags: (data?.value as Record<string, unknown>) ?? {} });
+        }
+        
+        if (req.method === "PATCH") {
+          const { featureFlags } = body as { featureFlags?: Record<string, unknown> };
+          if (!featureFlags) return jsonResponse({ error: "featureFlags required" }, 400);
+          
+          const { data, error } = await supabase
+            .from("admin_settings")
+            .upsert({ key: "feature_flags", value: featureFlags, updated_by: user!.id }, { onConflict: "key" })
+            .select()
+            .single();
+          
+          if (error) throw error;
+          
+          await logAdminAction(supabase, user!.id, "update_feature_flags", "settings", undefined, { featureFlags }, req);
+          
+          return jsonResponse(data);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/audit-log": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const adminUserId = url.searchParams.get("admin_user_id");
+          const action = url.searchParams.get("action") ?? "";
+          const resourceType = url.searchParams.get("resource_type") ?? "";
+          const startDate = url.searchParams.get("start_date") ?? "";
+          const endDate = url.searchParams.get("end_date") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
+          let query = supabase.from("admin_audit_log").select("*, profiles(display_name, email)", { count: "exact" });
+          
+          if (adminUserId && UUID_REGEX.test(adminUserId)) {
+            query = query.eq("admin_user_id", adminUserId);
+          }
+          if (action) {
+            query = query.eq("action", action);
+          }
+          if (resourceType) {
+            query = query.eq("resource_type", resourceType);
+          }
+          if (startDate) {
+            query = query.gte("created_at", startDate);
+          }
+          if (endDate) {
+            query = query.lte("created_at", endDate);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
+          if (error) throw error;
+          
+          return jsonResponse({
+            logs: data ?? [],
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
       }
 
       case "admin/batch": {

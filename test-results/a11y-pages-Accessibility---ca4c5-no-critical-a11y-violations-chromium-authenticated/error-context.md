@@ -1,0 +1,189 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: ا
+  - generic [ref=e3]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - banner [ref=e5]:
+        - navigation [ref=e6]:
+          - link "Shyftcut Shyftcut" [ref=e7] [cursor=pointer]:
+            - /url: /
+            - img "Shyftcut" [ref=e8]
+            - generic [ref=e9]: Shyftcut
+          - generic [ref=e10]:
+            - link "Home" [ref=e11] [cursor=pointer]:
+              - /url: /
+            - link "Pricing" [ref=e12] [cursor=pointer]:
+              - /url: /pricing
+            - link "Blog" [ref=e13] [cursor=pointer]:
+              - /url: /blog
+          - generic [ref=e14]:
+            - button "Toggle theme" [ref=e15] [cursor=pointer]:
+              - img
+              - generic [ref=e16]: Toggle theme
+            - button "Toggle language" [ref=e17] [cursor=pointer]:
+              - img
+            - generic [ref=e18]:
+              - link "Login" [ref=e19] [cursor=pointer]:
+                - /url: /login
+              - link "Sign Up" [ref=e20] [cursor=pointer]:
+                - /url: /signup
+      - main [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e26]:
+            - link "Back to Home" [ref=e27] [cursor=pointer]:
+              - /url: /
+              - img
+              - text: Back to Home
+            - img [ref=e29]
+            - heading "Get in Touch" [level=1] [ref=e31]
+            - paragraph [ref=e32]: Have a question or feedback? We'd love to hear from you. Our team is ready to help.
+          - generic [ref=e35]:
+            - generic [ref=e38]:
+              - img [ref=e39]
+              - heading "Email Us" [level=3] [ref=e42]
+              - link "support@shyftcut.com" [ref=e43] [cursor=pointer]:
+                - /url: mailto:support@shyftcut.com
+            - generic [ref=e46]:
+              - img [ref=e47]
+              - heading "Response Time" [level=3] [ref=e50]
+              - paragraph [ref=e51]: Usually within 24 hours
+            - generic [ref=e54]:
+              - img [ref=e55]
+              - heading "Location" [level=3] [ref=e58]
+              - paragraph [ref=e59]: Remote team, Global
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - heading "Send Us a Message" [level=2] [ref=e64]
+              - generic [ref=e65]:
+                - generic [ref=e66]:
+                  - generic [ref=e67]:
+                    - text: Name
+                    - textbox "Name" [ref=e68]:
+                      - /placeholder: Full name
+                  - generic [ref=e69]:
+                    - text: Email
+                    - textbox "Email" [ref=e70]:
+                      - /placeholder: you@example.com
+                - generic [ref=e71]:
+                  - generic [ref=e72]:
+                    - text: Phone
+                    - textbox "Phone" [ref=e73]:
+                      - /placeholder: Optional
+                  - generic [ref=e74]:
+                    - text: Company
+                    - textbox "Company" [ref=e75]:
+                      - /placeholder: Optional
+                - generic [ref=e76]:
+                  - text: Topic
+                  - combobox "Topic" [ref=e77] [cursor=pointer]:
+                    - generic: General inquiry
+                    - img [ref=e78]
+                  - combobox [ref=e80]
+                - generic [ref=e81]:
+                  - text: Subject
+                  - textbox "Subject" [ref=e82]:
+                    - /placeholder: Brief summary of your message
+                - generic [ref=e83]:
+                  - text: Message
+                  - textbox "Message" [ref=e84]:
+                    - /placeholder: Write your message here...
+                - button "Send Message" [ref=e85] [cursor=pointer]:
+                  - img
+                  - text: Send Message
+            - generic [ref=e86]:
+              - generic [ref=e87]:
+                - img [ref=e88]
+                - heading "Frequently Asked Questions" [level=2] [ref=e91]
+              - generic [ref=e92]:
+                - heading "How does the AI roadmap work?" [level=3] [ref=e94]:
+                  - button "How does the AI roadmap work?" [ref=e95] [cursor=pointer]:
+                    - text: How does the AI roadmap work?
+                    - img [ref=e96]
+                - heading "Can I cancel my subscription anytime?" [level=3] [ref=e99]:
+                  - button "Can I cancel my subscription anytime?" [ref=e100] [cursor=pointer]:
+                    - text: Can I cancel my subscription anytime?
+                    - img [ref=e101]
+                - heading "Is there a free trial?" [level=3] [ref=e104]:
+                  - button "Is there a free trial?" [ref=e105] [cursor=pointer]:
+                    - text: Is there a free trial?
+                    - img [ref=e106]
+                - heading "How accurate are the course recommendations?" [level=3] [ref=e109]:
+                  - button "How accurate are the course recommendations?" [ref=e110] [cursor=pointer]:
+                    - text: How accurate are the course recommendations?
+                    - img [ref=e111]
+      - contentinfo [ref=e113]:
+        - generic [ref=e114]:
+          - generic [ref=e115]:
+            - generic [ref=e116]:
+              - heading "Stay Connected" [level=2] [ref=e117]
+              - paragraph [ref=e118]: Join our newsletter for the latest updates and career tips.
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - paragraph [ref=e122]: Newsletter
+                  - paragraph [ref=e123]: Join 5,000+ subscribers. Career tips and Shyftcut updates.
+                - generic [ref=e124]:
+                  - textbox "Enter your email" [ref=e125]
+                  - button "Subscribe" [ref=e126] [cursor=pointer]:
+                    - img
+                    - generic [ref=e127]: Subscribe
+            - navigation "Product" [ref=e129]:
+              - heading "Product" [level=3] [ref=e130]
+              - list [ref=e131]:
+                - listitem [ref=e132]:
+                  - link "Pricing" [ref=e133] [cursor=pointer]:
+                    - /url: /pricing
+                - listitem [ref=e134]:
+                  - link "Roadmap" [ref=e135] [cursor=pointer]:
+                    - /url: /roadmap
+                - listitem [ref=e136]:
+                  - link "Courses" [ref=e137] [cursor=pointer]:
+                    - /url: /courses
+                - listitem [ref=e138]:
+                  - link "AI Coach" [ref=e139] [cursor=pointer]:
+                    - /url: /chat
+            - navigation "Company" [ref=e141]:
+              - heading "Company" [level=3] [ref=e142]
+              - list [ref=e143]:
+                - listitem [ref=e144]:
+                  - link "About" [ref=e145] [cursor=pointer]:
+                    - /url: /about
+                - listitem [ref=e146]:
+                  - link "Blog" [ref=e147] [cursor=pointer]:
+                    - /url: /blog
+                - listitem [ref=e148]:
+                  - link "Contact" [ref=e149] [cursor=pointer]:
+                    - /url: /contact
+            - generic [ref=e150]:
+              - heading "Follow Us" [level=3] [ref=e151]
+              - generic [ref=e152]:
+                - link "Instagram" [ref=e153] [cursor=pointer]:
+                  - /url: https://www.instagram.com/shyftcut
+                  - img
+                - link "Facebook" [ref=e154] [cursor=pointer]:
+                  - /url: https://www.facebook.com/shyftcut/
+                  - img
+                - link "LinkedIn" [ref=e155] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/shyftcut/
+                  - img
+              - generic [ref=e156]:
+                - img [ref=e157]
+                - switch "Toggle dark mode" [ref=e163] [cursor=pointer]
+                - img [ref=e164]
+                - generic [ref=e166]: Toggle dark mode
+          - generic [ref=e167]:
+            - paragraph [ref=e168]: © 2026 Shyftcut. All rights reserved.
+            - navigation "Legal links" [ref=e169]:
+              - link "Privacy Policy" [ref=e170] [cursor=pointer]:
+                - /url: /privacy
+              - link "Terms of Service" [ref=e171] [cursor=pointer]:
+                - /url: /terms
+              - link "Cookie Settings" [ref=e172] [cursor=pointer]:
+                - /url: /cookies
+              - link "A Frameless App" [ref=e173] [cursor=pointer]:
+                - /url: https://frameless.co
+```

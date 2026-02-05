@@ -2,14 +2,14 @@ import { motion } from 'framer-motion';
 
 /**
  * Organic morphing gradient blobs for hero background - 2026 style
- * Uses CSS border-radius animation for smooth morphing
+ * On mobile: single blob, reduced animation for better performance.
  */
 export function HeroBlobs() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-      {/* Large primary blob - morphing */}
+      {/* Large primary blob - morphing; slower on mobile for perf */}
       <motion.div
-        className="absolute left-[5%] top-[10%] h-[320px] w-[320px] md:h-[420px] md:w-[420px]"
+        className="absolute left-[5%] top-[10%] h-[200px] w-[200px] md:h-[420px] md:w-[420px] sm:h-[280px] sm:w-[280px]"
         animate={{
           borderRadius: [
             '60% 40% 30% 70% / 60% 30% 70% 40%',
@@ -20,7 +20,7 @@ export function HeroBlobs() {
           y: [0, -20, 0],
         }}
         transition={{
-          duration: 12,
+          duration: 18,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
@@ -29,9 +29,9 @@ export function HeroBlobs() {
           filter: 'blur(80px)',
         }}
       />
-      {/* Accent blob */}
+      {/* Accent blob - hidden on small mobile for perf */}
       <motion.div
-        className="absolute right-[0%] top-[35%] h-[280px] w-[280px] md:h-[360px] md:w-[360px]"
+        className="absolute right-[0%] top-[35%] hidden h-[280px] w-[280px] sm:block md:h-[360px] md:w-[360px]"
         animate={{
           borderRadius: [
             '40% 60% 60% 40% / 70% 30% 70% 30%',
@@ -51,9 +51,9 @@ export function HeroBlobs() {
           filter: 'blur(70px)',
         }}
       />
-      {/* Secondary glow - bottom */}
+      {/* Secondary glow - bottom; hidden on small mobile */}
       <motion.div
-        className="absolute bottom-[5%] left-[25%] h-[200px] w-[200px] md:h-[260px] md:w-[260px]"
+        className="absolute bottom-[5%] left-[25%] hidden h-[200px] w-[200px] sm:block md:h-[260px] md:w-[260px]"
         animate={{
           borderRadius: [
             '50% 50% 30% 70% / 50% 50% 50% 50%',

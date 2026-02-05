@@ -4,6 +4,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { AuthLayout } from '@/components/auth/AuthLayout';
+import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +24,7 @@ export default function ResetPassword() {
     () => typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
   );
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -68,7 +71,10 @@ export default function ResetPassword() {
     }
   };
 
-  const authTestimonials = getAuthTestimonials(language === 'ar' ? 'ar' : 'en');
+  const Layout = isMobile ? AuthLayoutMobile : AuthLayout;
+  const layoutProps = isMobile
+    ? {}
+    : { heroImageSrc: AUTH_HERO_IMAGE, testimonials: getAuthTestimonials(language === 'ar' ? 'ar' : 'en') };
 
   return (
     <div className="bg-background text-foreground min-h-[100dvh]">
@@ -77,7 +83,7 @@ export default function ResetPassword() {
         description={t('auth.resetPasswordSubtitle')}
         path="/reset-password"
       />
-      <AuthLayout heroImageSrc={AUTH_HERO_IMAGE} testimonials={authTestimonials}>
+      <Layout {...layoutProps}>
         <div className="flex flex-col gap-6">
           <h1 className="animate-element animate-delay-100 text-4xl md:text-5xl font-semibold leading-tight">
             <span className="font-light tracking-tighter">{t('auth.resetPasswordTitle')}</span>
@@ -189,7 +195,7 @@ export default function ResetPassword() {
             </Link>
           </p>
         </div>
-      </AuthLayout>
+      </Layout>
     </div>
   );
 }

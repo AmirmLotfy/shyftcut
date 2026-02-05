@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: ا
+  - generic [ref=e3]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - link "Shyftcut Home" [ref=e8] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e9]: Shyftcut
+        - generic [ref=e10]:
+          - heading "Welcome Back" [level=1] [ref=e11]
+          - paragraph [ref=e12]: Sign in to continue your career journey
+          - status [ref=e13]: If you signed up with Google, use the Google button above.
+          - tablist [ref=e15]:
+            - tab "Password" [selected] [ref=e16] [cursor=pointer]
+            - tab "Email link" [ref=e17] [cursor=pointer]:
+              - img [ref=e18]
+              - text: Email link
+          - generic [ref=e21]:
+            - generic [ref=e22]:
+              - text: Email
+              - textbox "Email" [ref=e24]:
+                - /placeholder: you@example.com
+            - generic [ref=e25]:
+              - generic [ref=e26]:
+                - generic [ref=e27]: Password
+                - link "Forgot password?" [ref=e28] [cursor=pointer]:
+                  - /url: /forgot-password
+              - generic [ref=e30]:
+                - textbox "Password" [ref=e31]:
+                  - /placeholder: ••••••••
+                - button "Show password" [ref=e32] [cursor=pointer]:
+                  - img [ref=e33]
+            - button "Sign In" [ref=e36] [cursor=pointer]
+          - generic [ref=e39]: or continue with
+          - button "Google" [ref=e40] [cursor=pointer]:
+            - img [ref=e41]
+            - text: Google
+          - paragraph [ref=e46]:
+            - text: Don't have an account?
+            - link "Sign Up" [ref=e47] [cursor=pointer]:
+              - /url: /signup
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - paragraph [ref=e53]: Sarah M.
+          - paragraph [ref=e54]: Product Manager → Tech Lead
+          - paragraph [ref=e55]: Shyftcut gave me a clear 12-week path when I felt completely lost. The AI coach answered my questions at 2 AM. Game changer.
+        - generic [ref=e58]:
+          - paragraph [ref=e59]: James K.
+          - paragraph [ref=e60]: Marketing → Data Analyst
+          - paragraph [ref=e61]: I went from marketing to data analytics in 12 weeks. The roadmap was spot-on and the quizzes kept me accountable.
+```

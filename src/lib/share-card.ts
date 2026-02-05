@@ -13,6 +13,7 @@ export async function captureShareCard(element: HTMLElement): Promise<Blob> {
     height: SHARE_CARD_HEIGHT,
     cacheBust: true,
     pixelRatio: 2,
+    skipFonts: true, // Avoid SecurityError: cannot access cssRules on cross-origin stylesheets (Google Fonts)
     style: {
       transform: 'scale(1)',
     },

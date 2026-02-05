@@ -16,10 +16,12 @@ import { useToast } from '@/hooks/use-toast';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
 import { CAREER_FIELDS, CAREER_FIELD_LABELS, QUIZ_QUESTIONS } from '@/data/career-dna-questions';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 export default function CareerDNA() {
   const [step, setStep] = useState(-1); // -1 = intro, 0-7 = questions
   const [isStudent, setIsStudent] = useState(false);
+  const [displayName, setDisplayName] = useState('');
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
@@ -68,6 +70,7 @@ export default function CareerDNA() {
           isStudent,
           language: language === 'ar' ? 'ar' : 'en',
           squadSlug,
+          displayName: displayName.trim() || undefined,
         }),
       });
       const text = await res.text();
@@ -106,7 +109,7 @@ export default function CareerDNA() {
     <Layout hideFooter={step >= 0}>
       <PublicPageMeta title={seo.title} description={seo.description} path="/career-dna" image={`${BASE_URL}/career-dna-og.png`} />
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-primary/5">
-        <div className="container mx-auto max-w-3xl px-4 py-6 sm:px-6 sm:py-8 md:py-12 lg:px-8 lg:py-16 xl:px-12">
+        <div className="container mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-8 md:py-12 lg:px-8 lg:py-16 xl:px-12 sm:pb-8">
           {/* Intro */}
           <AnimatePresence mode="wait">
             {step < 0 && (
@@ -115,45 +118,60 @@ export default function CareerDNA() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="mx-auto max-w-2xl text-center"
+                className="mx-auto max-w-2xl text-center px-1"
               >
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 sm:mb-8">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2.5 sm:mb-8">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium text-primary">{t('careerDna.badge')}</span>
                 </div>
-                <h1 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl lg:mb-6">
+                <h1 className="mb-3 text-2xl font-bold tracking-tight sm:mb-4 sm:text-4xl md:text-5xl lg:text-6xl lg:mb-6">
                   {t('careerDna.title')}
                 </h1>
-                <p className="mb-8 text-base text-muted-foreground sm:text-lg md:text-xl lg:mb-10">
+                <p className="mb-6 text-base text-muted-foreground sm:mb-8 sm:text-lg md:text-xl lg:mb-10">
                   {t('careerDna.subtitle')}
                 </p>
-                <div className="mb-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:mb-10">
+                {squadSlug && (
+                  <div className="mb-5 w-full max-w-sm sm:mb-6">
+                    <Label htmlFor="display-name" className="text-sm font-medium text-foreground">
+                      {t('careerDna.squad.nickname')}
+                    </Label>
+                    <Input
+                      id="display-name"
+                      type="text"
+                      placeholder={t('careerDna.squad.nicknamePlaceholder')}
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value.slice(0, 30))}
+                      className="mt-1.5"
+                    />
+                  </div>
+                )}
+                <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:mb-8 lg:mb-10">
                   <Label htmlFor="is-student" className="text-sm font-medium text-foreground sm:text-base">
                     {t('careerDna.iAmStudent')}
                   </Label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <Button
                       id="is-student"
                       variant={isStudent ? 'default' : 'outline'}
-                      size="sm"
-                      className="sm:px-4"
+                      size="default"
+                      className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
                       onClick={() => setIsStudent(true)}
                     >
                       {t('careerDna.yes')}
                     </Button>
                     <Button
                       variant={!isStudent ? 'default' : 'outline'}
-                      size="sm"
-                      className="sm:px-4"
+                      size="default"
+                      className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
                       onClick={() => setIsStudent(false)}
                     >
                       {t('careerDna.no')}
                     </Button>
                   </div>
                 </div>
-                <Button size="lg" className="gap-2 px-8 sm:px-10" onClick={handleStart}>
+                <Button size="lg" className="h-14 w-full max-w-xs gap-2 px-8 text-base sm:h-auto sm:w-auto sm:px-10" onClick={handleStart}>
                   {t('careerDna.start')}
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 shrink-0" />
                 </Button>
               </motion.div>
             )}
@@ -166,29 +184,29 @@ export default function CareerDNA() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: direction === 'forward' ? -30 : 30 }}
                 transition={{ duration: 0.2 }}
-                className="mx-auto w-full"
+                className="mx-auto w-full pb-24 sm:pb-0"
               >
-                <div className="mb-6 lg:mb-8">
-                  <div className="mb-2 flex justify-between text-sm font-medium text-muted-foreground sm:text-base">
+                <div className="mb-4 sm:mb-6 lg:mb-8">
+                  <div className="mb-1.5 flex justify-between text-sm font-medium text-muted-foreground sm:text-base">
                     <span>{step + 1} / 8</span>
                   </div>
-                  <Progress value={((step + 1) / 8) * 100} className="h-2 lg:h-2.5" />
+                  <Progress value={((step + 1) / 8) * 100} className="h-2.5 sm:h-2 lg:h-2.5" />
                 </div>
-                <Card className="mb-6 lg:mb-8">
-                  <CardContent className="p-6 sm:p-8 lg:p-10">
-                    <h2 className="mb-6 text-xl font-semibold leading-tight sm:text-2xl lg:text-3xl lg:mb-8">
+                <Card className="mb-5 overflow-hidden sm:mb-6 lg:mb-8">
+                  <CardContent className="p-4 sm:p-8 lg:p-10">
+                    <h2 className="mb-5 text-lg font-semibold leading-snug sm:mb-6 sm:text-2xl lg:text-3xl lg:mb-8">
                       {QUIZ_QUESTIONS[step].type === 'dropdown'
                         ? (isStudent ? t('careerDna.q5Major') : t('careerDna.q5Field'))
                         : t(QUIZ_QUESTIONS[step].questionKey)}
                     </h2>
 
                     {QUIZ_QUESTIONS[step].type === 'single' && QUIZ_QUESTIONS[step].options && (
-                      <div className="space-y-3 sm:space-y-3 lg:space-y-4">
+                      <div className="space-y-2.5 sm:space-y-3 lg:space-y-4">
                         {QUIZ_QUESTIONS[step].options!.map((opt) => (
                           <Button
                             key={opt.value}
                             variant={answers[QUIZ_QUESTIONS[step].id] === opt.value ? 'default' : 'outline'}
-                            className="h-auto w-full justify-start py-4 text-left text-base sm:py-5 sm:text-lg lg:py-6"
+                            className="h-auto min-h-14 w-full justify-start py-4 text-left text-base sm:min-h-0 sm:py-5 sm:text-lg lg:py-6"
                             onClick={() => setAnswer(QUIZ_QUESTIONS[step].id, opt.value)}
                           >
                             {t(opt.labelKey)}
@@ -209,7 +227,7 @@ export default function CareerDNA() {
                           min={1}
                           max={10}
                           step={1}
-                          className="w-full"
+                          className="w-full touch-manipulation"
                         />
                       </div>
                     )}
@@ -219,7 +237,7 @@ export default function CareerDNA() {
                         value={currentField ?? ''}
                         onValueChange={(v) => setAnswer('q5', v)}
                       >
-                        <SelectTrigger className="h-12 text-base sm:h-14 sm:text-lg">
+                        <SelectTrigger className="h-14 text-base sm:h-14 sm:text-lg">
                           <SelectValue placeholder={t('careerDna.selectField')} />
                         </SelectTrigger>
                         <SelectContent>
@@ -234,24 +252,29 @@ export default function CareerDNA() {
                   </CardContent>
                 </Card>
 
-                <div className="flex gap-3 sm:gap-4">
-                  <Button variant="outline" size="lg" onClick={handleBack} className="min-w-[3rem] sm:min-w-[3.5rem] lg:px-6">
-                    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="fixed inset-x-0 bottom-0 flex gap-3 bg-background/95 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:relative sm:inset-auto sm:bottom-auto sm:gap-4 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={handleBack}
+                    className="min-h-12 min-w-12 shrink-0 sm:min-h-10 sm:min-w-[3rem] lg:px-6"
+                  >
+                    <ArrowLeft className="h-5 w-5 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     size="lg"
-                    className="flex-1 gap-2 sm:px-8 lg:px-10"
+                    className="min-h-12 flex-1 gap-2 text-base sm:min-h-10 sm:px-8 lg:px-10"
                     disabled={!canProceed || isSubmitting}
                     onClick={handleNext}
                   >
                     {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+                      <Loader2 className="h-5 w-5 animate-spin sm:h-4 sm:w-4" />
                     ) : step === 7 ? (
                       t('careerDna.seeResults')
                     ) : (
                       <>
                         {t('common.next')}
-                        <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <ChevronRight className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
                       </>
                     )}
                   </Button>
@@ -262,7 +285,7 @@ export default function CareerDNA() {
 
           {step >= 0 && (
             <p className="mt-6 text-center text-sm text-muted-foreground sm:mt-8 lg:mt-10">
-              <Link to="/" className="underline hover:text-foreground transition-colors sm:text-base">
+              <Link to="/" className="inline-block py-2 underline decoration-muted-foreground/50 underline-offset-2 transition-colors hover:text-foreground sm:text-base">
                 {t('careerDna.backHome')}
               </Link>
             </p>

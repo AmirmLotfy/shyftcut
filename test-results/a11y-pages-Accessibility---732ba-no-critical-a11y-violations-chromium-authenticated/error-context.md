@@ -1,0 +1,310 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: ا
+  - generic [ref=e3]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - banner [ref=e5]:
+        - navigation [ref=e6]:
+          - link "Shyftcut Shyftcut" [ref=e7] [cursor=pointer]:
+            - /url: /
+            - img "Shyftcut" [ref=e8]
+            - generic [ref=e9]: Shyftcut
+          - generic [ref=e10]:
+            - link "Home" [ref=e11] [cursor=pointer]:
+              - /url: /
+            - link "Pricing" [ref=e12] [cursor=pointer]:
+              - /url: /pricing
+            - link "Blog" [ref=e13] [cursor=pointer]:
+              - /url: /blog
+          - generic [ref=e14]:
+            - button "Toggle theme" [ref=e15] [cursor=pointer]:
+              - img
+              - generic [ref=e16]: Toggle theme
+            - button "Toggle language" [ref=e17] [cursor=pointer]:
+              - img
+            - generic [ref=e18]:
+              - link "Login" [ref=e19] [cursor=pointer]:
+                - /url: /login
+              - link "Sign Up" [ref=e20] [cursor=pointer]:
+                - /url: /signup
+      - main [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e26]:
+            - link "Back to Home" [ref=e27] [cursor=pointer]:
+              - /url: /
+              - img
+              - text: Back to Home
+            - heading "Shyftcut Blog" [level=1] [ref=e28]
+            - paragraph [ref=e29]: Insights, guides, and tips to help you in your career journey.
+            - generic [ref=e30]:
+              - img [ref=e31]
+              - textbox "Search articles..." [ref=e34]
+          - tablist [ref=e38]:
+            - tab "All" [selected] [ref=e39] [cursor=pointer]
+            - tab "Career Transition" [ref=e40] [cursor=pointer]
+            - tab "Skills Development" [ref=e41] [cursor=pointer]
+            - tab "Learning" [ref=e42] [cursor=pointer]
+            - tab "Remote Work" [ref=e43] [cursor=pointer]
+            - tab "Career Growth" [ref=e44] [cursor=pointer]
+            - tab "Job Search" [ref=e45] [cursor=pointer]
+            - tab "Data Science" [ref=e46] [cursor=pointer]
+            - tab "Upskilling" [ref=e47] [cursor=pointer]
+            - tab "Digital Marketing" [ref=e48] [cursor=pointer]
+          - link "Kickstart Your Tech Career – How Students Can Prepare for In-Demand Jobs in 2026 Featured Skills Development Kickstart Your Tech Career – How Students Can Prepare for In-Demand Jobs in 2026 By 2026, 92% of jobs require at least basic digital skills. This guide shows students how to prepare for in-demand tech jobs using smart strategies and AI-powered tools like Shyftcut. Feb 1, 2026 12 min read Read More" [ref=e52] [cursor=pointer]:
+            - /url: /blog/kickstart-tech-career-2026
+            - generic [ref=e54]:
+              - generic [ref=e55]:
+                - img "Kickstart Your Tech Career – How Students Can Prepare for In-Demand Jobs in 2026" [ref=e56]
+                - generic [ref=e58]: Featured
+              - generic [ref=e59]:
+                - generic [ref=e60]: Skills Development
+                - heading "Kickstart Your Tech Career – How Students Can Prepare for In-Demand Jobs in 2026" [level=2] [ref=e61]
+                - paragraph [ref=e62]: By 2026, 92% of jobs require at least basic digital skills. This guide shows students how to prepare for in-demand tech jobs using smart strategies and AI-powered tools like Shyftcut.
+                - generic [ref=e63]:
+                  - generic [ref=e64]:
+                    - img [ref=e65]
+                    - text: Feb 1, 2026
+                  - generic [ref=e67]:
+                    - img [ref=e68]
+                    - text: 12 min read
+                - generic [ref=e71]:
+                  - text: Read More
+                  - img [ref=e72]
+          - generic [ref=e76]:
+            - link "How to Successfully Transition into Tech in 2026 Career Transition How to Successfully Transition into Tech in 2026 A comprehensive guide for career changers looking to break into the tech industry, covering skills, resources, and strategies. Jan 25 8 min read" [ref=e79] [cursor=pointer]:
+              - /url: /blog/how-to-transition-into-tech
+              - generic [ref=e80]:
+                - img "How to Successfully Transition into Tech in 2026" [ref=e82]
+                - generic [ref=e84]:
+                  - generic [ref=e85]: Career Transition
+                  - heading "How to Successfully Transition into Tech in 2026" [level=3] [ref=e86]
+                  - paragraph [ref=e87]: A comprehensive guide for career changers looking to break into the tech industry, covering skills, resources, and strategies.
+                  - generic [ref=e88]:
+                    - generic [ref=e89]:
+                      - img [ref=e90]
+                      - text: Jan 25
+                    - generic [ref=e92]:
+                      - img [ref=e93]
+                      - text: 8 min read
+            - link "AI Skills Every Professional Needs in 2026 Skills Development AI Skills Every Professional Needs in 2026 AI is transforming every industry. Learn which AI skills are essential and how to develop them regardless of your role. Jan 20 6 min read" [ref=e98] [cursor=pointer]:
+              - /url: /blog/ai-skills-every-professional-needs
+              - generic [ref=e99]:
+                - img "AI Skills Every Professional Needs in 2026" [ref=e101]
+                - generic [ref=e103]:
+                  - generic [ref=e104]: Skills Development
+                  - heading "AI Skills Every Professional Needs in 2026" [level=3] [ref=e105]
+                  - paragraph [ref=e106]: AI is transforming every industry. Learn which AI skills are essential and how to develop them regardless of your role.
+                  - generic [ref=e107]:
+                    - generic [ref=e108]:
+                      - img [ref=e109]
+                      - text: Jan 20
+                    - generic [ref=e111]:
+                      - img [ref=e112]
+                      - text: 6 min read
+            - link "Building Effective Learning Habits That Stick Learning Building Effective Learning Habits That Stick Discover science-backed strategies for continuous learning and skill development that fit into your busy schedule. Jan 15 5 min read" [ref=e117] [cursor=pointer]:
+              - /url: /blog/building-effective-learning-habits
+              - generic [ref=e118]:
+                - img "Building Effective Learning Habits That Stick" [ref=e120]
+                - generic [ref=e122]:
+                  - generic [ref=e123]: Learning
+                  - heading "Building Effective Learning Habits That Stick" [level=3] [ref=e124]
+                  - paragraph [ref=e125]: Discover science-backed strategies for continuous learning and skill development that fit into your busy schedule.
+                  - generic [ref=e126]:
+                    - generic [ref=e127]:
+                      - img [ref=e128]
+                      - text: Jan 15
+                    - generic [ref=e130]:
+                      - img [ref=e131]
+                      - text: 5 min read
+            - link "Thriving in Your Career While Working Remotely Remote Work Thriving in Your Career While Working Remotely Remote work is here to stay. Learn how to advance your career, stay visible, and build meaningful connections from anywhere. Jan 10 7 min read" [ref=e136] [cursor=pointer]:
+              - /url: /blog/remote-work-career-growth
+              - generic [ref=e137]:
+                - img "Thriving in Your Career While Working Remotely" [ref=e139]
+                - generic [ref=e141]:
+                  - generic [ref=e142]: Remote Work
+                  - heading "Thriving in Your Career While Working Remotely" [level=3] [ref=e143]
+                  - paragraph [ref=e144]: Remote work is here to stay. Learn how to advance your career, stay visible, and build meaningful connections from anywhere.
+                  - generic [ref=e145]:
+                    - generic [ref=e146]:
+                      - img [ref=e147]
+                      - text: Jan 10
+                    - generic [ref=e149]:
+                      - img [ref=e150]
+                      - text: 7 min read
+            - link "The Complete Guide to Salary Negotiation Career Growth The Complete Guide to Salary Negotiation Master the art of salary negotiation with proven strategies that help you get paid what you deserve. Jan 5 9 min read" [ref=e155] [cursor=pointer]:
+              - /url: /blog/negotiating-your-salary
+              - generic [ref=e156]:
+                - img "The Complete Guide to Salary Negotiation" [ref=e158]
+                - generic [ref=e160]:
+                  - generic [ref=e161]: Career Growth
+                  - heading "The Complete Guide to Salary Negotiation" [level=3] [ref=e162]
+                  - paragraph [ref=e163]: Master the art of salary negotiation with proven strategies that help you get paid what you deserve.
+                  - generic [ref=e164]:
+                    - generic [ref=e165]:
+                      - img [ref=e166]
+                      - text: Jan 5
+                    - generic [ref=e168]:
+                      - img [ref=e169]
+                      - text: 9 min read
+            - link "The AI-Powered Job Hunt – Landing Your Dream Job in 2026 Job Search The AI-Powered Job Hunt – Landing Your Dream Job in 2026 Over 87% of companies use AI in recruitment. Learn how to optimize your resume for ATS, use AI tools for interview prep, and leverage Shyftcut to close skill gaps. Feb 2 10 min read" [ref=e174] [cursor=pointer]:
+              - /url: /blog/ai-powered-job-hunt-2026
+              - generic [ref=e175]:
+                - img "The AI-Powered Job Hunt – Landing Your Dream Job in 2026" [ref=e177]
+                - generic [ref=e179]:
+                  - generic [ref=e180]: Job Search
+                  - heading "The AI-Powered Job Hunt – Landing Your Dream Job in 2026" [level=3] [ref=e181]
+                  - paragraph [ref=e182]: Over 87% of companies use AI in recruitment. Learn how to optimize your resume for ATS, use AI tools for interview prep, and leverage Shyftcut to close skill gaps.
+                  - generic [ref=e183]:
+                    - generic [ref=e184]:
+                      - img [ref=e185]
+                      - text: Feb 2
+                    - generic [ref=e187]:
+                      - img [ref=e188]
+                      - text: 10 min read
+            - 'link "From Zero to Data Scientist – Your 2026 Career Shift Roadmap Data Science From Zero to Data Scientist – Your 2026 Career Shift Roadmap A step-by-step path for shifting your career into data science by 2026: skills to learn, how to get practical experience, and how Shyftcut''s AI guides your learning plan. Feb 2 14 min read" [ref=e193] [cursor=pointer]':
+              - /url: /blog/zero-to-data-scientist-2026
+              - generic [ref=e194]:
+                - img "From Zero to Data Scientist – Your 2026 Career Shift Roadmap" [ref=e196]
+                - generic [ref=e198]:
+                  - generic [ref=e199]: Data Science
+                  - heading "From Zero to Data Scientist – Your 2026 Career Shift Roadmap" [level=3] [ref=e200]
+                  - paragraph [ref=e201]: "A step-by-step path for shifting your career into data science by 2026: skills to learn, how to get practical experience, and how Shyftcut's AI guides your learning plan."
+                  - generic [ref=e202]:
+                    - generic [ref=e203]:
+                      - img [ref=e204]
+                      - text: Feb 2
+                    - generic [ref=e206]:
+                      - img [ref=e207]
+                      - text: 14 min read
+            - link "Upskilling in the AI Era – A Mid-Career Professional's Guide to Staying Relevant in 2026 Upskilling Upskilling in the AI Era – A Mid-Career Professional's Guide to Staying Relevant in 2026 Nearly 40% of jobs are exposed to AI-driven changes. A guide for experienced professionals to identify skill gaps, create a learning plan, and use Shyftcut as your ongoing skills advisor. Feb 3 11 min read" [ref=e212] [cursor=pointer]:
+              - /url: /blog/upskilling-ai-era-mid-career-2026
+              - generic [ref=e213]:
+                - img "Upskilling in the AI Era – A Mid-Career Professional's Guide to Staying Relevant in 2026" [ref=e215]
+                - generic [ref=e217]:
+                  - generic [ref=e218]: Upskilling
+                  - heading "Upskilling in the AI Era – A Mid-Career Professional's Guide to Staying Relevant in 2026" [level=3] [ref=e219]
+                  - paragraph [ref=e220]: Nearly 40% of jobs are exposed to AI-driven changes. A guide for experienced professionals to identify skill gaps, create a learning plan, and use Shyftcut as your ongoing skills advisor.
+                  - generic [ref=e221]:
+                    - generic [ref=e222]:
+                      - img [ref=e223]
+                      - text: Feb 3
+                    - generic [ref=e225]:
+                      - img [ref=e226]
+                      - text: 11 min read
+            - link "Remote Work Readiness – Preparing for a Successful Remote Tech Career in 2026 Remote Work Remote Work Readiness – Preparing for a Successful Remote Tech Career in 2026 By 2026, remote and hybrid work are the norm in tech. Learn essential remote skills, how to showcase them, and how Shyftcut helps you stay sharp for global roles. Feb 3 9 min read" [ref=e231] [cursor=pointer]:
+              - /url: /blog/remote-work-readiness-2026
+              - generic [ref=e232]:
+                - img "Remote Work Readiness – Preparing for a Successful Remote Tech Career in 2026" [ref=e234]
+                - generic [ref=e236]:
+                  - generic [ref=e237]: Remote Work
+                  - heading "Remote Work Readiness – Preparing for a Successful Remote Tech Career in 2026" [level=3] [ref=e238]
+                  - paragraph [ref=e239]: By 2026, remote and hybrid work are the norm in tech. Learn essential remote skills, how to showcase them, and how Shyftcut helps you stay sharp for global roles.
+                  - generic [ref=e240]:
+                    - generic [ref=e241]:
+                      - img [ref=e242]
+                      - text: Feb 3
+                    - generic [ref=e244]:
+                      - img [ref=e245]
+                      - text: 9 min read
+            - 'link "Career Shift to Digital Marketing in 2026 – Your Roadmap to Success Digital Marketing Career Shift to Digital Marketing in 2026 – Your Roadmap to Success A practical roadmap for switching your career to digital marketing in 2026: skills to learn, courses and certifications, and how Shyftcut can guide your learning plan. Feb 4 10 min read" [ref=e250] [cursor=pointer]':
+              - /url: /blog/career-shift-digital-marketing-2026
+              - generic [ref=e251]:
+                - img "Career Shift to Digital Marketing in 2026 – Your Roadmap to Success" [ref=e253]
+                - generic [ref=e255]:
+                  - generic [ref=e256]: Digital Marketing
+                  - heading "Career Shift to Digital Marketing in 2026 – Your Roadmap to Success" [level=3] [ref=e257]
+                  - paragraph [ref=e258]: "A practical roadmap for switching your career to digital marketing in 2026: skills to learn, courses and certifications, and how Shyftcut can guide your learning plan."
+                  - generic [ref=e259]:
+                    - generic [ref=e260]:
+                      - img [ref=e261]
+                      - text: Feb 4
+                    - generic [ref=e263]:
+                      - img [ref=e264]
+                      - text: 10 min read
+            - generic [ref=e269]:
+              - img [ref=e271]
+              - generic [ref=e273]:
+                - generic [ref=e274]:
+                  - paragraph [ref=e275]: Newsletter
+                  - paragraph [ref=e276]: Join 5,000+ subscribers. Career tips and Shyftcut updates.
+                - generic [ref=e277]:
+                  - textbox "your@email.com" [ref=e278]
+                  - button "Subscribe" [ref=e279] [cursor=pointer]:
+                    - text: Subscribe
+                    - img
+      - contentinfo [ref=e280]:
+        - generic [ref=e281]:
+          - generic [ref=e282]:
+            - generic [ref=e283]:
+              - heading "Stay Connected" [level=2] [ref=e284]
+              - paragraph [ref=e285]: Join our newsletter for the latest updates and career tips.
+              - generic [ref=e287]:
+                - generic [ref=e288]:
+                  - paragraph [ref=e289]: Newsletter
+                  - paragraph [ref=e290]: Join 5,000+ subscribers. Career tips and Shyftcut updates.
+                - generic [ref=e291]:
+                  - textbox "Enter your email" [ref=e292]
+                  - button "Subscribe" [ref=e293] [cursor=pointer]:
+                    - img
+                    - generic [ref=e294]: Subscribe
+            - navigation "Product" [ref=e296]:
+              - heading "Product" [level=3] [ref=e297]
+              - list [ref=e298]:
+                - listitem [ref=e299]:
+                  - link "Pricing" [ref=e300] [cursor=pointer]:
+                    - /url: /pricing
+                - listitem [ref=e301]:
+                  - link "Roadmap" [ref=e302] [cursor=pointer]:
+                    - /url: /roadmap
+                - listitem [ref=e303]:
+                  - link "Courses" [ref=e304] [cursor=pointer]:
+                    - /url: /courses
+                - listitem [ref=e305]:
+                  - link "AI Coach" [ref=e306] [cursor=pointer]:
+                    - /url: /chat
+            - navigation "Company" [ref=e308]:
+              - heading "Company" [level=3] [ref=e309]
+              - list [ref=e310]:
+                - listitem [ref=e311]:
+                  - link "About" [ref=e312] [cursor=pointer]:
+                    - /url: /about
+                - listitem [ref=e313]:
+                  - link "Blog" [ref=e314] [cursor=pointer]:
+                    - /url: /blog
+                - listitem [ref=e315]:
+                  - link "Contact" [ref=e316] [cursor=pointer]:
+                    - /url: /contact
+            - generic [ref=e317]:
+              - heading "Follow Us" [level=3] [ref=e318]
+              - generic [ref=e319]:
+                - link "Instagram" [ref=e320] [cursor=pointer]:
+                  - /url: https://www.instagram.com/shyftcut
+                  - img
+                - link "Facebook" [ref=e321] [cursor=pointer]:
+                  - /url: https://www.facebook.com/shyftcut/
+                  - img
+                - link "LinkedIn" [ref=e322] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/shyftcut/
+                  - img
+              - generic [ref=e323]:
+                - img [ref=e324]
+                - switch "Toggle dark mode" [ref=e330] [cursor=pointer]
+                - img [ref=e331]
+                - generic [ref=e333]: Toggle dark mode
+          - generic [ref=e334]:
+            - paragraph [ref=e335]: © 2026 Shyftcut. All rights reserved.
+            - navigation "Legal links" [ref=e336]:
+              - link "Privacy Policy" [ref=e337] [cursor=pointer]:
+                - /url: /privacy
+              - link "Terms of Service" [ref=e338] [cursor=pointer]:
+                - /url: /terms
+              - link "Cookie Settings" [ref=e339] [cursor=pointer]:
+                - /url: /cookies
+              - link "A Frameless App" [ref=e340] [cursor=pointer]:
+                - /url: https://frameless.co
+```

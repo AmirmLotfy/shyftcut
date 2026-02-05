@@ -24,6 +24,7 @@
 
 ### Core (Free & Premium)
 
+- **Career DNA** — Viral quiz: discover your career fit in 90 seconds. Challenge friends, share squad links, compare results on a public leaderboard. Optional nickname, phone notifications, and signup prompts. No login required.
 - **90-second Wizard** — Answer 5 short steps; get a tailored 12-week career roadmap (success sound when ready)
 - **Personalized Roadmaps** — Weekly goals, skills to learn, deliverables, and verified course links from 16 trusted platforms
 - **Real Course URLs** — Google Search grounding finds actual course pages (Udemy, Coursera, YouTube, edX, etc.)
@@ -196,14 +197,6 @@ SUPABASE_ANON_KEY=your-anon-key \
 npm run test:api
 ```
 
-### E2E (Playwright)
-
-```sh
-npm run test:e2e
-```
-
-Requires app running (e.g. `npm run dev` or `npm run preview`) and Playwright browsers installed.
-
 ---
 
 ## Deployment
@@ -232,7 +225,6 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist.
 | `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
 | `npm run test` | Unit tests (Vitest) |
-| `npm run test:e2e` | E2E tests (Playwright) |
 | `npm run test:api` | API endpoint tests |
 | `npm run test:course-links` | Roadmap + course-search API test |
 | `npm run test:course-validation` | Course URL validation unit test |

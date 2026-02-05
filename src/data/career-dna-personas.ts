@@ -34,10 +34,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 100,
     nameKey: 'careerDna.tier.visionaries',
     characters: [
-      { id: 'v1', nameKey: 'careerDna.persona.visionaries.v1.name', taglineKey: 'careerDna.persona.visionaries.v1.tagline', emoji: '🌟', avatarPath: '/images/career-dna/The-Visionary.png' },
-      { id: 'v2', nameKey: 'careerDna.persona.visionaries.v2.name', taglineKey: 'careerDna.persona.visionaries.v2.tagline', emoji: '✨', avatarPath: '/images/career-dna/The-Visionary.png' },
-      { id: 'v3', nameKey: 'careerDna.persona.visionaries.v3.name', taglineKey: 'careerDna.persona.visionaries.v3.tagline', emoji: '💫', avatarPath: '/images/career-dna/The-Visionary.png' },
-      { id: 'v4', nameKey: 'careerDna.persona.visionaries.v4.name', taglineKey: 'careerDna.persona.visionaries.v4.tagline', emoji: '🔮', avatarPath: '/images/career-dna/The-Visionary.png' },
+      { id: 'v1', nameKey: 'careerDna.persona.visionaries.v1.name', taglineKey: 'careerDna.persona.visionaries.v1.tagline', emoji: '🌟', avatarPath: '/images/career-dna/The-Visionary.webp' },
+      { id: 'v2', nameKey: 'careerDna.persona.visionaries.v2.name', taglineKey: 'careerDna.persona.visionaries.v2.tagline', emoji: '✨', avatarPath: '/images/career-dna/The-Visionary.webp' },
+      { id: 'v3', nameKey: 'careerDna.persona.visionaries.v3.name', taglineKey: 'careerDna.persona.visionaries.v3.tagline', emoji: '💫', avatarPath: '/images/career-dna/The-Visionary.webp' },
+      { id: 'v4', nameKey: 'careerDna.persona.visionaries.v4.name', taglineKey: 'careerDna.persona.visionaries.v4.tagline', emoji: '🔮', avatarPath: '/images/career-dna/The-Visionary.webp' },
     ],
   },
   {
@@ -46,10 +46,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 89,
     nameKey: 'careerDna.tier.naturals',
     characters: [
-      { id: 'n1', nameKey: 'careerDna.persona.naturals.n1.name', taglineKey: 'careerDna.persona.naturals.n1.tagline', emoji: '🌿', avatarPath: '/images/career-dna/The-Natural.png' },
-      { id: 'n2', nameKey: 'careerDna.persona.naturals.n2.name', taglineKey: 'careerDna.persona.naturals.n2.tagline', emoji: '🍃', avatarPath: '/images/career-dna/The-Natural.png' },
-      { id: 'n3', nameKey: 'careerDna.persona.naturals.n3.name', taglineKey: 'careerDna.persona.naturals.n3.tagline', emoji: '🌱', avatarPath: '/images/career-dna/The-Natural.png' },
-      { id: 'n4', nameKey: 'careerDna.persona.naturals.n4.name', taglineKey: 'careerDna.persona.naturals.n4.tagline', emoji: '🌳', avatarPath: '/images/career-dna/The-Natural.png' },
+      { id: 'n1', nameKey: 'careerDna.persona.naturals.n1.name', taglineKey: 'careerDna.persona.naturals.n1.tagline', emoji: '🌿', avatarPath: '/images/career-dna/The-Natural.webp' },
+      { id: 'n2', nameKey: 'careerDna.persona.naturals.n2.name', taglineKey: 'careerDna.persona.naturals.n2.tagline', emoji: '🍃', avatarPath: '/images/career-dna/The-Natural.webp' },
+      { id: 'n3', nameKey: 'careerDna.persona.naturals.n3.name', taglineKey: 'careerDna.persona.naturals.n3.tagline', emoji: '🌱', avatarPath: '/images/career-dna/The-Natural.webp' },
+      { id: 'n4', nameKey: 'careerDna.persona.naturals.n4.name', taglineKey: 'careerDna.persona.naturals.n4.tagline', emoji: '🌳', avatarPath: '/images/career-dna/The-Natural.webp' },
     ],
   },
   {
@@ -58,10 +58,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 74,
     nameKey: 'careerDna.tier.explorers',
     characters: [
-      { id: 'e1', nameKey: 'careerDna.persona.explorers.e1.name', taglineKey: 'careerDna.persona.explorers.e1.tagline', emoji: '🧭', avatarPath: '/images/career-dna/The-Explorer.png' },
-      { id: 'e2', nameKey: 'careerDna.persona.explorers.e2.name', taglineKey: 'careerDna.persona.explorers.e2.tagline', emoji: '🗺️', avatarPath: '/images/career-dna/The-Explorer.png' },
-      { id: 'e3', nameKey: 'careerDna.persona.explorers.e3.name', taglineKey: 'careerDna.persona.explorers.e3.tagline', emoji: '🔭', avatarPath: '/images/career-dna/The-Explorer.png' },
-      { id: 'e4', nameKey: 'careerDna.persona.explorers.e4.name', taglineKey: 'careerDna.persona.explorers.e4.tagline', emoji: '🧗', avatarPath: '/images/career-dna/The-Explorer.png' },
+      { id: 'e1', nameKey: 'careerDna.persona.explorers.e1.name', taglineKey: 'careerDna.persona.explorers.e1.tagline', emoji: '🧭', avatarPath: '/images/career-dna/The-Explorer.webp' },
+      { id: 'e2', nameKey: 'careerDna.persona.explorers.e2.name', taglineKey: 'careerDna.persona.explorers.e2.tagline', emoji: '🗺️', avatarPath: '/images/career-dna/The-Explorer.webp' },
+      { id: 'e3', nameKey: 'careerDna.persona.explorers.e3.name', taglineKey: 'careerDna.persona.explorers.e3.tagline', emoji: '🔭', avatarPath: '/images/career-dna/The-Explorer.webp' },
+      { id: 'e4', nameKey: 'careerDna.persona.explorers.e4.name', taglineKey: 'careerDna.persona.explorers.e4.tagline', emoji: '🧗', avatarPath: '/images/career-dna/The-Explorer.webp' },
     ],
   },
   {
@@ -70,10 +70,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 59,
     nameKey: 'careerDna.tier.shifters',
     characters: [
-      { id: 's1', nameKey: 'careerDna.persona.shifters.s1.name', taglineKey: 'careerDna.persona.shifters.s1.tagline', emoji: '🦋', avatarPath: '/images/career-dna/The-Shifter.png' },
-      { id: 's2', nameKey: 'careerDna.persona.shifters.s2.name', taglineKey: 'careerDna.persona.shifters.s2.tagline', emoji: '🌙', avatarPath: '/images/career-dna/The-Shifter.png' },
-      { id: 's3', nameKey: 'careerDna.persona.shifters.s3.name', taglineKey: 'careerDna.persona.shifters.s3.tagline', emoji: '🔄', avatarPath: '/images/career-dna/The-Shifter.png' },
-      { id: 's4', nameKey: 'careerDna.persona.shifters.s4.name', taglineKey: 'careerDna.persona.shifters.s4.tagline', emoji: '⚡', avatarPath: '/images/career-dna/The-Shifter.png' },
+      { id: 's1', nameKey: 'careerDna.persona.shifters.s1.name', taglineKey: 'careerDna.persona.shifters.s1.tagline', emoji: '🦋', avatarPath: '/images/career-dna/The-Shifter.webp' },
+      { id: 's2', nameKey: 'careerDna.persona.shifters.s2.name', taglineKey: 'careerDna.persona.shifters.s2.tagline', emoji: '🌙', avatarPath: '/images/career-dna/The-Shifter.webp' },
+      { id: 's3', nameKey: 'careerDna.persona.shifters.s3.name', taglineKey: 'careerDna.persona.shifters.s3.tagline', emoji: '🔄', avatarPath: '/images/career-dna/The-Shifter.webp' },
+      { id: 's4', nameKey: 'careerDna.persona.shifters.s4.name', taglineKey: 'careerDna.persona.shifters.s4.tagline', emoji: '⚡', avatarPath: '/images/career-dna/The-Shifter.webp' },
     ],
   },
   {
@@ -82,10 +82,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 44,
     nameKey: 'careerDna.tier.awakeners',
     characters: [
-      { id: 'a1', nameKey: 'careerDna.persona.awakeners.a1.name', taglineKey: 'careerDna.persona.awakeners.a1.tagline', emoji: '🌅', avatarPath: '/images/career-dna/The-Awakener.png' },
-      { id: 'a2', nameKey: 'careerDna.persona.awakeners.a2.name', taglineKey: 'careerDna.persona.awakeners.a2.tagline', emoji: '🪷', avatarPath: '/images/career-dna/The-Awakener.png' },
-      { id: 'a3', nameKey: 'careerDna.persona.awakeners.a3.name', taglineKey: 'careerDna.persona.awakeners.a3.tagline', emoji: '💡', avatarPath: '/images/career-dna/The-Awakener.png' },
-      { id: 'a4', nameKey: 'careerDna.persona.awakeners.a4.name', taglineKey: 'careerDna.persona.awakeners.a4.tagline', emoji: '🔓', avatarPath: '/images/career-dna/The-Awakener.png' },
+      { id: 'a1', nameKey: 'careerDna.persona.awakeners.a1.name', taglineKey: 'careerDna.persona.awakeners.a1.tagline', emoji: '🌅', avatarPath: '/images/career-dna/The-Awakener.webp' },
+      { id: 'a2', nameKey: 'careerDna.persona.awakeners.a2.name', taglineKey: 'careerDna.persona.awakeners.a2.tagline', emoji: '🪷', avatarPath: '/images/career-dna/The-Awakener.webp' },
+      { id: 'a3', nameKey: 'careerDna.persona.awakeners.a3.name', taglineKey: 'careerDna.persona.awakeners.a3.tagline', emoji: '💡', avatarPath: '/images/career-dna/The-Awakener.webp' },
+      { id: 'a4', nameKey: 'careerDna.persona.awakeners.a4.name', taglineKey: 'careerDna.persona.awakeners.a4.tagline', emoji: '🔓', avatarPath: '/images/career-dna/The-Awakener.webp' },
     ],
   },
   {
@@ -94,10 +94,10 @@ export const PERSONA_TIERS: PersonaTierDef[] = [
     maxScore: 29,
     nameKey: 'careerDna.tier.misfits',
     characters: [
-      { id: 'm1', nameKey: 'careerDna.persona.misfits.m1.name', taglineKey: 'careerDna.persona.misfits.m1.tagline', emoji: '🦄', avatarPath: '/images/career-dna/The-Misfit.png' },
-      { id: 'm2', nameKey: 'careerDna.persona.misfits.m2.name', taglineKey: 'careerDna.persona.misfits.m2.tagline', emoji: '🎭', avatarPath: '/images/career-dna/The-Misfit.png' },
-      { id: 'm3', nameKey: 'careerDna.persona.misfits.m3.name', taglineKey: 'careerDna.persona.misfits.m3.tagline', emoji: '🔥', avatarPath: '/images/career-dna/The-Misfit.png' },
-      { id: 'm4', nameKey: 'careerDna.persona.misfits.m4.name', taglineKey: 'careerDna.persona.misfits.m4.tagline', emoji: '💎', avatarPath: '/images/career-dna/The-Misfit.png' },
+      { id: 'm1', nameKey: 'careerDna.persona.misfits.m1.name', taglineKey: 'careerDna.persona.misfits.m1.tagline', emoji: '🦄', avatarPath: '/images/career-dna/The-Misfit.webp' },
+      { id: 'm2', nameKey: 'careerDna.persona.misfits.m2.name', taglineKey: 'careerDna.persona.misfits.m2.tagline', emoji: '🎭', avatarPath: '/images/career-dna/The-Misfit.webp' },
+      { id: 'm3', nameKey: 'careerDna.persona.misfits.m3.name', taglineKey: 'careerDna.persona.misfits.m3.tagline', emoji: '🔥', avatarPath: '/images/career-dna/The-Misfit.webp' },
+      { id: 'm4', nameKey: 'careerDna.persona.misfits.m4.name', taglineKey: 'careerDna.persona.misfits.m4.tagline', emoji: '💎', avatarPath: '/images/career-dna/The-Misfit.webp' },
     ],
   },
 ];

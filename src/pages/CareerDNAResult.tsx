@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Layout } from '@/components/layout/Layout';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
 import { CheckoutButton } from '@/components/pricing/CheckoutButton';
@@ -33,6 +34,7 @@ import { BASE_URL } from '@/lib/seo';
 import { captureShareCard } from '@/lib/share-card';
 import { ShareCard } from '@/components/career-dna/ShareCard';
 import { getTierDef, getPersonaCharacter, type PersonaTier } from '@/data/career-dna-personas';
+import { getCareerFieldLabel } from '@/data/career-dna-questions';
 
 interface SuggestedCareer {
   career?: string;
@@ -76,7 +78,8 @@ export default function CareerDNAResult() {
   const [saveModalImageUrl, setSaveModalImageUrl] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const shareCardRef = useRef<HTMLDivElement | null>(null);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -121,7 +124,9 @@ export default function CareerDNAResult() {
 
   const shareUrl = id ? `${BASE_URL}/career-dna/result/${id}` : '';
   const shareText = data?.shareableQuote || (data
-    ? `I'm a ${data.matchScore}% match for my ${data.isStudent ? 'major' : 'field'}. What's yours? Take the Career DNA test: ${shareUrl}`
+    ? language === 'ar'
+      ? `نسبة توافقي ${data.matchScore}٪ في ${data.isStudent ? 'تخصصي' : 'مجالي'}. ما نسبتك؟ اختبر الحمض النووي المهني: ${shareUrl}`
+      : `I'm a ${data.matchScore}% match for my ${data.isStudent ? 'major' : 'field'}. What's yours? Take the Career DNA test: ${shareUrl}`
     : '');
 
   const handleCopyLink = async () => {
@@ -284,14 +289,32 @@ export default function CareerDNAResult() {
         path={`/career-dna/result/${id}`}
       />
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-primary/5">
-        <div className="container mx-auto max-w-2xl px-4 py-8 sm:py-12">
-          {/* Score circle */}
+        <div className="container mx-auto max-w-2xl px-4 py-5 sm:py-8 sm:px-6">
+          {/* Results card: score + tier + persona */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="mb-8 flex flex-col items-center"
+            className="mb-5 flex flex-col items-center rounded-2xl border border-primary/10 bg-card/50 px-4 py-6 shadow-sm sm:mb-6 sm:px-6 sm:py-8"
           >
-            <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-primary/40 bg-primary/5 text-4xl font-bold">
+            {/* Avatar – prominent & large */}
+            {persona && (
+              <div className="mb-4 flex justify-center">
+                {persona.avatarPath ? (
+                  <img
+                    src={persona.avatarPath}
+                    alt=""
+                    className="h-28 w-28 shrink-0 rounded-2xl object-cover ring-4 ring-primary/20 shadow-md sm:h-32 sm:w-32"
+                    loading="eager"
+                    aria-hidden
+                  />
+                ) : (
+                  <span className="flex h-28 w-28 items-center justify-center rounded-2xl bg-primary/10 text-5xl sm:h-32 sm:w-32 sm:text-6xl" aria-hidden>
+                    {persona.emoji}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex h-28 w-28 items-center justify-center rounded-full border-4 border-primary/40 bg-primary/5 text-3xl font-bold sm:h-32 sm:w-32 sm:text-4xl">
               {data.matchScore}%
             </div>
             <Badge className="mt-4" variant={isHighMatch ? 'default' : 'secondary'}>
@@ -302,17 +325,114 @@ export default function CareerDNAResult() {
             </p>
             {persona && (
               <p className="mt-1 flex items-center justify-center gap-2 text-center">
-                {persona.avatarPath ? (
-                  <img src={persona.avatarPath} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" aria-hidden />
-                ) : (
-                  <span className="text-xl" aria-hidden>{persona.emoji}</span>
-                )}
-                <span className="font-medium">{t(persona.nameKey)}</span>
+                <span className="font-semibold">{t(persona.nameKey)}</span>
               </p>
             )}
             <p className="mt-2 text-center text-muted-foreground">
-              {t('careerDna.result.match')} for {data.currentField ?? ''}
+              {t('careerDna.result.matchFor')} {data.currentField ? getCareerFieldLabel(data.currentField, language) : t('careerDna.result.yourField')}
             </p>
+
+            {/* Share & Save – directly under results card */}
+            <div className="mt-6 w-full space-y-3">
+              {/* Desktop: horizontal row */}
+              <div className="hidden sm:flex sm:flex-wrap sm:justify-center sm:gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShare}
+                  disabled={isCapturing}
+                  className="gap-2"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.share')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={isCapturing}
+                  className="gap-2"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.saveImage')}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleCopyLink} className="gap-2">
+                  <Link2 className="h-4 w-4" />
+                  {t('careerDna.result.copyLink')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleChallengeFriends}
+                  disabled={creatingSquad}
+                  className="gap-2"
+                >
+                  {creatingSquad ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Users className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.challengeFriends')}
+                </Button>
+              </div>
+              {/* Mobile: 2x2 grid, larger touch targets */}
+              <div className="grid grid-cols-2 gap-2 sm:hidden">
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleShare}
+                  disabled={isCapturing}
+                  className="h-12 gap-2"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.share')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleSave}
+                  disabled={isCapturing}
+                  className="h-12 gap-2"
+                >
+                  {isCapturing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.saveImage')}
+                </Button>
+                <Button variant="outline" size="default" onClick={handleCopyLink} className="h-12 gap-2">
+                  <Link2 className="h-4 w-4" />
+                  {t('careerDna.result.copyLink')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleChallengeFriends}
+                  disabled={creatingSquad}
+                  className="h-12 gap-2"
+                >
+                  {creatingSquad ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Users className="h-4 w-4" />
+                  )}
+                  {t('careerDna.result.challengeFriends')}
+                </Button>
+              </div>
+            </div>
           </motion.div>
 
           {/* Archetype */}
@@ -322,7 +442,7 @@ export default function CareerDNAResult() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <Card className="mb-6">
+              <Card className="mb-4 sm:mb-6">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Sparkles className="h-4 w-4 text-primary" />
@@ -346,7 +466,7 @@ export default function CareerDNAResult() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
             >
-              <Card className="mb-6">
+              <Card className="mb-4 sm:mb-6">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Zap className="h-4 w-4 text-primary" />
@@ -370,7 +490,7 @@ export default function CareerDNAResult() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <Card className="mb-6">
+              <Card className="mb-4 sm:mb-6">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Target className="h-4 w-4 text-primary" />
@@ -400,9 +520,9 @@ export default function CareerDNAResult() {
               <div className="space-y-3">
                 {data.suggestedCareers.map((sc, i) => (
                   <Card key={i}>
-                    <CardContent className="flex flex-col gap-2 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                    <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
                       <div>
-                        <p className="font-medium">{sc.career}</p>
+                        <p className="font-medium">{getCareerFieldLabel(sc.career, language) || sc.career}</p>
                         {sc.reason && (
                           <p className="text-sm text-muted-foreground">{sc.reason}</p>
                         )}
@@ -411,7 +531,7 @@ export default function CareerDNAResult() {
                         {typeof sc.matchPercent === 'number' && (
                           <Badge variant="outline">{sc.matchPercent}%</Badge>
                         )}
-                        <Button asChild size="sm">
+                        <Button asChild size="sm" className="w-full sm:w-auto">
                           <Link to={`/wizard?from=careerdna&targetCareer=${encodeURIComponent(sc.career ?? '')}`}>
                             {t('careerDna.result.getRoadmap')}
                           </Link>
@@ -421,6 +541,25 @@ export default function CareerDNAResult() {
                   </Card>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* Signup CTA for non-logged-in users */}
+          {!user && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+            >
+              <Card className="mb-6 border-primary/20 bg-primary/5">
+                <CardContent className="py-6 text-center">
+                  <p className="font-medium">{t('careerDna.signup.saveResult')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t('careerDna.signup.unlockRoadmap')}</p>
+                  <Button asChild className="mt-3" size="lg">
+                    <Link to={`/signup?redirect=/career-dna/result/${id}`}>{t('careerDna.signup.cta')}</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
 
@@ -436,7 +575,7 @@ export default function CareerDNAResult() {
                 {t('careerDna.result.unicornMatch')}
               </p>
             )}
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center sm:flex-wrap">
               <Button asChild size="lg" className="gap-2">
                 <Link to={wizardUrl}>
                   {t('careerDna.result.fullRoadmap')}
@@ -454,61 +593,6 @@ export default function CareerDNAResult() {
                 {t('careerDna.result.quizTakersDiscount')}
               </CheckoutButton>
             </div>
-          </motion.div>
-
-          {/* Share & Squad */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            className="mt-10 flex flex-wrap justify-center gap-3"
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleShare}
-              disabled={isCapturing}
-              className="gap-2"
-            >
-              {isCapturing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Share2 className="h-4 w-4" />
-              )}
-              {t('careerDna.result.share')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSave}
-              disabled={isCapturing}
-              className="gap-2"
-            >
-              {isCapturing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              {t('careerDna.result.saveImage')}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleCopyLink} className="gap-2">
-              <Link2 className="h-4 w-4" />
-              {t('careerDna.result.copyLink')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleChallengeFriends}
-              disabled={creatingSquad}
-              className="gap-2"
-            >
-              {creatingSquad ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Users className="h-4 w-4" />
-              )}
-              {t('careerDna.result.challengeFriends')}
-            </Button>
           </motion.div>
 
           <p className="mt-8 text-center text-sm text-muted-foreground">

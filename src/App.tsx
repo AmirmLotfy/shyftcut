@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminRoute } from "@/components/admin/AdminRoute";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { PageLoader } from "@/components/common/PageLoader";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
@@ -46,6 +47,8 @@ const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const CareerDNA = lazy(() => import("./pages/CareerDNA"));
 const CareerDNAResult = lazy(() => import("./pages/CareerDNAResult"));
 const CareerDNASquad = lazy(() => import("./pages/CareerDNASquad"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -99,6 +102,8 @@ const RoutesContent = () => (
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
         <Route path="/checkout/cancel" element={<ProtectedRoute><CheckoutCancel /></ProtectedRoute>} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/*" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

@@ -42,6 +42,13 @@ export const CAREER_FIELD_LABELS: Record<string, { en: string; ar: string }> = {
   'Other': { en: 'Other', ar: 'أخرى' }
 };
 
+/** Get career field label in the given language */
+export function getCareerFieldLabel(field: string | undefined, lang: 'en' | 'ar'): string {
+  if (!field) return '';
+  const labels = CAREER_FIELD_LABELS[field];
+  return labels ? labels[lang] : field;
+}
+
 
 export interface QuizQuestion {
   id: string;

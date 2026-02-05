@@ -1,0 +1,173 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]: ا
+  - generic [ref=e3]:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e4]:
+      - banner [ref=e5]:
+        - navigation [ref=e6]:
+          - link "Shyftcut Shyftcut" [ref=e7] [cursor=pointer]:
+            - /url: /
+            - img "Shyftcut" [ref=e8]
+            - generic [ref=e9]: Shyftcut
+          - generic [ref=e10]:
+            - link "Home" [ref=e11] [cursor=pointer]:
+              - /url: /
+            - link "Pricing" [ref=e12] [cursor=pointer]:
+              - /url: /pricing
+            - link "Blog" [ref=e13] [cursor=pointer]:
+              - /url: /blog
+          - generic [ref=e14]:
+            - button "Toggle theme" [ref=e15] [cursor=pointer]:
+              - img
+              - generic [ref=e16]: Toggle theme
+            - button "Toggle language" [ref=e17] [cursor=pointer]:
+              - img
+            - generic [ref=e18]:
+              - link "Login" [ref=e19] [cursor=pointer]:
+                - /url: /login
+              - link "Sign Up" [ref=e20] [cursor=pointer]:
+                - /url: /signup
+      - main [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e26]:
+            - link "Back to Home" [ref=e27] [cursor=pointer]:
+              - /url: /
+              - img
+              - text: Back to Home
+            - img [ref=e29]
+            - heading "About Shyftcut" [level=1] [ref=e34]
+            - paragraph [ref=e35]: We're on a mission to make career guidance accessible, personalized, and actionable for everyone.
+          - generic [ref=e38]:
+            - heading "Our Mission" [level=2] [ref=e39]
+            - paragraph [ref=e40]: Too many people feel lost in their careers. Traditional career guidance is expensive, slow, and often outdated. We use AI to deliver personalized guidance that meets your unique needs, in minutes not months.
+          - generic [ref=e42]:
+            - heading "Our Values" [level=2] [ref=e44]
+            - generic [ref=e45]:
+              - generic [ref=e48]:
+                - img [ref=e50]
+                - heading "Clarity First" [level=3] [ref=e54]
+                - paragraph [ref=e55]: We believe everyone deserves a clear path to their career goals.
+              - generic [ref=e58]:
+                - img [ref=e60]
+                - heading "Accessibility" [level=3] [ref=e65]
+                - paragraph [ref=e66]: Career guidance should be available to everyone, not just the privileged few.
+              - generic [ref=e69]:
+                - img [ref=e71]
+                - heading "Innovation" [level=3] [ref=e73]
+                - paragraph [ref=e74]: We leverage cutting-edge AI to deliver personalized guidance at scale.
+              - generic [ref=e77]:
+                - img [ref=e79]
+                - heading "Empathy" [level=3] [ref=e81]
+                - paragraph [ref=e82]: Career transitions are hard. We design with compassion and understanding.
+          - generic [ref=e84]:
+            - heading "Our Journey" [level=2] [ref=e86]
+            - generic [ref=e87]:
+              - generic [ref=e88]:
+                - generic [ref=e90]: "24"
+                - generic [ref=e92]:
+                  - text: "2024"
+                  - paragraph [ref=e93]: Idea conceived
+              - generic [ref=e94]:
+                - generic [ref=e96]: "25"
+                - generic [ref=e98]:
+                  - text: "2025"
+                  - paragraph [ref=e99]: Product built
+              - generic [ref=e100]:
+                - generic [ref=e102]: "26"
+                - generic [ref=e103]:
+                  - text: "2026"
+                  - paragraph [ref=e104]: Launching February 2026
+          - generic [ref=e107]:
+            - img [ref=e108]
+            - heading "Ready to Get Started?" [level=2] [ref=e111]
+            - paragraph [ref=e112]: Join professionals transforming their careers with Shyftcut. We launch February 2026.
+            - link "Start Free" [ref=e113] [cursor=pointer]:
+              - /url: /signup
+      - contentinfo [ref=e114]:
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - heading "Stay Connected" [level=2] [ref=e118]
+              - paragraph [ref=e119]: Join our newsletter for the latest updates and career tips.
+              - generic [ref=e121]:
+                - generic [ref=e122]:
+                  - paragraph [ref=e123]: Newsletter
+                  - paragraph [ref=e124]: Join 5,000+ subscribers. Career tips and Shyftcut updates.
+                - generic [ref=e125]:
+                  - textbox "Enter your email" [ref=e126]
+                  - button "Subscribe" [ref=e127] [cursor=pointer]:
+                    - img
+                    - generic [ref=e128]: Subscribe
+            - navigation "Product" [ref=e130]:
+              - heading "Product" [level=3] [ref=e131]
+              - list [ref=e132]:
+                - listitem [ref=e133]:
+                  - link "Pricing" [ref=e134] [cursor=pointer]:
+                    - /url: /pricing
+                - listitem [ref=e135]:
+                  - link "Roadmap" [ref=e136] [cursor=pointer]:
+                    - /url: /roadmap
+                - listitem [ref=e137]:
+                  - link "Courses" [ref=e138] [cursor=pointer]:
+                    - /url: /courses
+                - listitem [ref=e139]:
+                  - link "AI Coach" [ref=e140] [cursor=pointer]:
+                    - /url: /chat
+            - navigation "Company" [ref=e142]:
+              - heading "Company" [level=3] [ref=e143]
+              - list [ref=e144]:
+                - listitem [ref=e145]:
+                  - link "About" [ref=e146] [cursor=pointer]:
+                    - /url: /about
+                - listitem [ref=e147]:
+                  - link "Blog" [ref=e148] [cursor=pointer]:
+                    - /url: /blog
+                - listitem [ref=e149]:
+                  - link "Contact" [ref=e150] [cursor=pointer]:
+                    - /url: /contact
+            - generic [ref=e151]:
+              - heading "Follow Us" [level=3] [ref=e152]
+              - generic [ref=e153]:
+                - link "Instagram" [ref=e154] [cursor=pointer]:
+                  - /url: https://www.instagram.com/shyftcut
+                  - img
+                - link "Facebook" [ref=e155] [cursor=pointer]:
+                  - /url: https://www.facebook.com/shyftcut/
+                  - img
+                - link "LinkedIn" [ref=e156] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/shyftcut/
+                  - img
+              - generic [ref=e157]:
+                - img [ref=e158]
+                - switch "Toggle dark mode" [ref=e164] [cursor=pointer]
+                - img [ref=e165]
+                - generic [ref=e167]: Toggle dark mode
+          - generic [ref=e168]:
+            - paragraph [ref=e169]: © 2026 Shyftcut. All rights reserved.
+            - navigation "Legal links" [ref=e170]:
+              - link "Privacy Policy" [ref=e171] [cursor=pointer]:
+                - /url: /privacy
+              - link "Terms of Service" [ref=e172] [cursor=pointer]:
+                - /url: /terms
+              - link "Cookie Settings" [ref=e173] [cursor=pointer]:
+                - /url: /cookies
+              - link "A Frameless App" [ref=e174] [cursor=pointer]:
+                - /url: https://frameless.co
+      - generic [ref=e179]:
+        - generic [ref=e180]:
+          - img [ref=e182]
+          - generic [ref=e184]:
+            - heading "We use cookies" [level=3] [ref=e185]
+            - paragraph [ref=e186]:
+              - text: We use cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+              - link "Learn more" [ref=e187] [cursor=pointer]:
+                - /url: /cookies
+        - generic [ref=e188]:
+          - button "Essential Only" [ref=e189] [cursor=pointer]
+          - button "Accept All" [ref=e190] [cursor=pointer]
+```

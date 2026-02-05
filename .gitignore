@@ -22,15 +22,14 @@ supabase/.temp
 supabase/functions/.env
 supabase/functions/.env.local
 
-# Playwright
-e2e/.auth/
-playwright-report/
-playwright/.cache/
-test-results/
-
 # Archives and temp
 *.zip
 *.tar.gz
+*.har
+
+# Playwright
+playwright-report/
+test-results/
 
 # Editor and OS
 .DS_Store
