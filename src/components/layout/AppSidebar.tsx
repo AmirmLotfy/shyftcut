@@ -17,7 +17,7 @@ import {
   IconUser,
   IconUsers,
   IconSignOut,
-  IconSparkle,
+  IconMagicWand,
   IconClock,
   IconBriefcase,
   IconGift,
@@ -99,7 +99,7 @@ export function AppSidebar() {
               <div className="mx-2 mt-3 rounded-xl border border-primary/20 bg-primary/10 p-2">
                 <SidebarMenuButton asChild className="h-auto w-full justify-center rounded-lg bg-primary/10 py-2.5 text-primary hover:bg-primary/20 hover:text-primary">
                   <Link to="/wizard">
-                    <IconSparkle className="h-4 w-4 shrink-0" />
+                    <IconMagicWand className="h-4 w-4 shrink-0" />
                     <span className="font-semibold">{language === 'ar' ? 'إنشاء خريطة طريق' : 'Create roadmap'}</span>
                   </Link>
                 </SidebarMenuButton>

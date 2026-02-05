@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { IconSparkle } from '@/lib/icons';
+import { IconLightning } from '@/lib/icons';
 import { cn } from '@/lib/utils';
 
 interface HeroProductPreviewProps {
@@ -43,7 +43,7 @@ export function HeroProductPreview({ compact = false }: HeroProductPreviewProps)
           {/* Header: product badge */}
           <div className={compact ? 'mb-3 flex items-center justify-between' : 'mb-5 flex items-center justify-between'}>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary">
-              <IconSparkle className="h-3.5 w-3.5" />
+              <IconLightning className="h-3.5 w-3.5" />
               {language === 'ar' ? 'خريطة جاهزة' : 'Roadmap ready'}
             </span>
             <span className="text-xs font-medium text-muted-foreground">12 {language === 'ar' ? 'أسبوع' : 'weeks'}</span>

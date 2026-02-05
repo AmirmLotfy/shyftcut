@@ -7,7 +7,7 @@ import {
   Users,
   ArrowRight,
   Loader2,
-  Sparkles,
+  Dna,
   Zap,
   Target,
   Link2,
@@ -445,7 +445,7 @@ export default function CareerDNAResult() {
               <Card className="mb-4 sm:mb-6">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Sparkles className="h-4 w-4 text-primary" />
+                    <Dna className="h-4 w-4 text-primary" />
                     {t('careerDna.result.archetype')}
                   </CardTitle>
                 </CardHeader>

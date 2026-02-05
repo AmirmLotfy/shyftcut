@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Square, Plus, Pencil, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { CheckSquare, Square, Plus, Pencil, Trash2, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -255,7 +255,7 @@ export function WeekTasks({ roadmapWeekId, showSections }: WeekTasksProps) {
             {suggestLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Sparkles className="h-4 w-4" />
+              <Zap className="h-4 w-4" />
             )}
             {t('study.suggestTasks')}
           </Button>

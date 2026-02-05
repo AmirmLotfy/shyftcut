@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Brain, BookOpen, Clock, Sparkles, CheckCircle2, Globe } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Brain, BookOpen, Clock, Lightbulb, CheckCircle2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -493,7 +493,7 @@ export default function Wizard() {
               className="mt-6 flex-1 rounded-2xl border border-primary/20 bg-primary/5 px-5 py-5 sm:mt-8 sm:px-6 sm:py-6"
             >
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
+                <Lightbulb className="h-5 w-5 text-primary sm:h-6 sm:w-6" />
                 <span className="text-sm font-semibold text-primary sm:text-base">
                   {t('wizard.generating.didYouKnow')}
                 </span>

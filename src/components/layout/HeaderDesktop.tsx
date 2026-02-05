@@ -6,7 +6,7 @@ import {
   IconSignOut,
   IconHouse,
   IconCreditCard,
-  IconSparkle,
+  IconBookOpen,
   IconMapTrifold,
 } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export function HeaderDesktop() {
   const navItems = [
     { label: t('nav.home'), href: '/', icon: IconHouse },
     { label: user ? (language === 'ar' ? 'ترقية' : 'Upgrade') : t('nav.pricing'), href: getUpgradePath(user), icon: IconCreditCard },
-    { label: t('nav.blog'), href: '/blog', icon: IconSparkle },
+    { label: t('nav.blog'), href: '/blog', icon: IconBookOpen },
   ];
 
   const handleSignOut = async () => {

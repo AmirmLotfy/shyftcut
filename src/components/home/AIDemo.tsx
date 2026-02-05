@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { IconSparkle, IconArrowRight } from '@/lib/icons';
+import { IconLightning, IconArrowRight } from '@/lib/icons';
 
 const sampleGoals = [
   { en: 'Become a Data Analyst', ar: 'أصبح محلل بيانات' },
@@ -78,7 +78,7 @@ export function AIDemo() {
             >
               {simulating ? (
                 <>
-                  <IconSparkle className="h-5 w-5 animate-pulse" />
+                  <IconLightning className="h-5 w-5 animate-pulse" />
                   {language === 'ar' ? 'جاري الإنشاء...' : 'Building...'}
                 </>
               ) : preview ? (

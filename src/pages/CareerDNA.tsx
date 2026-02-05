@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Sparkles, ArrowRight, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Dna, ArrowRight, ArrowLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -25,7 +25,7 @@ export default function CareerDNA() {
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState<'forward' | 'backward'>('forward');
-  const { t, language } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -109,7 +109,7 @@ export default function CareerDNA() {
     <Layout hideFooter={step >= 0}>
       <PublicPageMeta title={seo.title} description={seo.description} path="/career-dna" image={`${BASE_URL}/career-dna-og.png`} />
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-primary/5">
-        <div className="container mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-8 md:py-12 lg:px-8 lg:py-16 xl:px-12 sm:pb-8">
+        <div className="container mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8 md:py-12 lg:px-8 lg:py-16 xl:px-12 sm:pb-8">
           {/* Intro */}
           <AnimatePresence mode="wait">
             {step < 0 && (
@@ -118,61 +118,104 @@ export default function CareerDNA() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="mx-auto max-w-2xl text-center px-1"
+                className="mx-auto grid max-w-5xl gap-8 text-center lg:grid-cols-[1fr,320px] lg:items-start lg:gap-12 lg:text-left rtl:lg:text-right"
               >
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2.5 sm:mb-8">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">{t('careerDna.badge')}</span>
-                </div>
-                <h1 className="mb-3 text-2xl font-bold tracking-tight sm:mb-4 sm:text-4xl md:text-5xl lg:text-6xl lg:mb-6">
-                  {t('careerDna.title')}
-                </h1>
-                <p className="mb-6 text-base text-muted-foreground sm:mb-8 sm:text-lg md:text-xl lg:mb-10">
-                  {t('careerDna.subtitle')}
-                </p>
-                {squadSlug && (
-                  <div className="mb-5 w-full max-w-sm sm:mb-6">
-                    <Label htmlFor="display-name" className="text-sm font-medium text-foreground">
-                      {t('careerDna.squad.nickname')}
+                <div className="flex flex-col items-center text-center lg:items-start lg:text-left rtl:lg:items-end rtl:lg:text-right">
+                  <div className="mb-5 flex flex-col items-center gap-4 sm:mb-8 lg:items-start rtl:lg:items-end">
+                    <Label className="text-sm font-medium text-muted-foreground">{t('careerDna.chooseLanguage')}</Label>
+                    <div className="flex gap-3">
+                      <Button
+                        variant={language === 'en' ? 'default' : 'outline'}
+                        size="default"
+                        className="min-h-11 min-w-[100px]"
+                        onClick={() => setLanguage('en')}
+                      >
+                        {t('careerDna.languageEn')}
+                      </Button>
+                      <Button
+                        variant={language === 'ar' ? 'default' : 'outline'}
+                        size="default"
+                        className="min-h-11 min-w-[100px] font-arabic"
+                        onClick={() => setLanguage('ar')}
+                      >
+                        {t('careerDna.languageAr')}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2.5 sm:mb-8">
+                    <Dna className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">{t('careerDna.badge')}</span>
+                  </div>
+                  <h1 className="mb-3 text-2xl font-bold tracking-tight sm:mb-4 sm:text-4xl md:text-5xl lg:text-6xl lg:mb-6">
+                    {t('careerDna.title')}
+                  </h1>
+                  <p className="mb-6 text-base text-muted-foreground sm:mb-8 sm:text-lg md:text-xl lg:mb-10">
+                    {t('careerDna.subtitle')}
+                  </p>
+                  {squadSlug && (
+                    <div className="mb-5 w-full max-w-sm sm:mb-6">
+                      <Label htmlFor="display-name" className="text-sm font-medium text-foreground">
+                        {t('careerDna.squad.nickname')}
+                      </Label>
+                      <Input
+                        id="display-name"
+                        type="text"
+                        placeholder={t('careerDna.squad.nicknamePlaceholder')}
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value.slice(0, 30))}
+                        className="mt-1.5"
+                      />
+                    </div>
+                  )}
+                  <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start rtl:sm:flex-row-reverse rtl:lg:justify-end sm:mb-8 lg:mb-10">
+                    <Label htmlFor="is-student" className="text-sm font-medium text-foreground sm:text-base">
+                      {t('careerDna.iAmStudent')}
                     </Label>
-                    <Input
-                      id="display-name"
-                      type="text"
-                      placeholder={t('careerDna.squad.nicknamePlaceholder')}
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value.slice(0, 30))}
-                      className="mt-1.5"
-                    />
+                    <div className="flex gap-3">
+                      <Button
+                        id="is-student"
+                        variant={isStudent ? 'default' : 'outline'}
+                        size="default"
+                        className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
+                        onClick={() => setIsStudent(true)}
+                      >
+                        {t('careerDna.yes')}
+                      </Button>
+                      <Button
+                        variant={!isStudent ? 'default' : 'outline'}
+                        size="default"
+                        className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
+                        onClick={() => setIsStudent(false)}
+                      >
+                        {t('careerDna.no')}
+                      </Button>
+                    </div>
                   </div>
-                )}
-                <div className="mb-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:mb-8 lg:mb-10">
-                  <Label htmlFor="is-student" className="text-sm font-medium text-foreground sm:text-base">
-                    {t('careerDna.iAmStudent')}
-                  </Label>
-                  <div className="flex gap-3">
-                    <Button
-                      id="is-student"
-                      variant={isStudent ? 'default' : 'outline'}
-                      size="default"
-                      className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
-                      onClick={() => setIsStudent(true)}
-                    >
-                      {t('careerDna.yes')}
-                    </Button>
-                    <Button
-                      variant={!isStudent ? 'default' : 'outline'}
-                      size="default"
-                      className="min-h-12 min-w-20 sm:min-h-10 sm:min-w-0 sm:px-4"
-                      onClick={() => setIsStudent(false)}
-                    >
-                      {t('careerDna.no')}
-                    </Button>
-                  </div>
+                  <Button size="lg" className="h-14 w-full max-w-xs gap-2 px-8 text-base sm:h-auto sm:w-auto sm:px-10 lg:w-auto" onClick={handleStart}>
+                    {t('careerDna.start')}
+                    <ArrowRight className="h-4 w-4 shrink-0" />
+                  </Button>
                 </div>
-                <Button size="lg" className="h-14 w-full max-w-xs gap-2 px-8 text-base sm:h-auto sm:w-auto sm:px-10" onClick={handleStart}>
-                  {t('careerDna.start')}
-                  <ArrowRight className="h-4 w-4 shrink-0" />
-                </Button>
+                {/* Desktop: side card */}
+                <Card className="hidden lg:block border-primary/20 bg-primary/5 p-6">
+                  <CardContent className="p-0">
+                    <h3 className="mb-4 text-lg font-semibold">{t('careerDna.whatsInside')}</h3>
+                    <ul className="space-y-3 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary">1</span>
+                        {t('careerDna.highlight1')}
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary">2</span>
+                        {t('careerDna.highlight2')}
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-medium text-primary">3</span>
+                        {t('careerDna.highlight3')}
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
               </motion.div>
             )}
 

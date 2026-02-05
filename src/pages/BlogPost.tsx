@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft } from 'lucide-react';
-import { IconSparkle, IconArrowRight } from '@/lib/icons';
+import { IconMagicWand, IconArrowRight } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Layout } from '@/components/layout/Layout';
@@ -223,7 +223,7 @@ export default function BlogPost() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/20">
-                      <IconSparkle className="h-6 w-6 text-primary" />
+                      <IconMagicWand className="h-6 w-6 text-primary" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-foreground">

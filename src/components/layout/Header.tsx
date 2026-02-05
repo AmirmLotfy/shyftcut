@@ -6,7 +6,7 @@ import {
   IconSignOut,
   IconHouse,
   IconCreditCard,
-  IconSparkle,
+  IconBook2,
   IconMapTrifold,
   IconList,
 } from '@/lib/icons';
@@ -51,7 +51,7 @@ export function Header() {
   const navItems = [
     { label: t('nav.home'), href: '/', icon: IconHouse },
     { label: user ? t('nav.upgrade') : t('nav.pricing'), href: getUpgradePath(user), icon: IconCreditCard },
-    { label: t('nav.blog'), href: '/blog', icon: IconSparkle },
+    { label: t('nav.blog'), href: '/blog', icon: IconBook2 },
   ];
 
   const handleSignOut = async () => {

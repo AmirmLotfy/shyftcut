@@ -10,7 +10,7 @@ import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { BlogCard } from '@/components/blog/BlogCard';
 import { NewsletterSignup } from '@/components/footer/NewsletterSignup';
-import { IconMagnifyingGlass, IconArrowLeft, IconSparkle } from '@/lib/icons';
+import { IconMagnifyingGlass, IconArrowLeft, IconBookOpen } from '@/lib/icons';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { blogPosts, categories } from '@/data/blog-posts';
 
@@ -127,7 +127,7 @@ export default function Blog() {
                   <Card className="h-full border-primary/20 bg-primary/5 transition-all hover:border-primary/40 hover:shadow-lg">
                     <CardContent className="flex flex-col justify-center p-6 md:p-8">
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
-                        <IconSparkle className="h-6 w-6 text-primary" />
+                        <IconBookOpen className="h-6 w-6 text-primary" />
                       </div>
                       <NewsletterSignup />
                     </CardContent>

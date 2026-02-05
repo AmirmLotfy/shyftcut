@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
 import { CheckoutButton } from '@/components/pricing/CheckoutButton';
 import { FeatureComparison } from '@/components/pricing/FeatureComparison';
-import { IconCheckCircle, IconSparkle, IconLightning } from '@/lib/icons';
+import { IconCheckCircle, IconLightning } from '@/lib/icons';
 import { POLAR_PRODUCTS } from '@/lib/polar-config';
 import type { BillingInterval } from '@/lib/polar-config';
 
@@ -23,7 +23,7 @@ const plans = {
       name: 'Free',
       price: 0,
       description: 'Get started with basic features',
-      icon: IconSparkle,
+      icon: IconCheckCircle,
       features: [
         '1 roadmap (total)',
         '10 AI chat messages per month',
@@ -62,7 +62,7 @@ const plans = {
       name: 'مجاني',
       price: 0,
       description: 'ابدأ مع المميزات الأساسية',
-      icon: IconSparkle,
+      icon: IconCheckCircle,
       features: [
         'خريطة طريق واحدة (إجمالي)',
         '10 رسائل دردشة ذكاء اصطناعي شهرياً',

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   BookOpen,
   Briefcase,
-  Sparkles,
+  Wand2,
   Home,
   CreditCard,
   HelpCircle,
@@ -28,7 +28,7 @@ const moreNavItems = [
   { href: '/courses', labelKey: { en: 'Courses', ar: 'الدورات' }, icon: BookOpen },
   { href: '/career-tools', labelKey: { en: 'Career Tools', ar: 'أدوات المهنة' }, icon: Briefcase },
   { href: '/community', labelKey: { en: 'Community', ar: 'المجتمع' }, icon: Users },
-  { href: '/wizard', labelKey: { en: 'Create roadmap', ar: 'إنشاء خريطة طريق' }, icon: Sparkles },
+  { href: '/wizard', labelKey: { en: 'Create roadmap', ar: 'إنشاء خريطة طريق' }, icon: Wand2 },
   { href: '/support', labelKey: { en: 'Support', ar: 'الدعم' }, icon: HelpCircle },
   { href: '/', labelKey: { en: 'Home', ar: 'الرئيسية' }, icon: Home },
   { href: 'upgrade', labelKey: { en: 'Upgrade', ar: 'ترقية' }, icon: CreditCard, isUpgrade: true },

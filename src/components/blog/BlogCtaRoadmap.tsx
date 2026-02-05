@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { IconSparkle, IconArrowRight } from '@/lib/icons';
+import { IconMapTrifold, IconArrowRight } from '@/lib/icons';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 /** Sticky CTA prompting blog readers to try the AI roadmap generator. Converts well on mobile (sticky bar) and desktop (floating card). */
@@ -40,7 +40,7 @@ export function BlogCtaRoadmap() {
           <div className="public-glass-card mx-auto max-w-lg rounded-2xl border-primary/30 shadow-xl sm:rounded-2xl sm:shadow-2xl">
             <div className="flex items-center gap-3 p-4 sm:gap-4 sm:p-5">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/20 sm:h-12 sm:w-12">
-                <IconSparkle className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
+                <IconMapTrifold className="h-6 w-6 text-primary sm:h-7 sm:w-7" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-foreground truncate">{ctaLabel}</p>

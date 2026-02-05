@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, TrendingUp, TrendingDown, Minus, AlertTriangle, Info, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Minus, AlertTriangle, Info, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAdminInsights, WeeklyInsights } from '@/hooks/useAdmin';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -86,7 +86,7 @@ export function WeeklyInsights() {
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <BarChart3 className="h-5 w-5 text-primary" />
             <CardTitle>{language === 'ar' ? 'رؤى الأسبوع' : 'Weekly Insights'}</CardTitle>
             {data.cached && (
               <Badge variant="secondary" className="text-xs">

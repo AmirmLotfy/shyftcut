@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { IconSparkle, IconArrowRight } from '@/lib/icons';
+import { IconLightning, IconArrowRight } from '@/lib/icons';
 
 /**
  * One feature in split layout: copy left, roadmap UI mock right. RTL-safe.
@@ -23,7 +23,7 @@ export function FeatureSpotlight() {
       {/* Copy — start side (left LTR, right RTL) */}
       <div className="flex flex-col text-start">
         <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-glow text-white shadow-lg shadow-primary/25">
-          <IconSparkle className="h-7 w-7" />
+          <IconLightning className="h-7 w-7" />
         </div>
         <h3 className="mb-3 text-xl font-bold sm:text-2xl md:text-3xl">
           {t('features.ai.title')}

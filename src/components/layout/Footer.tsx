@@ -23,9 +23,11 @@ import {
 
 const productLinks = [
   { to: '/pricing', labelKey: { en: 'Pricing', ar: 'الأسعار' } },
+  { to: '/career-dna', labelKey: { en: 'Career DNA', ar: 'الحمض النووي المهني' } },
   { to: '/roadmap', labelKey: { en: 'Roadmap', ar: 'خارطة الطريق' } },
   { to: '/courses', labelKey: { en: 'Courses', ar: 'الدورات' } },
   { to: '/chat', labelKey: { en: 'AI Coach', ar: 'المدرب الذكي' } },
+  { to: '/affiliate', labelKey: { en: 'Earn', ar: 'اكسب' } },
 ];
 
 const companyLinks = [

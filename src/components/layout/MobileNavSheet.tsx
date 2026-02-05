@@ -5,7 +5,7 @@ import {
   IconSignOut,
   IconHouse,
   IconCreditCard,
-  IconSparkle,
+  IconBook2,
   IconMapTrifold,
 } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
@@ -40,7 +40,7 @@ export function MobileNavSheet({ open, onOpenChange, trigger }: MobileNavSheetPr
   const navItems = [
     { label: t('nav.home'), href: '/', icon: IconHouse },
     { label: user ? t('nav.upgrade') : t('nav.pricing'), href: getUpgradePath(user), icon: IconCreditCard },
-    { label: t('nav.blog'), href: '/blog', icon: IconSparkle },
+    { label: t('nav.blog'), href: '/blog', icon: IconBook2 },
   ];
 
   const handleSignOut = async () => {

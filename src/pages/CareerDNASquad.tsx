@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, Loader2, Sparkles, ArrowRight, Share2, Link2, Trophy, ChevronDown } from 'lucide-react';
+import { Users, Loader2, Dna, ArrowRight, Share2, Link2, Trophy, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -319,7 +319,7 @@ export default function CareerDNASquad() {
                             </p>
                             {r.superpower && (
                               <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                                <Sparkles className="h-3 w-3 shrink-0" />
+                                <Dna className="h-3 w-3 shrink-0" />
                                 {r.superpower}
                               </p>
                             )}
