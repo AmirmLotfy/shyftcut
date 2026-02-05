@@ -1,0 +1,44 @@
+# Shyftcut Robots.txt
+# Disallow protected (authenticated) routes first so crawlers do not index them.
+
+User-agent: *
+Disallow: /wizard
+Disallow: /dashboard
+Disallow: /roadmap
+Disallow: /courses
+Disallow: /chat
+Disallow: /profile
+Disallow: /checkout
+Allow: /
+
+User-agent: Googlebot
+Disallow: /wizard
+Disallow: /dashboard
+Disallow: /roadmap
+Disallow: /courses
+Disallow: /chat
+Disallow: /profile
+Disallow: /checkout
+Allow: /
+
+User-agent: Bingbot
+Disallow: /wizard
+Disallow: /dashboard
+Disallow: /roadmap
+Disallow: /courses
+Disallow: /chat
+Disallow: /profile
+Disallow: /checkout
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+# Sitemap location
+Sitemap: https://shyftcut.com/sitemap.xml
+
+# LLM / AI discoverability index (machine-readable URLs + summaries)
+# https://shyftcut.com/llm-sitemap.json

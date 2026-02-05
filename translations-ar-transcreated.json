@@ -1,0 +1,876 @@
+{
+  "languageContext": {
+    "nav.home": "الرئيسية",
+    "nav.dashboard": "لوحة التحكم",
+    "nav.roadmap": "خريطة الطريق",
+    "nav.courses": "الدورات",
+    "nav.chat": "المدرب الذكي",
+    "nav.pricing": "الأسعار",
+    "nav.blog": "المدونة",
+    "nav.careerDna": "اعرف وظيفتك الأنسب",
+    "nav.login": "تسجيل الدخول",
+    "nav.signup": "إنشاء حساب",
+    "nav.logout": "تسجيل الخروج",
+    "nav.profile": "الملف الشخصي",
+    "nav.community": "المجتمع",
+    "hero.title": "خريطة طريقك المهنية",
+    "hero.subtitle": "في ٩٠ ثانية",
+    "hero.description": "توجيه مهني مدعوم بالذكاء الاصطناعي يحول الارتباك إلى مسار واضح لـ ١٢ أسبوعاً. دورات موثقة، تتبع التقدم، وتدريب على مدار الساعة.",
+    "hero.cta": "ابدأ رحلتك",
+    "hero.cta.secondary": "شاهد كيف يعمل",
+    "features.ai.title": "خرائط طريق بالذكاء الاصطناعي",
+    "features.ai.description": "احصل على مسار مهني مخصص لـ ١٢ أسبوعاً يُنشئه الذكاء الاصطناعي في أقل من ٩٠ ثانية.",
+    "features.ai.bullet1": "مخصص لهدفك، وجدولك الزمني، وخبرتك.",
+    "features.ai.bullet2": "دورات موثقة من كورسيرا، يوديمي، يوتيوب، وأكثر من ٥٠ منصة.",
+    "features.ai.bullet3": "حدّث خريطة طريقك في أي وقت مع تطور أهدافك.",
+    "features.courses.title": "دورات موثقة",
+    "features.courses.description": "دورات محققة في الوقت الفعلي من أفضل المنصات مع تقييم الجودة.",
+    "features.progress.title": "تتبع التقدم",
+    "features.progress.description": "معالم أسبوعية، اختبارات، وخرائط حرارية للمهارات لإبقائك على المسار.",
+    "features.chat.title": "تدريب ذكي ٢٤/٧",
+    "features.chat.description": "احصل على إجابات فورية حول المهن، المهارات، المقابلات، والتفاوض على الراتب.",
+    "features.study.title": "أدوات الدراسة",
+    "features.study.description": "ملاحظات ومهام لكل أسبوع، مؤقت بومودورو، واقتراحات مهام بالذكاء الاصطناعي.",
+    "auth.login.title": "مرحباً بعودتك",
+    "auth.login.subtitle": "سجل الدخول لمتابعة رحلتك المهنية",
+    "auth.signup.title": "ابدأ رحلتك",
+    "auth.signup.subtitle": "أنشئ حساباً للحصول على خريطة طريقك المخصصة",
+    "auth.email": "البريد الإلكتروني",
+    "auth.password": "كلمة المرور",
+    "auth.name": "الاسم الكامل",
+    "auth.login.button": "تسجيل الدخول",
+    "auth.signup.button": "إنشاء حساب",
+    "auth.login.link": "لديك حساب بالفعل؟",
+    "auth.or": "أو تابع مع",
+    "auth.google": "جوجل",
+    "auth.pleaseSignIn": "يرجى تسجيل الدخول للمتابعة",
+    "auth.passwordNeedsDigit": "يجب أن تحتوي كلمة المرور على رقم واحد على الأقل",
+    "auth.passwordNeedsLowercase": "يجب أن تحتوي كلمة المرور على حرف صغير واحد على الأقل",
+    "auth.passwordNeedsUppercase": "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+    "auth.passwordNeedsSymbol": "يجب أن تحتوي كلمة المرور على رمز واحد على الأقل (!@#$%^&*...)",
+    "auth.passwordWeak": "كلمة المرور لا تلبي متطلبات الأمان",
+    "auth.emailAlreadyRegistered": "هذا البريد الإلكتروني مستخدم بالفعل. سجّل الدخول عبر جوجل أو استخدم نفس البريد وكلمة المرور إن كان لديك حساب. نسيت كلمة المرور؟ أعد تعيينها من صفحة تسجيل الدخول.",
+    "auth.captchaFailed": "فشل التحقق من CAPTCHA. يرجى إكمال التحدي والمحاولة مرة أخرى.",
+    "auth.forgotPassword": "نسيت كلمة المرور؟",
+    "auth.forgotPasswordTitle": "إعادة تعيين كلمة المرور",
+    "auth.forgotPasswordSubtitle": "أدخل بريدك الإلكتروني وسنرسل لك رابطاً لتعيين كلمة مرور جديدة.",
+    "auth.forgotPasswordButton": "إرسال رابط إعادة التعيين",
+    "auth.forgotPasswordSuccess": "تحقق من بريدك",
+    "auth.forgotPasswordSuccessDesc": "أرسلنا رابط إعادة تعيين كلمة المرور. انقر عليه لتعيين كلمة مرور جديدة.",
+    "auth.resetPasswordTitle": "تعيين كلمة مرور جديدة",
+    "auth.resetPasswordSubtitle": "أدخل كلمة المرور الجديدة أدناه.",
+    "auth.resetPasswordButton": "تحديث كلمة المرور",
+    "auth.resetPasswordInvalidLink": "رابط غير صالح أو منتهي",
+    "auth.resetPasswordInvalidLinkDesc": "رابط إعادة التعيين هذا غير صالح أو منتهي. اطلب رابطاً جديداً أدناه.",
+    "auth.resetPasswordSuccessDesc": "تم تحديث كلمة المرور. أنت الآن مسجل الدخول.",
+    "auth.confirmPassword": "تأكيد كلمة المرور",
+    "auth.loginGoogleHint": "إذا سجلت الدخول عبر جوجل، استخدم زر جوجل أعلاه.",
+    "auth.magicLink.tab": "رابط بريد إلكتروني",
+    "auth.magicLink.tabPassword": "كلمة المرور",
+    "auth.magicLink.button": "إرسال رابط تسجيل الدخول",
+    "auth.magicLink.success": "تحقق من بريدك",
+    "auth.magicLink.successDesc": "أرسلنا رابط تسجيل الدخول. انقر عليه لتسجيل الدخول أو إنشاء حسابك. ينتهي الرابط خلال ساعة. إن سجلت بجوجل، استخدم نفس البريد — سيسجل دخولك.",
+    "auth.magicLink.failed": "فشل إرسال رابط تسجيل الدخول",
+    "auth.magicLink.tryGoogle": "إن سجلت بجوجل، جرّب زر جوجل بدلاً.",
+    "auth.community.messageBlocked": "الرسالة غير مسموحة",
+    "auth.community.groupBlocked": "المجموعة غير مسموحة",
+    "wizard.step1.title": "أين أنت الآن",
+    "wizard.step1.subtitle": "دورك الحالي وخبرتك",
+    "wizard.step2.subtitle": "الوظيفة المستهدفة والجدول الزمني",
+    "wizard.step3.title": "ما الذي تمتلكه بالفعل",
+    "wizard.step3.subtitle": "مهارات يمكن البناء عليها",
+    "wizard.step4.title": "كيف تتعلم بشكل أفضل",
+    "wizard.step4.subtitle": "الأسلوب والمنصات",
+    "wizard.step5.title": "الوقت والميزانية",
+    "wizard.step5.subtitle": "الساعات الأسبوعية والميزانية",
+    "wizard.next": "التالي",
+    "wizard.back": "رجوع",
+    "wizard.generate": "إنشاء خريطة الطريق",
+    "wizard.generating.title": "جاري بناء خريطة طريقك",
+    "wizard.generating.statement1": "قراءة ملفك الشخصي",
+    "wizard.generating.statement2": "رسم مسارك لـ 12 أسبوعاً",
+    "wizard.generating.statement3": "اختيار دورات تناسبك",
+    "wizard.generating.statement4": "بناء خطتك أسبوعاً بأسبوع",
+    "wizard.generating.statement5": "تقريباً جاهز",
+    "wizard.generating.statement6": "تم",
+    "wizard.generating.didYouKnow": "هل تعلم؟",
+    "wizard.generating.funFact1": "التعلم على دفعات 15–30 دقيقة يحسّن التذكر أكثر من الجلسات الطويلة.",
+    "wizard.generating.funFact2": "توزيع الممارسة على أيام أفضل من الحشو للذاكرة طويلة المدى.",
+    "wizard.generating.funFact3": "كتابة الأهداف تزيد احتمال تحقيقها بنسبة 42%.",
+    "wizard.generating.funFact4": "معظم من يغيّرون مسارهم المهني يقولون أن أول 90 يوم من التعلم كانت الأصعب—والأكثر مكافأة.",
+    "wizard.generating.funFact5": "أفضل الأداء يخصصون نحو 5 ساعات أسبوعياً للتعلم المتعمد.",
+    "wizard.generating.funFact6": "تعليم الآخرين ما تعلّمته يقوّي فهمك أنت.",
+    "wizard.generating.funFact7": "أخذ استراحات قصيرة كل 25–30 دقيقة يعزز التركيز والإنتاجية.",
+    "wizard.generating.funFact8": "من يتبعون خطة منظمة أكثر احتمالاً بمرتين لتحقيق أهدافهم المهنية.",
+    "wizard.generating.usuallyUnderMinute": "عادةً ما يستغرق أقل من دقيقة",
+    "wizard.teaser.heading": "خطة 12 أسبوعك الكاملة جاهزة",
+    "wizard.teaser.subtitle": "هذه معاينة قصيرة. خريطة الطريق الكاملة لـ 12 أسبوعاً، المهام الأسبوعية، الاختبارات، والمدرب الذكي في حسابك — سجّل الدخول أو أنشئ حساباً لفتح كل شيء.",
+    "wizard.teaser.bulletFull": "12 أسبوعاً كاملة",
+    "wizard.teaser.bulletCourses": "روابط الدورات",
+    "wizard.teaser.bulletQuizzes": "اختبارات أسبوعية",
+    "wizard.teaser.bulletCoach": "مدرب ذكي",
+    "wizard.teaser.bulletProgress": "تتبع التقدم",
+    "wizard.teaser.moreWeeks": "10 أسابيع إضافية + مدرب ذكي + اختبارات أسبوعية في حسابك الكامل.",
+    "wizard.teaser.signUp": "إنشاء حساب",
+    "wizard.teaser.logIn": "تسجيل الدخول",
+    "wizard.teaser.backHome": "العودة للرئيسية",
+    "wizard.teaser.week": "الأسبوع",
+    "wizard.teaser.deliverables": "مخرجات",
+    "wizard.teaser.suggestedCourse": "دورة مقترحة",
+    "wizard.label.industry.Technology": "التكنولوجيا",
+    "wizard.label.industry.Healthcare": "الرعاية الصحية",
+    "wizard.label.industry.Finance": "المالية",
+    "wizard.label.industry.Education": "التعليم",
+    "wizard.label.industry.Marketing": "التسويق",
+    "wizard.label.industry.Sales": "المبيعات",
+    "wizard.label.industry.Manufacturing": "التصنيع",
+    "wizard.label.industry.Retail": "التجزئة",
+    "wizard.label.industry.Consulting": "الاستشارات",
+    "wizard.label.industry.Media": "الإعلام",
+    "wizard.label.industry.Non-profit": "غير ربحي",
+    "wizard.label.industry.Government": "الحكومة",
+    "wizard.label.industry.Other": "أخرى",
+    "wizard.label.level.entry": "مبتدئ",
+    "wizard.label.level.junior": "مبتدئ متقدم",
+    "wizard.label.level.mid": "متوسط",
+    "wizard.label.level.senior": "أقدم",
+    "wizard.label.level.executive": "تنفيذي",
+    "wizard.label.learningStyle.video": "فيديو",
+    "wizard.label.learningStyle.reading": "قراءة",
+    "wizard.label.learningStyle.hands-on": "عملي",
+    "wizard.label.learningStyle.mixed": "مختلط",
+    "wizard.label.platform.Coursera": "Coursera",
+    "wizard.label.platform.Udemy": "Udemy",
+    "wizard.label.platform.LinkedIn Learning": "LinkedIn Learning",
+    "wizard.label.platform.YouTube": "YouTube",
+    "wizard.label.platform.Pluralsight": "Pluralsight",
+    "wizard.label.platform.Skillshare": "Skillshare",
+    "wizard.label.platform.edX": "edX",
+    "wizard.label.platform.FutureLearn": "FutureLearn",
+    "wizard.label.platform.Khan Academy": "أكاديمية خان",
+    "wizard.label.platform.Codecademy": "كود أكاديمي",
+    "wizard.label.platform.DataCamp": "داتا كامب",
+    "wizard.label.platform.freeCodeCamp": "فري كود كامب",
+    "wizard.label.platform.MasterClass": "ماستر كلاس",
+    "wizard.label.platform.Microsoft Learn": "مايكروسوفت ليرن",
+    "wizard.label.platform.AWS Training": "تدريب AWS",
+    "wizard.label.platform.Google Cloud Skills": "مهارات جوجل كلاود",
+    "wizard.label.jobTitle.Software Engineer": "مهندس برمجيات",
+    "wizard.label.jobTitle.Data Scientist": "عالم بيانات",
+    "wizard.label.jobTitle.Product Manager": "مدير منتج",
+    "wizard.label.jobTitle.UX Designer": "مصمم تجربة مستخدم",
+    "wizard.label.jobTitle.DevOps Engineer": "مهندس DevOps",
+    "wizard.label.jobTitle.Cloud Architect": "مهندس بنية سحابية",
+    "wizard.label.jobTitle.Machine Learning Engineer": "مهندس تعلم آلي",
+    "wizard.label.jobTitle.Frontend Developer": "مطور واجهات",
+    "wizard.label.jobTitle.Backend Developer": "مطور خوادم",
+    "wizard.label.jobTitle.Full Stack Developer": "مطور full stack",
+    "wizard.label.jobTitle.Cybersecurity Analyst": "محلل أمن سيبراني",
+    "wizard.label.jobTitle.Business Analyst": "محلل أعمال",
+    "wizard.label.jobTitle.Project Manager": "مدير مشاريع",
+    "wizard.label.jobTitle.Marketing Manager": "مدير تسويق",
+    "wizard.label.jobTitle.Sales Manager": "مدير مبيعات",
+    "wizard.label.jobTitle.HR Manager": "مدير موارد بشرية",
+    "wizard.label.jobTitle.Student": "طالب",
+    "wizard.label.jobTitle.Other": "أخرى",
+    "wizard.validation.about": "اختر دورك ومجالك ومستوى خبرتك للمتابعة",
+    "wizard.validation.goals": "اختر الوظيفة المستهدفة للمتابعة",
+    "wizard.validation.skills": "أضف مهارتين على الأقل للمتابعة",
+    "wizard.validation.platforms": "اختر أسلوب التعلم ومنصة واحدة على الأقل للمتابعة",
+    "wizard.validation.availability": "حدد الساعات الأسبوعية والميزانية للمتابعة",
+    "wizard.step0.title": "اختر لغتك",
+    "wizard.step0.subtitle": "سيتم استخدام هذه اللغة في الخريطة والواجهة.",
+    "wizard.english": "English",
+    "wizard.continueEnglish": "Continue in English",
+    "wizard.arabic": "العربية",
+    "wizard.continueArabic": "المتابعة بالعربية",
+    "wizard.pageTitle": "أنشئ خريطة طريقك المهنية",
+    "wizard.pageSubtitle": "خمس خطوات قصيرة — تحصل على خطة 12 أسبوعاً مبنية على هدفك وجدولك.",
+    "wizard.bullet12Week": "خطة 12 أسبوعاً",
+    "wizard.bulletCourses": "دورات منتقاة",
+    "wizard.bulletCoach": "مدرب ذكي",
+    "wizard.currentJobTitle": "المسمى الوظيفي الحالي",
+    "wizard.selectJobTitle": "اختر المسمى الوظيفي",
+    "wizard.industry": "المجال",
+    "wizard.selectIndustry": "اختر المجال",
+    "wizard.experienceLevel": "مستوى الخبرة",
+    "wizard.selectLevel": "اختر المستوى",
+    "wizard.targetCareer": "الوظيفة المستهدفة",
+    "wizard.selectCareer": "اختر الوظيفة",
+    "wizard.whyChange": "لماذا هذا التغيير؟ (اختياري)",
+    "wizard.reasonAria": "سبب التغيير المهني",
+    "wizard.reasonGrowth": "نمو مهني",
+    "wizard.reasonSwitch": "تغيير المجال",
+    "wizard.reasonUpskill": "تطوير المهارات",
+    "wizard.reasonChallenge": "تحدٍ جديد",
+    "wizard.reasonOther": "أخرى",
+    "wizard.timeline": "الجدول الزمني",
+    "wizard.timeline12": "12 أسبوع (3 أشهر)",
+    "wizard.timeline24": "24 أسبوع (6 أشهر)",
+    "wizard.whyWeAskAbout": "نسأل لملاءمة الخطة مع وضعك الحالي.",
+    "wizard.whyWeAskGoals": "نستخدم هذا لتشكيل مسارك لـ 12 أسبوعاً.",
+    "wizard.serverError": "خطأ في الخادم",
+    "wizard.rateLimitPreview": "تم تجاوز الحد. حاول لاحقاً.",
+    "wizard.rateLimit": "تم تجاوز الحد. حاول لاحقاً.",
+    "wizard.roadmapLimit": "وصلت لحد خريطة الطريق. ترقية للحصول على خرائط غير محدودة.",
+    "wizard.invalidResponse": "استجابة غير صالحة من الخادم.",
+    "wizard.roadmapGenerated": "تم إنشاء خريطة الطريق!",
+    "wizard.roadmapGeneratedDesc": "خريطة طريقك المهنية جاهزة",
+    "wizard.failedToGenerate": "فشل في إنشاء خريطة الطريق. حاول مرة أخرى.",
+    "wizard.yourCurrentSkills": "مهاراتك الحالية",
+    "wizard.selectAtLeast2": "اختر مهارتين على الأقل",
+    "wizard.searchSkills": "ابحث عن مهارة...",
+    "wizard.selectSkillsAria": "اختر المهارات",
+    "wizard.skillsSelected": "تم اختيار {{count}} مهارة (الحد الأدنى 2)",
+    "wizard.preferredLearningStyle": "أسلوب التعلم المفضل",
+    "wizard.preferredPlatforms": "المنصات المفضلة",
+    "wizard.weeklyHours": "الساعات الأسبوعية المتاحة",
+    "wizard.monthlyBudget": "الميزانية الشهرية",
+    "wizard.budgetFree": "مجاني فقط",
+    "wizard.budgetUpTo50": "حتى $50",
+    "wizard.budgetUpTo200": "حتى $200",
+    "wizard.budgetUnlimited": "غير محدود",
+    "wizard.pressEnter": "اضغط Enter للمتابعة",
+    "wizard.generating": "جاري الإنشاء...",
+    "wizard.entry": "مبتدئ",
+    "wizard.junior": "صغير",
+    "wizard.mid": "متوسط",
+    "wizard.senior": "كبير",
+    "wizard.executive": "تنفيذي",
+    "wizard.video": "فيديو",
+    "wizard.reading": "قراءة",
+    "wizard.handsOn": "عملي",
+    "wizard.mixed": "مختلط",
+    "wizard.stepLabel0": "اللغة",
+    "wizard.stepLabel1": "عنك",
+    "wizard.stepLabel2": "أهدافك",
+    "wizard.stepLabel3": "مهاراتك",
+    "wizard.stepLabel4": "التعلم",
+    "wizard.stepLabel5": "التوفر",
+    "dashboard.welcome": "مرحباً بعودتك",
+    "dashboard.progress": "تقدمك",
+    "dashboard.thisWeek": "هذا الأسبوع",
+    "dashboard.upNext": "القادم",
+    "dashboard.recentCourses": "الدورات الأخيرة",
+    "dashboard.error": "حدث خطأ",
+    "dashboard.errorLoad": "تعذر تحميل البيانات. حاول مرة أخرى.",
+    "dashboard.backToDashboard": "العودة للوحة التحكم",
+    "dashboard.createRoadmap": "أنشئ خريطة طريقك",
+    "dashboard.fiveSteps": "خمس خطوات قصيرة واحدة تلو الأخرى",
+    "dashboard.curatedCourses": "دورات منتقاة لكل أسبوع",
+    "dashboard.aiCoach": "مدرب ذكي متاح دائماً",
+    "dashboard.buildRoadmap": "بناء خريطة الطريق",
+    "dashboard.today": "اليوم",
+    "dashboard.yesterday": "أمس",
+    "dashboard.freePlan": "خطة مجانية",
+    "dashboard.chat": "دردشة:",
+    "dashboard.quizzes": "اختبارات:",
+    "dashboard.notes": "ملاحظات:",
+    "dashboard.tasks": "مهام:",
+    "dashboard.aiToday": "اقتراحات اليوم:",
+    "dashboard.upgrade": "ترقية",
+    "dashboard.yourRoadmaps": "خرائط الطريق",
+    "dashboard.roadmap": "خريطة الطريق",
+    "dashboard.active": "نشط",
+    "dashboard.setActive": "تعيين نشط",
+    "dashboard.archived": "مؤرشف",
+    "dashboard.subscriptionBilling": "الاشتراك والفوترة",
+    "dashboard.subscriptionDescription": "خطتك واستخدامك وإدارة الاشتراك",
+    "dashboard.currentPlan": "الخطة الحالية",
+    "dashboard.usageThisMonth": "الاستخدام هذا الشهر",
+    "dashboard.createYourRoadmap": "أنشئ خريطة طريقك",
+    "dashboard.fiveStepsShort": "خطوات قصيرة واحدة تلو الأخرى",
+    "dashboard.daysAgo": "أيام",
+    "dashboard.weeksAgo": "أسابيع",
+    "dashboard.percentThrough": "أنت أنهيت",
+    "dashboard.percentThroughAr": " · {{percent}}% من الخريطة",
+    "dashboard.roadmapsLabel": "خرائط الطريق:",
+    "dashboard.streak": "سلسلة الدراسة",
+    "dashboard.streakDays": "{{count}} يوم متتالي",
+    "dashboard.streakDaysZero": "لا توجد سلسلة بعد",
+    "dashboard.longestStreak": "الأطول",
+    "dashboard.studyTodayToKeepStreak": "ادرس اليوم للحفاظ على سلسلتك.",
+    "dashboard.studyTodayStart": "ادرس اليوم لبدء سلسلتك.",
+    "dashboard.chatMessages": "رسائل الدردشة:",
+    "dashboard.quizzesLabel": "الاختبارات:",
+    "dashboard.overallProgress": "التقدم الكلي",
+    "dashboard.weeksCompleted": "الأسابيع المكتملة",
+    "dashboard.coursesCompleted": "الدورات المكتملة",
+    "dashboard.activityThisMonth": "نشاطك هذا الشهر",
+    "dashboard.progressAtGlance": "ملخص تقدمك",
+    "dashboard.quizzesTaken": "اختبارات مكتملة",
+    "dashboard.averageQuizScore": "متوسط نتيجة الاختبار",
+    "dashboard.aiMessages": "رسائل الذكاء الاصطناعي",
+    "dashboard.roadmapsCreated": "خرائط الطريق",
+    "dashboard.lastQuiz": "آخر اختبار: ",
+    "dashboard.lastActivity": "آخر نشاط: ",
+    "dashboard.viewFullRoadmap": "عرض خريطة الطريق",
+    "dashboard.noTasksYet": "لا توجد مهام.",
+    "dashboard.progressOverview": "نظرة عامة",
+    "dashboard.complete": "مكتمل",
+    "dashboard.weeklySchedule": "الجدول الأسبوعي",
+    "dashboard.continueRoadmap": "متابعة خريطة الطريق",
+    "dashboard.trackWeekly": "تتبع رحلتك الأسبوعية",
+    "dashboard.browseCourses": "تصفح الدورات",
+    "dashboard.talkToCoach": "التحدث مع المدرب",
+    "pricing.title": "أسعار بسيطة وشفافة",
+    "pricing.subtitle": "اختر الخطة التي تناسب أهدافك المهنية",
+    "pricing.free": "مجاني",
+    "pricing.premium": "بريميوم",
+    "pricing.pro": "برو",
+    "pricing.perMonth": "/شهرياً",
+    "pricing.popular": "الأكثر شعبية",
+    "pricing.getStarted": "ابدأ الآن",
+    "pricing.upgrade": "ترقية الآن",
+    "common.loading": "جاري التحميل...",
+    "common.error": "حدث خطأ ما",
+    "common.errorTitle": "خطأ",
+    "common.saved": "تم الحفظ",
+    "common.retry": "حاول مرة أخرى",
+    "common.save": "حفظ",
+    "common.cancel": "إلغاء",
+    "common.confirm": "تأكيد",
+    "common.delete": "حذف",
+    "common.edit": "تعديل",
+    "common.view": "عرض",
+    "common.add": "إضافة",
+    "common.next": "التالي",
+    "common.editLabel": "تعديل",
+    "common.archive": "أرشفة",
+    "careerDna.badge": "اختبار مجاني",
+    "careerDna.title": "الحمض النووي المهني",
+    "careerDna.subtitle": "اكتشف مدى توافق شخصيتك مع مجالك. ٩٠ ثانية.",
+    "careerDna.iAmStudent": "أنا طالب/طالبة",
+    "careerDna.yes": "نعم",
+    "careerDna.no": "لا",
+    "careerDna.start": "ابدأ",
+    "careerDna.q5Major": "تخصصك الحالي هو...",
+    "careerDna.q5Field": "مجالك الحالي هو...",
+    "careerDna.selectField": "اختر مجالك",
+    "careerDna.seeResults": "عرض النتائج",
+    "careerDna.backHome": "العودة للرئيسية",
+    "careerDna.rateLimit": "محاولات كثيرة. حاول بعد ساعة.",
+    "careerDna.q1": "عند مواجهة مشكلة، تفضل...",
+    "careerDna.q1.analyze": "تحليل البيانات",
+    "careerDna.q1.brainstorm": "العصف الذهني",
+    "careerDna.q1.process": "اتباع عملية",
+    "careerDna.q1.collaborate": "التعاون مع الآخرين",
+    "careerDna.q2": "المواعيد النهائية تجعلك تشعر...",
+    "careerDna.q2.excited": "متحمساً",
+    "careerDna.q2.stressed": "متوتراً",
+    "careerDna.q2.motivated": "متحفزاً",
+    "careerDna.q2.anxious": "قلقاً",
+    "careerDna.q3": "بيئة عملك المثالية هي...",
+    "careerDna.q3.fast": "سريعة الوتيرة",
+    "careerDna.q3.structured": "منظمة",
+    "careerDna.q3.creative": "إبداعية",
+    "careerDna.q3.independent": "مستقلة",
+    "careerDna.q4": "في المشاريع الجماعية، تميل إلى...",
+    "careerDna.q4.lead": "القيادة",
+    "careerDna.q4.support": "الدعم",
+    "careerDna.q4.create": "الإبداع",
+    "careerDna.q4.analyze": "التحليل",
+    "careerDna.q5": "مجالك الحالي هو...",
+    "careerDna.q6": "قيّم طاقتك بعد الدراسة/العمل (١–١٠)",
+    "careerDna.q7": "لو أمكنك البدء من جديد، هل ستختار هذا المجال؟",
+    "careerDna.q7.yes": "نعم",
+    "careerDna.q7.no": "لا",
+    "careerDna.q7.unsure": "غير متأكد",
+    "careerDna.q8": "ما أكثر ما يقلقك؟",
+    "careerDna.q8.wasting_time": "إضاعة الوقت",
+    "careerDna.q8.wrong_career": "المجال الخاطئ",
+    "careerDna.q8.competition": "المنافسة",
+    "careerDna.q8.falling_behind": "التأخر",
+    "careerDna.result.match": "التوافق",
+    "careerDna.result.archetype": "نمطك",
+    "careerDna.result.superpower": "قوتك الخارقة",
+    "careerDna.result.hiddenTalent": "موهبتك الخفية",
+    "careerDna.result.suggestedCareers": "وظائف مقترحة لك",
+    "careerDna.result.getRoadmap": "احصل على خريطة ١٢ أسبوعاً",
+    "careerDna.result.fullRoadmap": "احصل على خريطتك الكاملة",
+    "careerDna.result.challengeFriends": "تحدِّ أصدقاءك",
+    "careerDna.result.share": "مشاركة",
+    "careerDna.result.copyLink": "نسخ الرابط",
+    "careerDna.result.linkCopied": "تم نسخ الرابط",
+    "careerDna.result.shared": "تمت المشاركة!",
+    "careerDna.result.saveImage": "حفظ الصورة",
+    "careerDna.result.saved": "تم حفظ الصورة",
+    "careerDna.result.longPressHint": "اضغط مطولاً للحفظ في الصور",
+    "careerDna.result.yourField": "مجالك",
+    "careerDna.result.dnaSays": "حمضك النووي يقول إنك ستتفوق في هذه الوظائف",
+    "careerDna.result.unicornMatch": "توافق استثنائي! حسّن مسارك",
+    "careerDna.result.quizTakersDiscount": "لمتذوقي الاختبار: ٥٠٪ خصم أول ٣ أشهر",
+    "careerDna.tier.visionaries": "رواد",
+    "careerDna.tier.naturals": "طبيعيون",
+    "careerDna.tier.naturals.tagline": "أوكي تمام",
+    "careerDna.tier.explorers": "مستكشفون",
+    "careerDna.tier.explorers.tagline": "على الله",
+    "careerDna.tier.shifters": "محوّلون",
+    "careerDna.tier.shifters.tagline": "شغال",
+    "careerDna.tier.awakeners": "متيقظون",
+    "careerDna.tier.awakeners.tagline": "في بلاد غريبة",
+    "careerDna.tier.misfits": "فريدون",
+    "careerDna.tier.misfits.tagline": "لف وإرجع تاني",
+    "careerDna.persona.visionaries.v1.name": "الرائد",
+    "careerDna.persona.visionaries.v1.tagline": "وُلدت لهذا المسار",
+    "careerDna.persona.visionaries.v2.name": "المهندس",
+    "careerDna.persona.visionaries.v2.tagline": "تصميم مسارك المثالي",
+    "careerDna.persona.visionaries.v3.name": "المُحفّز",
+    "careerDna.persona.visionaries.v3.tagline": "تحويل الرؤية إلى تأثير",
+    "careerDna.persona.visionaries.v4.name": "المُرشد",
+    "careerDna.persona.visionaries.v4.tagline": "قيادة الطريق بسلاسة",
+    "careerDna.persona.naturals.n1.name": "المنسّق",
+    "careerDna.persona.naturals.n1.tagline": "توافق سلس، نمو ثابت",
+    "careerDna.persona.naturals.n2.name": "الموصّل",
+    "careerDna.persona.naturals.n2.tagline": "بناء جسور في مجالك",
+    "careerDna.persona.naturals.n3.name": "البناء",
+    "careerDna.persona.naturals.n3.tagline": "بناء نجاحك",
+    "careerDna.persona.naturals.n4.name": "الملاح",
+    "careerDna.persona.naturals.n4.tagline": "توجيه مسارك للأمام",
+    "careerDna.persona.explorers.e1.name": "الباحث",
+    "careerDna.persona.explorers.e1.tagline": "الفضول يقود مسارك",
+    "careerDna.persona.explorers.e2.name": "المُفَتّح",
+    "careerDna.persona.explorers.e2.tagline": "إيجاد طريقك الفريد",
+    "careerDna.persona.explorers.e3.name": "الفضولي",
+    "careerDna.persona.explorers.e3.tagline": "الاكتشاف قوتك",
+    "careerDna.persona.explorers.e4.name": "المغامر",
+    "careerDna.persona.explorers.e4.tagline": "كل منعطف يكشف طرقاً جديدة",
+    "careerDna.persona.shifters.s1.name": "المُحوّل",
+    "careerDna.persona.shifters.s1.tagline": "التغيير مُحفّزك",
+    "careerDna.persona.shifters.s2.name": "المُدير",
+    "careerDna.persona.shifters.s2.tagline": "التكيف للعثور على توافقك",
+    "careerDna.persona.shifters.s3.name": "المتفتح",
+    "careerDna.persona.shifters.s3.tagline": "النمو عبر إعادة الاختراع",
+    "careerDna.persona.shifters.s4.name": "الـحرباء",
+    "careerDna.persona.shifters.s4.tagline": "الازدهار عبر المرونة",
+    "careerDna.persona.awakeners.a1.name": "المتأخر المتفتح",
+    "careerDna.persona.awakeners.a1.tagline": "الأفضل ما زال أمامك",
+    "careerDna.persona.awakeners.a2.name": "العنقاء",
+    "careerDna.persona.awakeners.a2.tagline": "الصعود إلى ندائك الحقيقي",
+    "careerDna.persona.awakeners.a3.name": "الصاعد",
+    "careerDna.persona.awakeners.a3.tagline": "التسلق نحو الوضوح",
+    "careerDna.persona.awakeners.a4.name": "المكتشف",
+    "careerDna.persona.awakeners.a4.tagline": "كشف مسارك",
+    "careerDna.persona.misfits.m1.name": "المتمرد",
+    "careerDna.persona.misfits.m1.tagline": "الطرق المعروفة ليست لك",
+    "careerDna.persona.misfits.m2.name": "الثائر",
+    "careerDna.persona.misfits.m2.tagline": "قواعدك، نجاحك",
+    "careerDna.persona.misfits.m3.name": "الفريد",
+    "careerDna.persona.misfits.m3.tagline": "المختلف ميزتك",
+    "careerDna.persona.misfits.m4.name": "غيّر اللعبة",
+    "careerDna.persona.misfits.m4.tagline": "إعادة كتابة القواعد",
+    "careerDna.squad.title": "نتائج الفريق",
+    "careerDna.squad.challengeFriends": "تحدِّ أصدقاءك لأخذ الاختبار",
+    "careerDna.squad.takeQuiz": "خذ الاختبار",
+    "careerDna.squad.compare": "مقارنة النتائج",
+    "study.notes": "ملاحظات",
+    "study.notesAdd": "إضافة ملاحظة",
+    "study.notesPlaceholder": "عنوان الملاحظة...",
+    "study.notesContentPlaceholder": "اكتب ملاحظتك...",
+    "study.tasks": "مهام",
+    "study.tasksAdd": "إضافة مهمة",
+    "study.tasksPlaceholder": "عنوان المهمة...",
+    "study.currentWeekTasks": "مهام هذا الأسبوع",
+    "study.noNotes": "لا توجد ملاحظات بعد.",
+    "study.noTasks": "لا توجد مهام بعد.",
+    "study.suggestedTasks": "مقترحة لهذا الأسبوع",
+    "study.yourTasks": "مهامك",
+    "study.suggestTasks": "اقترح مهام لهذا الأسبوع",
+    "study.notesLimit": "حد الملاحظات",
+    "study.notesLimitReached": "تم الوصول لحد الملاحظات.",
+    "study.tasksLimit": "حد المهام",
+    "study.tasksLimitReached": "تم الوصول لحد المهام.",
+    "study.aiSuggestionsLimit": "حد اقتراحات الذكاء الاصطناعي",
+    "study.aiSuggestionsLimitReached": "تم الوصول لحد اقتراحات الذكاء الاصطناعي اليومية.",
+    "quiz.title": "اختبار الأسبوع",
+    "quiz.generating": "جاري إنشاء الاختبار...",
+    "quiz.question": "السؤال",
+    "quiz.of": "من",
+    "quiz.previous": "السابق",
+    "quiz.next": "التالي",
+    "quiz.submit": "إرسال",
+    "quiz.score": "النتيجة",
+    "quiz.passed": "أحسنت! 🎉",
+    "quiz.failed": "استمر في المحاولة!",
+    "quiz.passedMessage": "لقد اجتزت الاختبار بنجاح",
+    "quiz.failedMessage": "تحتاج إلى 70% للنجاح. راجع المادة وحاول مرة أخرى.",
+    "quiz.correctAnswers": "إجابات صحيحة",
+    "quiz.reviewAnswers": "مراجعة الإجابات",
+    "quiz.correctAnswer": "الإجابة الصحيحة:",
+    "quiz.tryAgain": "حاول مرة أخرى",
+    "quiz.completeWeek": "إكمال الأسبوع",
+    "quiz.close": "إغلاق",
+    "quiz.takeQuiz": "أجب الاختبار للإكمال",
+    "checkout.success.title": "تم بنجاح! 🎉",
+    "checkout.success.description": "تم ترقية حسابك بنجاح. استمتع بجميع المميزات!",
+    "checkout.success.featuresTitle": "مميزاتك الجديدة:",
+    "checkout.success.feature1": "✓ خرائط طريق غير محدودة",
+    "checkout.success.feature2": "✓ محادثة ذكاء اصطناعي غير محدودة",
+    "checkout.success.feature3": "✓ اختبارات غير محدودة",
+    "checkout.success.feature4": "✓ توصيات دورات كاملة",
+    "checkout.success.feature5": "✓ تحليل السيرة الذاتية وتوصيات الوظائف",
+    "checkout.success.feature6": "✓ 10 وظائف حقيقية أسبوعياً (اختياري)",
+    "checkout.success.feature7": "✓ تتبع التقدم والتحليلات",
+    "checkout.success.goToDashboard": "انتقل إلى لوحة التحكم",
+    "checkout.success.manageBilling": "إدارة الفواتير",
+    "checkout.success.redirecting": "سيتم توجيهك تلقائياً خلال 5 ثواني...",
+    "checkout.cancel.title": "تم إلغاء العملية",
+    "checkout.cancel.description": "لم يتم إجراء أي رسوم. يمكنك المحاولة مرة أخرى في أي وقت.",
+    "checkout.cancel.backToPricing": "العودة إلى الأسعار",
+    "checkout.cancel.backToUpgrade": "العودة إلى الترقية",
+    "checkout.cancel.continueFree": "المتابعة بالخطة المجانية",
+    "checkout.cancel.supportText": "لديك سؤال؟ تواصل معنا على support@shyftcut.com",
+    "support.title": "الدعم الفني",
+    "support.validationError": "خطأ في التحقق",
+    "support.mustSignIn": "يجب تسجيل الدخول للإرسال.",
+    "support.requestSent": "تم الإرسال!",
+    "support.sendError": "حدث خطأ أثناء الإرسال. حاول مرة أخرى.",
+    "support.priorityNote": "طلباتك ذات أولوية (عضو مميز).",
+    "support.subject": "الموضوع",
+    "support.subjectPlaceholder": "موضوع الطلب",
+    "support.message": "الرسالة",
+    "support.messagePlaceholder": "اشرح مشكلتك أو سؤالك (10 حروف على الأقل)...",
+    "support.sending": "جاري الإرسال...",
+    "support.submit": "إرسال الطلب",
+    "support.sentFrom": "مرسل من",
+    "support.description": "أرسل طلبك وسنرد عليك حسب أولوية اشتراكك.",
+    "support.requestSentDescription": "شكراً لتواصلك. سنرد عليك حسب أولوية الدعم.",
+    "upgrade.alreadyPremiumDesc": "استمتع بجميع الميزات. يمكنك إدارة اشتراكك من ملفك الشخصي.",
+    "upgrade.manageSubscription": "إدارة الاشتراك",
+    "upgrade.backToDashboard": "العودة للوحة التحكم",
+    "upgrade.title": "ترقية إلى بريميوم",
+    "upgrade.description": "خرائط طريق غير محدودة، دردشة ذكاء اصطناعي، تحليل السيرة، و10 وظائف أسبوعياً. إلغاء في أي وقت.",
+    "upgrade.monthly": "شهري",
+    "upgrade.yearly": "سنوي",
+    "upgrade.save30": "وفر 30% مع الاشتراك السنوي",
+    "upgrade.perMonth": "/شهرياً",
+    "upgrade.perYear": "/سنوياً",
+    "upgrade.upgradeNow": "ترقية الآن",
+    "upgrade.noCardRequired": "لا حاجة لبطاقة ائتمان للتجربة. إلغاء في أي وقت.",
+    "chat.title": "المدرب الذكي",
+    "chat.ready24_7": "جاهز للمساعدة 24/7",
+    "chat.clear": "مسح",
+    "chat.welcomeTitle": "مرحباً! كيف يمكنني مساعدتك؟",
+    "chat.welcomeSubtitle": "اسألني أي شيء عن رحلتك المهنية",
+    "chat.sources": "مصادر",
+    "chat.messageLimit": "حد الرسائل",
+    "chat.rateLimit": "تم تجاوز الحد. حاول مرة أخرى لاحقاً.",
+    "chat.upgradeForUnlimited": "وصلت لحد الرسائل. ترقّ للحصول على تدريب ذكي غير محدود.",
+    "chat.failedToGetResponse": "عذراً، حدث خطأ. حاول مرة أخرى.",
+    "chat.notSupported": "غير مدعوم",
+    "chat.speechNotAvailable": "التعرف على الصوت غير متاح في متصفحك.",
+    "chat.microphoneRequired": "السماح بالميكروفون مطلوب",
+    "chat.couldNotAccessMicrophone": "تعذر الوصول للميكروفون",
+    "chat.cleared": "تم المسح",
+    "chat.historyCleared": "تم مسح سجل المحادثة",
+    "chat.freeLimitNote": "الخطة المجانية: رسائل محدودة شهرياً.",
+    "chat.messagesLeft": "{{count}} رسائل متبقية هذا الشهر. ",
+    "chat.upgradeUnlimited": "ترقية للحصول على غير محدود",
+    "chat.placeholder": "اكتب رسالتك...",
+    "chat.useWebSearch": "استخدم البحث على الويب للإجابات المحدثة",
+    "chat.webSearch": "البحث على الويب",
+    "chat.webSearchNote": "سيتم استخدام معلومات الويب الحالية عند الإمكان",
+    "chat.voiceInput": "إدخال صوتي",
+    "chat.stopListening": "إيقاف الصوت",
+    "chat.voiceNotSupported": "التعرف على الصوت غير مدعوم",
+    "chat.dismiss": "إغلاق",
+    "notfound.title": "الصفحة غير موجودة",
+    "notfound.goBack": "رجوع",
+    "notfound.home": "الصفحة الرئيسية",
+    "error.title": "حدث خطأ ما",
+    "error.goBack": "رجوع",
+    "error.tryAgain": "حاول مرة أخرى",
+    "error.quickLinks": "أو جرب هذه الروابط:",
+    "error.needHelp": "بحاجة لمساعدة؟",
+    "common.backToHome": "العودة للرئيسية",
+    "landing.poweredBy": "مدعوم بـ Gemini",
+    "landing.heroTagline": "من ارتباك إلى مسار واضح لـ ١٢ أسبوعاً — في ٩٠ ثانية.",
+    "landing.statSeconds": "ثانية",
+    "landing.statSecondsSublabel": "لإنشاء خريطة الطريق",
+    "landing.statWeeks": "أسبوع",
+    "landing.statWeeksSublabel": "مسار مهني منظم",
+    "landing.statPlatforms": "منصة",
+    "landing.statPlatformsSublabel": "دورات موثقة",
+    "landing.statCoaching": "تدريب",
+    "landing.statCoachingSublabel": "مدرب ذكي",
+    "landing.freeToStart": "مجاني للبدء",
+    "landing.noCreditCard": "إلغاء في أي وقت",
+    "landing.seconds90": "٩٠ ثانية",
+    "landing.featuresTitle": "كل ما تحتاجه للنجاح المهني",
+    "landing.featuresSubtitle": "منصة شاملة تجمع بين الذكاء الاصطناعي والتوجيه المهني لتحويل حياتك المهنية.",
+    "landing.choosePlan": "اختر خطتك",
+    "landing.choosePlanSubtitle": "ابدأ مجاناً أو انتقل إلى بريميوم لخرائط غير محدودة.",
+    "landing.viewPlans": "عرض الخطط",
+    "landing.fromBlog": "من المدونة",
+    "landing.fromBlogSubtitle": "نصائح وقصص لمساعدتك على المضي قدماً.",
+    "landing.allPosts": "جميع المقالات",
+    "landing.footerCta": "ابدأ مجاناً • إلغاء في أي وقت",
+    "landing.footerTagline": "خريطة طريقك المهنية في ٩٠ ثانية.",
+    "landing.careerDnaCta": "اكتشف إذا كنت في المجال المناسب — ٩٠ ثانية",
+    "about.title": "عن Shyftcut",
+    "about.mission": "مهمتنا",
+    "about.missionBody": "الكثير من الناس يشعرون بالضياع في مسيرتهم المهنية. التوجيه المهني التقليدي مكلف وبطيء وغالباً ما يكون قديماً. نحن نستخدم الذكاء الاصطناعي لتقديم توجيه مخصص يلبي احتياجاتك الفريدة، في دقائق وليس أشهر.",
+    "about.values": "قيمنا",
+    "about.journey": "رحلتنا",
+    "about.readyTitle": "جاهز للبدء؟",
+    "about.readySubtitle": "انضم إلى آلاف المحترفين الذين يحولون مسيراتهم المهنية مع Shyftcut.",
+    "about.startFree": "ابدأ مجاناً",
+    "contact.title": "تواصل معنا",
+    "profile.uploadPhoto": "رفع صورة",
+    "profile.generateWithAi": "إنشاء بالذكاء الاصطناعي (3/شهر)",
+    "profile.orPasteUrl": "أو الصق رابط صورة",
+    "profile.hideImageUrl": "إخفاء رابط الصورة",
+    "profile.imageUrl": "رابط الصورة",
+    "profile.avatarGenerated": "تم إنشاء الصورة",
+    "profile.avatarUpdated": "تم تحديث صورة الملف الشخصي.",
+    "profile.avatarGenerateFailed": "فشل إنشاء الصورة",
+    "profile.photoUploaded": "تم رفع الصورة",
+    "profile.uploadFailed": "فشل رفع الصورة",
+    "profile.useJpgOrPng": "استخدم صورة (JPG أو PNG أو WebP)",
+    "profile.maxSize2mb": "الحد الأقصى 2 ميجابايت",
+    "profile.updateBasicDetails": "تحديث بياناتك الأساسية",
+    "profile.displayName": "الاسم المعروض",
+    "profile.yourName": "اسمك",
+    "profile.email": "البريد الإلكتروني",
+    "profile.phone": "رقم الهاتف",
+    "profile.phonePlaceholder": "1234567890",
+    "profile.currentJobTitle": "الوظيفة الحالية",
+    "profile.selectRole": "اختر المسمى الوظيفي",
+    "profile.industry": "المجال",
+    "profile.selectIndustry": "اختر المجال",
+    "profile.experienceLevel": "مستوى الخبرة",
+    "profile.selectLevel": "اختر المستوى",
+    "profile.targetCareer": "الوظيفة المستهدفة",
+    "profile.selectCareer": "اختر الوظيفة",
+    "profile.preferredLanguage": "اللغة المفضلة",
+    "profile.english": "English",
+    "profile.arabic": "العربية",
+    "profile.profileUpdated": "تم تحديث ملفك الشخصي",
+    "profile.saveFailed": "فشل في الحفظ",
+    "profile.selectJobTitle": "اختر المسمى الوظيفي",
+    "profile.selectTargetCareer": "اختر الهدف",
+    "profile.none": "— لا شيء —",
+    "profile.skillsComma": "المهارات (مفصولة بفاصلة)",
+    "profile.skillsPlaceholder": "مثال: JavaScript, React, إدارة المشاريع",
+    "profile.profileSettings": "إعدادات الملف الشخصي",
+    "profile.manageInfo": "إدارة معلوماتك الشخصية",
+    "profile.personalInfo": "المعلومات الشخصية",
+    "profile.somethingWrong": "حدث خطأ",
+    "profile.couldNotLoad": "تعذر تحميل الملف الشخصي.",
+    "profile.backToDashboard": "العودة للوحة التحكم",
+    "profile.authMethodEmailGoogle": "البريد + Google",
+    "profile.authMethodGoogle": "Google",
+    "profile.authMethodEmail": "البريد الإلكتروني",
+    "profile.passwordsDontMatch": "كلمة المرور غير متطابقة",
+    "profile.passwordSet": "تم تعيين كلمة المرور",
+    "profile.passwordSetDescription": "يمكنك الآن تسجيل الدخول بالبريد وكلمة المرور.",
+    "profile.setPasswordFailed": "فشل تعيين كلمة المرور",
+    "profile.newPasswordsDontMatch": "كلمة المرور الجديدة غير متطابقة",
+    "profile.passwordChanged": "تم تغيير كلمة المرور",
+    "profile.passwordUpdated": "تم تحديث كلمة المرور بنجاح.",
+    "profile.changePasswordFailed": "فشل تغيير كلمة المرور",
+    "profile.enterPasswordToConfirm": "أدخل كلمة المرور للتأكيد",
+    "profile.typeDeleteToConfirm": "اكتب DELETE للتأكيد",
+    "profile.deleteAccountFailed": "فشل حذف الحساب",
+    "profile.weeklyLearningHours": "ساعات التعلم أسبوعياً",
+    "profile.learningStyle": "أسلوب التعلم",
+    "profile.selectStyle": "اختر الأسلوب",
+    "profile.budget": "الميزانية",
+    "profile.selectBudget": "اختر الميزانية",
+    "profile.freeOnly": "مجاني فقط",
+    "profile.upTo50": "حتى 50",
+    "profile.upTo200": "حتى 200",
+    "profile.unlimited": "غير محدود",
+    "profile.preferredLanguageLabel": "اللغة المفضلة",
+    "profile.location": "الموقع (مدينة أو دولة)",
+    "profile.locationPlaceholder": "مثال: لندن، المملكة المتحدة",
+    "profile.workType": "نوع العمل",
+    "profile.socialLinks": "روابط التواصل",
+    "profile.socialLinksDescription": "روابط اختيارية لملفاتك (مثل لينكدإن، تويتر، جيت هب).",
+    "profile.linkedin": "لينكدإن",
+    "profile.linkedinPlaceholder": "https://linkedin.com/in/yourprofile",
+    "profile.twitter": "تويتر / X",
+    "profile.twitterPlaceholder": "https://twitter.com/yourhandle أو https://x.com/yourhandle",
+    "profile.github": "جيت هب",
+    "profile.githubPlaceholder": "https://github.com/yourusername",
+    "profile.selectWorkType": "اختر نوع العمل",
+    "profile.remote": "عن بُعد",
+    "profile.hybrid": "هجين",
+    "profile.onSite": "في المكتب",
+    "profile.findJobsWeekly": "إرسال 10 وظائف أسبوعياً لي",
+    "profile.saveChanges": "حفظ التغييرات",
+    "profile.notificationPreferences": "تذكيرات الدراسة",
+    "profile.notificationPreferencesDescription": "احصل على تذكير للدراسة والحفاظ على سلسلتك.",
+    "profile.emailReminders": "تذكيرات بالبريد",
+    "profile.emailRemindersDescription": "أرسل لي بريداً يومياً إذا لم أدرس (في وقت التذكير).",
+    "profile.inAppReminder": "تذكير داخل التطبيق",
+    "profile.inAppReminderDescription": "اعرض تذكيراً في لوحة التحكم عندما لم أدرس اليوم.",
+    "profile.reminderTime": "وقت التذكير",
+    "profile.timezone": "المنطقة الزمنية",
+    "profile.accountSecurity": "الحساب والأمان",
+    "profile.accountSecurityDescription": "طريقة تسجيل الدخول وكلمة المرور وحذف الحساب",
+    "profile.signInMethod": "طريقة تسجيل الدخول",
+    "profile.signedInWith": "مسجل الدخول بـ",
+    "profile.password": "كلمة المرور",
+    "profile.setPasswordToSignIn": "أضف كلمة مرور لتسجيل الدخول بالبريد أيضاً",
+    "profile.setPassword": "تعيين كلمة المرور",
+    "profile.newPassword": "كلمة المرور الجديدة",
+    "profile.confirmPassword": "تأكيد كلمة المرور",
+    "profile.changePassword": "تغيير كلمة المرور",
+    "profile.currentPassword": "كلمة المرور الحالية",
+    "profile.confirmNewPassword": "تأكيد كلمة المرور الجديدة",
+    "profile.dangerZone": "منطقة الخطر",
+    "profile.deleteAccountDescription": "حذف حسابك وجميع البيانات نهائياً. لا يمكن التراجع.",
+    "profile.deleteAccount": "حذف الحساب",
+    "profile.subscription": "الاشتراك",
+    "profile.currentPlan": "الخطة الحالية",
+    "profile.viewPlans": "عرض الخطط",
+    "profile.couldNotOpenSubscription": "تعذر فتح إدارة الاشتراك",
+    "profile.manageSubscription": "إدارة الاشتراك",
+    "profile.skills": "المهارات",
+    "profile.enterPasswordDelete": "أدخل كلمة المرور للتأكيد. سيتم حذف حسابك وجميع البيانات نهائياً.",
+    "profile.typeDeleteBelow": "اكتب DELETE في الحقل أدناه للتأكيد. سيتم حذف حسابك وجميع البيانات نهائياً.",
+    "profile.typeDelete": "اكتب DELETE",
+    "profile.yourPassword": "كلمة المرور",
+    "roadmap.markedIncomplete": "تم إلغاء الإكمال",
+    "roadmap.markedComplete": "تم الإكمال!",
+    "roadmap.archived": "تم الأرشفة",
+    "roadmap.couldNotLoad": "تعذر تحميل خريطة الطريق. حاول مرة أخرى.",
+    "roadmap.noRoadmapFound": "لا توجد خريطة طريق",
+    "roadmap.createRoadmap": "إنشاء خريطة الطريق",
+    "roadmap.weeksOf": "أسابيع",
+    "roadmap.week": "الأسبوع",
+    "roadmap.locked": "مقفل",
+    "roadmap.done": "مكتمل",
+    "roadmap.courses": "دورات",
+    "roadmap.skillsToLearn": "المهارات للتعلم",
+    "roadmap.deliverables": "المخرجات",
+    "roadmap.recommendedCourses": "الدورات الموصى بها",
+    "roadmap.findOnPlatform": "بحث على المنصة",
+    "roadmap.markIncomplete": "إلغاء الإكمال",
+    "roadmap.markComplete": "تحديد مكتمل",
+    "roadmap.openLink": "فتح الرابط",
+    "roadmap.markWeekCompleteNoQuiz": "تحديد الأسبوع مكتملاً بدون اختبار",
+    "roadmap.quizLimit": "حد الاختبارات",
+    "roadmap.quizLimitReached": "تم الوصول لحد الاختبارات المجانية. ترقية للمزيد.",
+    "roadmap.editRoadmap": "تعديل خريطة الطريق",
+    "roadmap.editTitleDescription": "تعديل العنوان والوصف",
+    "roadmap.title": "العنوان",
+    "roadmap.roadmapTitle": "عنوان خريطة الطريق",
+    "roadmap.description": "الوصف",
+    "roadmap.optionalDescription": "وصف اختياري",
+    "roadmap.archiveRoadmap": "أرشفة خريطة الطريق",
+    "roadmap.archiveConfirm": "أرشفة هذه الخريطة؟ يمكنك استعادتها لاحقاً من القائمة.",
+    "roadmap.deleteRoadmap": "حذف خريطة الطريق",
+    "roadmap.deleteConfirm": "حذف هذه الخريطة نهائياً؟ لا يمكن التراجع. يمكن للمستخدمين المجانيين إنشاء واحدة جديدة.",
+    "courses.failedToSave": "فشل في الحفظ",
+    "courses.courseLibrary": "مكتبة الدورات",
+    "courses.searchPlaceholder": "ابحث عن دورة...",
+    "courses.platform": "المنصة",
+    "courses.allPlatforms": "كل المنصات",
+    "courses.difficulty": "المستوى",
+    "courses.allLevels": "كل المستويات",
+    "courses.beginner": "مبتدئ",
+    "courses.intermediate": "متوسط",
+    "courses.advanced": "متقدم",
+    "courses.sortBy": "ترتيب",
+    "courses.mostRelevant": "الأكثر صلة",
+    "courses.highestRated": "التقييم",
+    "courses.priceLowToHigh": "السعر (الأقل)",
+    "courses.priceHighToLow": "السعر (الأعلى)",
+    "courses.byWeek": "الأسبوع",
+    "courses.by": "بواسطة",
+    "courses.free": "مجاني",
+    "courses.review": "مراجعة",
+    "courses.startLearning": "بدء التعلم",
+    "courses.noCoursesFound": "لم يتم العثور على دورات",
+    "courses.tryAdjustingFilters": "حاول تغيير معايير البحث",
+    "courses.couldNotLoad": "تعذر تحميل الدورات. حاول مرة أخرى."
+  },
+  "testimonials": [
+    {
+      "quote": {
+        "ar": "منحني Shyftcut مساراً واضحاً لـ 12 أسبوعاً عندما شعرت بالضياع التام. المدرب الذكي أجاب على أسئلتي في الثانية صباحاً. تغيير جذري."
+      },
+      "role": {
+        "ar": "مديرة منتج → قائدة تقنية"
+      }
+    },
+    {
+      "quote": {
+        "ar": "انتقلت من التسويق إلى تحليلات البيانات في 12 أسبوعاً. كانت خريطة الطريق دقيقة والاختبارات حافظت على التزامي."
+      },
+      "role": {
+        "ar": "تسويق → محلل بيانات"
+      }
+    },
+    {
+      "quote": {
+        "ar": "أخيراً، توجيه مهني لا يكلف ثروة. توصيات الدورات من أكثر من 50 منصة وفرت علي أشهراً من البحث."
+      },
+      "role": {
+        "ar": "تغيير مهني"
+      }
+    },
+    {
+      "quote": {
+        "ar": "معالج الـ 90 ثانية يعمل فعلاً. حصلت على خريطة طريق كاملة قبل أن يبرد قهوتي. لا يصدق."
+      },
+      "role": {
+        "ar": "مطور برمجيات"
+      }
+    },
+    {
+      "quote": {
+        "ar": "أفضل استثمار قمت به في مسيرتي. بريميوم خيار بديهي لخرائط طريق غير محدودة وتدريب ذكاء اصطناعي على مدار الساعة."
+      },
+      "role": {
+        "ar": "مصممة تجربة مستخدم"
+      }
+    }
+  ],
+  "plans": {
+    "free": {
+      "name": "مجاني",
+      "description": "ابدأ مع المميزات الأساسية",
+      "features": [
+        "خريطة طريق واحدة (إجمالي)",
+        "10 رسائل دردشة ذكاء اصطناعي شهرياً",
+        "3 اختبارات شهرياً",
+        "دورة موصى بها واحدة أسبوعياً",
+        "تتبع التقدم ولوحة التحكم",
+        "دعم البريد الإلكتروني"
+      ],
+      "ctaKeyAr": "ابدأ مجاناً"
+    },
+    "premium": {
+      "name": "بريميوم",
+      "description": "خرائط طريق وذكاء اصطناعي غير محدود",
+      "features": [
+        "خرائط طريق غير محدودة",
+        "دردشة ذكاء اصطناعي غير محدودة",
+        "اختبارات غير محدودة",
+        "توصيات دورات كاملة",
+        "تحليل السيرة الذاتية (لصق أو رفع)",
+        "اعثر على وظائف لي — 10 وظائف حقيقية أسبوعياً",
+        "تتبع التقدم والتحليلات",
+        "دعم البريد الإلكتروني"
+      ],
+      "ctaKeyAr": "ترقية الآن"
+    }
+  },
+  "inlineStrings": {
+    "landing.heroTagline": "من ارتباك إلى مسار واضح لـ ١٢ أسبوعاً — في ٩٠ ثانية.",
+    "pricing.choosePlan": "اختر خطتك",
+    "pricing.planDesc": "ابدأ مجاناً أو انتقل إلى بريميوم لخرائط غير محدودة.",
+    "pricing.viewPlans": "عرض الخطط",
+    "blog.fromBlog": "من المدونة",
+    "blog.allPosts": "جميع المقالات",
+    "cta.readyTitle": "جاهز لتحويل مسارك المهني؟",
+    "cta.readyDesc": "انضم إلى آلاف المحترفين الذين وجدوا وضوحهم المهني مع Shyftcut.",
+    "cta.startFree": "ابدأ مجاناً • إلغاء في أي وقت",
+    "mobile.poweredBy": "مدعوم بـ Gemini",
+    "mobile.langSwitch": "العربية",
+    "nav.upgrade": "ترقية"
+  }
+}

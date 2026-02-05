@@ -1,0 +1,319 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { FileText, Briefcase, Loader2, ExternalLink, Crown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Layout } from '@/components/layout/Layout';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/hooks/useSubscription';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { apiFetch, extractApiErrorMessage } from '@/lib/api';
+import { getUpgradePath } from '@/lib/upgrade-link';
+import { getCareerToolsBenefits } from '@/lib/premium-features';
+
+type CVAnalysis = {
+  strengths?: string[];
+  gaps?: string[];
+  recommendations?: string[];
+  skill_keywords?: string[];
+};
+
+type JobRow = {
+  id?: string;
+  title: string;
+  company: string | null;
+  url: string;
+  location_type: string;
+  location: string | null;
+  match_score: number | null;
+  fetched_at?: string;
+};
+
+export default function CareerTools() {
+  const { language } = useLanguage();
+  const { user, getAccessToken } = useAuth();
+  const { isPremium } = useSubscription();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [cvPaste, setCvPaste] = useState('');
+  const [cvAnalyzing, setCvAnalyzing] = useState(false);
+  const [cvResult, setCvResult] = useState<CVAnalysis | null>(null);
+
+  const [jobsFinding, setJobsFinding] = useState(false);
+
+  const { data: jobsList = [], isLoading: jobsLoading } = useQuery({
+    queryKey: ['jobs-list'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      const data = await apiFetch<JobRow[]>('/api/jobs/list', { token });
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!isPremium,
+  });
+
+  const handleAnalyzeCv = async () => {
+    const text = cvPaste.trim();
+    if (text.length < 50) {
+      toast({
+        title: language === 'ar' ? 'نص قصير' : 'Text too short',
+        description: language === 'ar' ? 'الصق 50 حرفاً على الأقل من سيرتك' : 'Paste at least 50 characters of your CV.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCvAnalyzing(true);
+    setCvResult(null);
+    try {
+      const token = await getAccessToken();
+      const res = await apiFetch<{ analysis?: CVAnalysis }>('/api/cv/analyze', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ pasteText: text }),
+      });
+      setCvResult(res?.analysis ?? null);
+      toast({
+        title: language === 'ar' ? 'تم التحليل' : 'Analysis done',
+        description: language === 'ar' ? 'تم تحليل سيرتك الذاتية' : 'Your CV has been analyzed.',
+      });
+    } catch (err: unknown) {
+      const msg = extractApiErrorMessage(err as object, language === 'ar' ? 'فشل التحليل' : 'Analysis failed');
+      toast({
+        title: language === 'ar' ? 'خطأ' : 'Error',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setCvAnalyzing(false);
+    }
+  };
+
+  const handleFindJobs = async () => {
+    setJobsFinding(true);
+    try {
+      const token = await getAccessToken();
+      await apiFetch<{ jobs?: JobRow[]; saved?: number }>('/api/jobs/find', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({}),
+      });
+      queryClient.invalidateQueries({ queryKey: ['jobs-list'] });
+      toast({
+        title: language === 'ar' ? 'تم البحث' : 'Jobs found',
+        description: language === 'ar' ? 'تم حفظ الوظائف في قائمتك' : 'Jobs have been saved to your list.',
+      });
+    } catch (err: unknown) {
+      const msg = extractApiErrorMessage(err as object, language === 'ar' ? 'فشل البحث' : 'Find jobs failed');
+      toast({
+        title: language === 'ar' ? 'خطأ' : 'Error',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setJobsFinding(false);
+    }
+  };
+
+  const isAr = language === 'ar';
+
+  if (!isPremium) {
+    return (
+      <Layout>
+        <div className="container mx-auto max-w-app-content px-4 py-8 pb-24">
+          <Card className="rounded-2xl border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Crown className="h-5 w-5 text-primary" />
+                {isAr ? 'أدوات المهنة' : 'Career Tools'}
+              </CardTitle>
+              <CardDescription>
+                {isAr
+                  ? 'تحليل السيرة الذاتية واقتراح 10 وظائف أسبوعياً متاحة لمشتركي بريميوم.'
+                  : 'CV analysis and weekly job recommendations are available for Premium subscribers.'}
+              </CardDescription>
+              <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-muted-foreground">
+                {getCareerToolsBenefits(isAr ? 'ar' : 'en').map((benefit, i) => (
+                  <li key={i}>{benefit}</li>
+                ))}
+              </ul>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full sm:w-auto">
+                <Link to={getUpgradePath(user)}>
+                  {isAr ? 'ترقية إلى بريميوم' : 'Upgrade to Premium'}
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="container mx-auto max-w-app-content space-y-8 px-4 py-8 pb-24">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isAr ? 'أدوات المهنة' : 'Career Tools'}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {isAr ? 'تحليل سيرتك الذاتية والحصول على أفضل الوظائف المناسبة لك' : 'Analyze your CV and get the best job matches'}
+          </p>
+        </div>
+
+        {/* CV Analysis */}
+        <Card className="public-glass-card rounded-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {isAr ? 'تحليل السيرة الذاتية' : 'CV Analysis'}
+            </CardTitle>
+            <CardDescription>
+              {isAr ? 'الصق نص سيرتك الذاتية واحصل على نقاط القوة والفجوات والتوصيات' : 'Paste your CV text and get strengths, gaps, and recommendations'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cv-paste">{isAr ? 'نص السيرة الذاتية' : 'CV text'}</Label>
+              <Textarea
+                id="cv-paste"
+                value={cvPaste}
+                onChange={(e) => setCvPaste(e.target.value)}
+                placeholder={isAr ? 'الصق 50 حرفاً على الأقل من سيرتك الذاتية...' : 'Paste at least 50 characters of your CV...'}
+                className="min-h-[160px] resize-y"
+              />
+            </div>
+            <Button onClick={handleAnalyzeCv} disabled={cvAnalyzing} className="gap-2">
+              {cvAnalyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              {cvAnalyzing ? (isAr ? 'جاري التحليل...' : 'Analyzing...') : (isAr ? 'تحليل السيرة' : 'Analyze CV')}
+            </Button>
+
+            {cvResult && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-lg border border-border bg-muted/30 p-4 space-y-4"
+              >
+                {cvResult.strengths?.length ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'نقاط القوة' : 'Strengths'}</h4>
+                    <ul className="list-disc list-inside space-y-0.5 text-sm">
+                      {cvResult.strengths.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {cvResult.gaps?.length ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'فجوات للتطوير' : 'Gaps to develop'}</h4>
+                    <ul className="list-disc list-inside space-y-0.5 text-sm">
+                      {cvResult.gaps.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {cvResult.recommendations?.length ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'توصيات' : 'Recommendations'}</h4>
+                    <ul className="list-disc list-inside space-y-0.5 text-sm">
+                      {cvResult.recommendations.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {cvResult.skill_keywords?.length ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'كلمات المهارات' : 'Skill keywords'}</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {cvResult.skill_keywords.map((s, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </motion.div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Find jobs */}
+        <Card className="public-glass-card rounded-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              {isAr ? 'اعثر على وظائف لي' : 'Find jobs for me'}
+            </CardTitle>
+            <CardDescription>
+              {isAr ? 'احصل على 10 وظائف حقيقية مفتوحة الآن بناءً على موقعك ونوع العمل (عن بُعد / هجين / في المكتب)' : 'Get 10 real open jobs based on your location and work type (remote / hybrid / on-site)'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {isAr ? 'اضبط الموقع ونوع العمل من' : 'Set your location and work type in'}{' '}
+              <a href="/profile" className="text-primary underline">{isAr ? 'الملف الشخصي' : 'Profile'}</a>.
+            </p>
+            <Button onClick={handleFindJobs} disabled={jobsFinding} className="gap-2">
+              {jobsFinding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Briefcase className="h-4 w-4" />
+              )}
+              {jobsFinding ? (isAr ? 'جاري البحث...' : 'Finding jobs...') : (isAr ? 'اعثر على 10 وظائف الآن' : 'Find 10 jobs now')}
+            </Button>
+
+            {jobsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">{isAr ? 'جاري التحميل...' : 'Loading...'}</span>
+              </div>
+            ) : jobsList.length > 0 ? (
+              <ul className="space-y-3">
+                {jobsList.slice(0, 20).map((job, i) => (
+                  <li key={job.id ?? i} className="rounded-lg border border-border p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{job.title}</p>
+                      <p className="text-sm text-muted-foreground truncate">{job.company ?? '—'}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge variant="outline" className="text-xs capitalize">{job.location_type?.replace('_', '-')}</Badge>
+                        {job.match_score != null && (
+                          <Badge variant="secondary" className="text-xs">{job.match_score}% match</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <a
+                      href={job.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {isAr ? 'فتح' : 'Open'}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {isAr ? 'اضغط "اعثر على 10 وظائف الآن" لملء القائمة. يتم إرسال 10 وظائف أسبوعياً إذا قمت بتفعيل ذلك في الملف الشخصي.' : 'Click "Find 10 jobs now" to fill your list. We send 10 jobs weekly if you enable it in Profile.'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+}

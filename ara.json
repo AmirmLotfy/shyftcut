@@ -1,0 +1,1571 @@
+{
+  "_meta": {
+    "description": "Arabic translation export. Optimized for professional MSA tone.",
+    "generatedAt": "2026-02-05T09:46:38.022Z"
+  },
+  "languageContext": {
+    "nav.home": "الرئيسية",
+    "nav.dashboard": "لوحة التحكم",
+    "nav.roadmap": "خارطة الطريق",
+    "nav.courses": "الدورات",
+    "nav.chat": "المدرب الذكي",
+    "nav.pricing": "الأسعار",
+    "nav.blog": "المدونة",
+    "nav.careerDna": "الحمض النووي المهني",
+    "nav.upgrade": "ترقية الحساب",
+    "nav.login": "تسجيل الدخول",
+    "nav.signup": "إنشاء حساب",
+    "nav.logout": "تسجيل الخروج",
+    "nav.profile": "الملف الشخصي",
+    "nav.community": "المجتمع",
+    "hero.title": "خارطة طريقك المهنية",
+    "hero.subtitle": "في 90 ثانية",
+    "hero.description": "توجيه مهني مدعوم بالذكاء الاصطناعي يحول الحيرة إلى خطة واضحة لمدة 12 أسبوعاً. دورات موثقة، متابعة للتقدم، وتدريب ذكي على مدار الساعة.",
+    "hero.cta": "ابدأ رحلتك الآن",
+    "hero.cta.secondary": "شاهد كيف يعمل",
+    "features.ai.title": "خرائط طريق ذكية",
+    "features.ai.description": "احصل على مسار مهني مخصص لمدة 12 أسبوعاً يتم إنشاؤه بواسطة الذكاء الاصطناعي في أقل من 90 ثانية.",
+    "features.ai.bullet1": "مخصصة بالكامل لأهدافك، وجدولك الزمني، وخبرتك.",
+    "features.ai.bullet2": "دورات موثقة من Coursera وUdemy وYouTube وأكثر من 50 منصة.",
+    "features.ai.bullet3": "حدث خارطتك في أي وقت مع تطور أهدافك.",
+    "features.courses.title": "دورات تم التحقق منها",
+    "features.courses.description": "دورات تم التحقق منها في الوقت الفعلي من أفضل المنصات مع تقييم للجودة.",
+    "features.progress.title": "متابعة التقدم",
+    "features.progress.description": "محطات أسبوعية، اختبارات قصيرة، وخرائط حرارية للمهارات لتبقيك على المسار الصحيح.",
+    "features.chat.title": "تدريب ذكي 24/7",
+    "features.chat.description": "احصل على إجابات فورية حول الوظائف، المهارات، المقابلات، والتفاوض على الراتب.",
+    "features.study.title": "أدوات الدراسة",
+    "features.study.description": "ملاحظات ومهام أسبوعية، مؤقت التركيز (بومودورو)، ومهام مقترحة بالذكاء الاصطناعي.",
+    "auth.login.title": "مرحباً بعودتك",
+    "auth.login.subtitle": "سجل الدخول لمتابعة رحلتك المهنية",
+    "auth.signup.title": "ابدأ رحلتك",
+    "auth.signup.subtitle": "أنشئ حساباً للحصول على خارطة الطريق المخصصة لك",
+    "auth.email": "البريد الإلكتروني",
+    "auth.password": "كلمة المرور",
+    "auth.name": "الاسم الكامل",
+    "auth.login.button": "تسجيل الدخول",
+    "auth.signup.button": "إنشاء الحساب",
+    "auth.login.link": "لديك حساب بالفعل؟",
+    "auth.or": "أو تابع باستخدام",
+    "auth.google": "Google",
+    "auth.pleaseSignIn": "يرجى تسجيل الدخول للمتابعة",
+    "auth.passwordNeedsDigit": "يجب أن تحتوي كلمة المرور على رقم واحد على الأقل",
+    "auth.passwordNeedsLowercase": "يجب أن تحتوي كلمة المرور على حرف صغير واحد على الأقل",
+    "auth.passwordNeedsUppercase": "يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل",
+    "auth.passwordNeedsSymbol": "يجب أن تحتوي كلمة المرور على رمز واحد على الأقل (!@#$%^&* إلخ)",
+    "auth.passwordWeak": "كلمة المرور لا تفي بمتطلبات الأمان",
+    "auth.emailAlreadyRegistered": "هذا البريد الإلكتروني مستخدم بالفعل. سجل الدخول عبر Google أو استخدم نفس البريد وكلمة المرور. نسيت كلمة المرور؟ أعد تعيينها في صفحة الدخول.",
+    "auth.captchaFailed": "فشل التحقق من CAPTCHA. يرجى إكمال التحدي والمحاولة مرة أخرى.",
+    "auth.forgotPassword": "نسيت كلمة المرور؟",
+    "auth.forgotPasswordTitle": "إعادة تعيين كلمة المرور",
+    "auth.forgotPasswordSubtitle": "أدخل بريدك الإلكتروني وسنرسل لك رابطاً لتعيين كلمة مرور جديدة.",
+    "auth.forgotPasswordButton": "إرسال رابط إعادة التعيين",
+    "auth.forgotPasswordSuccess": "تحقق من بريدك الإلكتروني",
+    "auth.forgotPasswordSuccessDesc": "أرسلنا رابط إعادة تعيين كلمة المرور. اضغط عليه لتعيين كلمة مرور جديدة.",
+    "auth.resetPasswordTitle": "تعيين كلمة مرور جديدة",
+    "auth.resetPasswordSubtitle": "أدخل كلمة المرور الجديدة أدناه.",
+    "auth.resetPasswordButton": "تحديث كلمة المرور",
+    "auth.resetPasswordInvalidLink": "الرابط غير صالح أو منتهي الصلاحية",
+    "auth.resetPasswordInvalidLinkDesc": "رابط إعادة التعيين هذا غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً أدناه.",
+    "auth.resetPasswordSuccessDesc": "تم تحديث كلمة المرور بنجاح. تم تسجيل دخولك الآن.",
+    "auth.confirmPassword": "تأكيد كلمة المرور",
+    "auth.loginGoogleHint": "إذا قمت بالتسجيل عبر Google، يرجى استخدام زر Google أعلاه.",
+    "auth.magicLink.tab": "رابط سحري (إيميل)",
+    "auth.magicLink.tabPassword": "كلمة المرور",
+    "auth.magicLink.button": "إرسال رابط الدخول",
+    "auth.magicLink.success": "تحقق من بريدك الإلكتروني",
+    "auth.magicLink.successDesc": "أرسلنا رابط الدخول. اضغط عليه لتسجيل الدخول أو إنشاء حسابك. ينتهي الرابط خلال ساعة واحدة. إذا سجلت عبر Google، استخدم نفس الإيميل - سيتم تسجيل دخولك.",
+    "auth.magicLink.failed": "فشل إرسال رابط الدخول",
+    "auth.magicLink.tryGoogle": "إذا كنت قد سجلت عبر Google، جرب زر Google بدلاً من ذلك.",
+    "auth.community.messageBlocked": "الرسالة غير مسموحة",
+    "auth.community.groupBlocked": "المجموعة غير مسموحة",
+    "wizard.step1.title": "أين أنت الآن؟",
+    "wizard.step1.subtitle": "دورك الحالي وخبرتك",
+    "wizard.step2.subtitle": "المسار المستهدف والجدول الزمني",
+    "wizard.step3.title": "ماذا تمتلك بالفعل؟",
+    "wizard.step3.subtitle": "مهارات يمكننا البناء عليها",
+    "wizard.step4.title": "كيف تتعلم بشكل أفضل؟",
+    "wizard.step4.subtitle": "الأسلوب والمنصات المفضلة",
+    "wizard.step5.title": "الوقت والميزانية",
+    "wizard.step5.subtitle": "الساعات الأسبوعية والميزانية",
+    "wizard.next": "التالي",
+    "wizard.back": "رجوع",
+    "wizard.generate": "إنشاء خارطة الطريق",
+    "wizard.generating.title": "جاري بناء خارطتك...",
+    "wizard.generating.statement1": "تحليل ملفك الشخصي",
+    "wizard.generating.statement2": "رسم مسارك لمدة 12 أسبوعاً",
+    "wizard.generating.statement3": "اختيار الدورات المناسبة لك",
+    "wizard.generating.statement4": "بناء خطتك الأسبوعية",
+    "wizard.generating.statement5": "تقريباً انتهينا",
+    "wizard.generating.statement6": "تم الانتهاء",
+    "wizard.generating.didYouKnow": "هل تعلم؟",
+    "wizard.generating.funFact1": "التعلم في جلسات قصيرة (15-30 دقيقة) يحسن الاستيعاب أكثر من الجلسات الطويلة.",
+    "wizard.generating.funFact2": "توزيع الممارسة على عدة أيام أفضل للذاكرة طويلة المدى من التكديس.",
+    "wizard.generating.funFact3": "كتابة الأهداف تزيد من احتمالية تحقيقها بنسبة 42%.",
+    "wizard.generating.funFact4": "يقول معظم مغيري المسار المهني أن أول 90 يوماً كانت الأصعب، ولكنها الأكثر مكافأة.",
+    "wizard.generating.funFact5": "يقضي أصحاب الأداء العالي حوالي 5 ساعات أسبوعياً في التعلم المتعمد.",
+    "wizard.generating.funFact6": "تعليم شخص آخر ما تعلمته يعزز فهمك للمادة.",
+    "wizard.generating.funFact7": "أخذ استراحات قصيرة كل 25-30 دقيقة يعزز التركيز والإنتاجية.",
+    "wizard.generating.funFact8": "الأشخاص الذين يتبعون خطة منظمة هم أكثر عرضة بمرتين للوصول لأهدافهم المهنية.",
+    "wizard.generating.usuallyUnderMinute": "يستغرق الأمر عادةً أقل من دقيقة",
+    "wizard.teaser.heading": "خطتك الكاملة لـ 12 أسبوعاً جاهزة",
+    "wizard.teaser.subtitle": "هذه معاينة قصيرة. خارطتك الكاملة، المهام الأسبوعية، الاختبارات، والمدرب الذكي بانتظارك في حسابك - سجل الدخول لفتح كل شيء.",
+    "wizard.teaser.bulletFull": "الخطة الكاملة (12 أسبوع)",
+    "wizard.teaser.bulletCourses": "روابط الدورات",
+    "wizard.teaser.bulletQuizzes": "اختبارات أسبوعية",
+    "wizard.teaser.bulletCoach": "مدرب ذكي",
+    "wizard.teaser.bulletProgress": "تتبع التقدم",
+    "wizard.teaser.moreWeeks": "10 أسابيع إضافية + مدرب ذكي + اختبارات أسبوعية في حسابك الكامل.",
+    "wizard.teaser.signUp": "إنشاء حساب",
+    "wizard.teaser.logIn": "تسجيل الدخول",
+    "wizard.teaser.backHome": "العودة للرئيسية",
+    "wizard.teaser.week": "أسبوع",
+    "wizard.teaser.deliverables": "المخرجات",
+    "wizard.teaser.suggestedCourse": "دورة مقترحة",
+    "wizard.label.industry.Technology": "التكنولوجيا",
+    "wizard.label.industry.Healthcare": "الرعاية الصحية",
+    "wizard.label.industry.Finance": "المالية",
+    "wizard.label.industry.Education": "التعليم",
+    "wizard.label.industry.Marketing": "التسويق",
+    "wizard.label.industry.Sales": "المبيعات",
+    "wizard.label.industry.Manufacturing": "التصنيع",
+    "wizard.label.industry.Retail": "التجزئة",
+    "wizard.label.industry.Consulting": "الاستشارات",
+    "wizard.label.industry.Media": "الإعلام",
+    "wizard.label.industry.Non-profit": "غير هادف للربح",
+    "wizard.label.industry.Government": "حكومي",
+    "wizard.label.industry.Other": "أخرى",
+    "wizard.label.level.entry": "مبتدئ (Entry)",
+    "wizard.label.level.junior": "مبتدئ (Junior)",
+    "wizard.label.level.mid": "متوسط (Mid)",
+    "wizard.label.level.senior": "خبير (Senior)",
+    "wizard.label.level.executive": "تنفيذي",
+    "wizard.label.learningStyle.video": "فيديو",
+    "wizard.label.learningStyle.reading": "قراءة",
+    "wizard.label.learningStyle.hands-on": "تطبيق عملي",
+    "wizard.label.learningStyle.mixed": "مختلط",
+    "wizard.label.platform.Coursera": "Coursera",
+    "wizard.label.platform.Udemy": "Udemy",
+    "wizard.label.platform.LinkedIn Learning": "LinkedIn Learning",
+    "wizard.label.platform.YouTube": "YouTube",
+    "wizard.label.platform.Pluralsight": "Pluralsight",
+    "wizard.label.platform.Skillshare": "Skillshare",
+    "wizard.label.platform.edX": "edX",
+    "wizard.label.platform.FutureLearn": "FutureLearn",
+    "wizard.label.platform.Khan Academy": "Khan Academy",
+    "wizard.label.platform.Codecademy": "Codecademy",
+    "wizard.label.platform.DataCamp": "DataCamp",
+    "wizard.label.platform.freeCodeCamp": "freeCodeCamp",
+    "wizard.label.platform.MasterClass": "MasterClass",
+    "wizard.label.platform.Microsoft Learn": "Microsoft Learn",
+    "wizard.label.platform.AWS Training": "AWS Training",
+    "wizard.label.platform.Google Cloud Skills": "Google Cloud Skills",
+    "wizard.label.jobTitle.Software Engineer": "مهندس برمجيات",
+    "wizard.label.jobTitle.Data Scientist": "عالم بيانات",
+    "wizard.label.jobTitle.Product Manager": "مدير منتج",
+    "wizard.label.jobTitle.UX Designer": "مصمم تجربة المستخدم (UX)",
+    "wizard.label.jobTitle.DevOps Engineer": "مهندس DevOps",
+    "wizard.label.jobTitle.Cloud Architect": "مهندس سحابة (Cloud)",
+    "wizard.label.jobTitle.Machine Learning Engineer": "مهندس تعلم آلي",
+    "wizard.label.jobTitle.Frontend Developer": "مطور واجهات أمامية",
+    "wizard.label.jobTitle.Backend Developer": "مطور واجهات خلفية",
+    "wizard.label.jobTitle.Full Stack Developer": "مطور ويب شامل (Full Stack)",
+    "wizard.label.jobTitle.Cybersecurity Analyst": "محلل أمن سيبراني",
+    "wizard.label.jobTitle.Business Analyst": "محلل أعمال",
+    "wizard.label.jobTitle.Project Manager": "مدير مشاريع",
+    "wizard.label.jobTitle.Marketing Manager": "مدير تسويق",
+    "wizard.label.jobTitle.Sales Manager": "مدير مبيعات",
+    "wizard.label.jobTitle.HR Manager": "مدير موارد بشرية",
+    "wizard.label.jobTitle.Student": "طالب",
+    "wizard.label.jobTitle.Other": "أخرى",
+    "wizard.validation.about": "اختر دورك، مجالك، وخبرتك للمتابعة",
+    "wizard.validation.goals": "اختر المسار المستهدف للمتابعة",
+    "wizard.validation.skills": "أضف مهارتين على الأقل للمتابعة",
+    "wizard.validation.platforms": "اختر أسلوب التعلم ومنصة واحدة على الأقل للمتابعة",
+    "wizard.validation.availability": "حدد الساعات الأسبوعية والميزانية للمتابعة",
+    "wizard.step0.title": "اختر لغتك",
+    "wizard.step0.subtitle": "سيتم استخدام هذه اللغة لخارطة الطريق والتطبيق.",
+    "wizard.english": "English",
+    "wizard.continueEnglish": "Continue in English",
+    "wizard.arabic": "العربية",
+    "wizard.continueArabic": "المتابعة بالعربية",
+    "wizard.pageTitle": "ابنِ خارطة طريقك المهنية",
+    "wizard.pageSubtitle": "أجب عن 5 خطوات قصيرة — واحصل على خطة لمدة 12 أسبوعاً مصممة لهدفك وجدولك.",
+    "wizard.bullet12Week": "خطة 12 أسبوع",
+    "wizard.bulletCourses": "دورات منتقاة",
+    "wizard.bulletCoach": "مدرب ذكي",
+    "wizard.currentJobTitle": "المسمى الوظيفي الحالي",
+    "wizard.selectJobTitle": "اختر الدور الحالي",
+    "wizard.industry": "المجال / الصناعة",
+    "wizard.selectIndustry": "اختر المجال",
+    "wizard.experienceLevel": "مستوى الخبرة",
+    "wizard.selectLevel": "اختر المستوى",
+    "wizard.targetCareer": "المسار المستهدف",
+    "wizard.selectCareer": "اختر المسار",
+    "wizard.whyChange": "لماذا هذا التغيير؟ (اختياري)",
+    "wizard.reasonAria": "سبب التغيير المهني",
+    "wizard.reasonGrowth": "نمو مهني",
+    "wizard.reasonSwitch": "تغيير المجال",
+    "wizard.reasonUpskill": "تطوير مهارات (Upskill)",
+    "wizard.reasonChallenge": "تحدٍ جديد",
+    "wizard.reasonOther": "سبب آخر",
+    "wizard.timeline": "الجدول الزمني",
+    "wizard.timeline12": "12 أسبوع (3 أشهر)",
+    "wizard.timeline24": "24 أسبوع (6 أشهر)",
+    "wizard.whyWeAskAbout": "نستخدم هذا لمطابقة خطتك مع وضعك الحالي.",
+    "wizard.whyWeAskGoals": "نستخدم هذا لتشكيل مسارك لمدة 12 أسبوعاً.",
+    "wizard.serverError": "خطأ في الخادم",
+    "wizard.rateLimitPreview": "عدد كبير من المعاينات. حاول مرة أخرى خلال ساعة.",
+    "wizard.rateLimit": "تم تجاوز الحد المسموح. يرجى المحاولة لاحقاً.",
+    "wizard.roadmapLimit": "وصلت للحد الأقصى للخرائط. قم بالترقية للحصول على عدد غير محدود.",
+    "wizard.invalidResponse": "استجابة غير صالحة من الخادم.",
+    "wizard.roadmapGenerated": "تم إنشاء الخارطة!",
+    "wizard.roadmapGeneratedDesc": "خارطة طريقك المهنية المخصصة جاهزة",
+    "wizard.failedToGenerate": "فشل إنشاء الخارطة. يرجى المحاولة مرة أخرى.",
+    "wizard.yourCurrentSkills": "مهاراتك الحالية",
+    "wizard.selectAtLeast2": "اختر مهارتين على الأقل",
+    "wizard.searchSkills": "ابحث عن المهارات...",
+    "wizard.selectSkillsAria": "اختر المهارات",
+    "wizard.skillsSelected": "تم اختيار {{count}} (الحد الأدنى 2)",
+    "wizard.preferredLearningStyle": "أسلوب التعلم المفضل",
+    "wizard.preferredPlatforms": "المنصات المفضلة",
+    "wizard.weeklyHours": "الساعات المتاحة أسبوعياً",
+    "wizard.monthlyBudget": "الميزانية الشهرية",
+    "wizard.budgetFree": "مجاني فقط",
+    "wizard.budgetUpTo50": "حتى 50 دولار",
+    "wizard.budgetUpTo200": "حتى 200 دولار",
+    "wizard.budgetUnlimited": "غير محدود",
+    "wizard.pressEnter": "اضغط Enter للمتابعة",
+    "wizard.generating": "جاري الإنشاء...",
+    "wizard.entry": "مبتدئ (Entry)",
+    "wizard.junior": "مبتدئ (Junior)",
+    "wizard.mid": "متوسط",
+    "wizard.senior": "خبير",
+    "wizard.executive": "تنفيذي",
+    "wizard.video": "فيديو",
+    "wizard.reading": "قراءة",
+    "wizard.handsOn": "تطبيق عملي",
+    "wizard.mixed": "مختلط",
+    "wizard.stepLabel0": "اللغة",
+    "wizard.stepLabel1": "عنك",
+    "wizard.stepLabel2": "الأهداف",
+    "wizard.stepLabel3": "المهارات",
+    "wizard.stepLabel4": "التعلم",
+    "wizard.stepLabel5": "الوقت",
+    "dashboard.welcome": "مرحباً بعودتك",
+    "dashboard.progress": "تقدمك",
+    "dashboard.thisWeek": "هذا الأسبوع",
+    "dashboard.upNext": "التالي",
+    "dashboard.recentCourses": "الدورات الأخيرة",
+    "dashboard.error": "حدث خطأ ما",
+    "dashboard.errorLoad": "لم نتمكن من تحميل بياناتك. يرجى المحاولة مرة أخرى.",
+    "dashboard.backToDashboard": "العودة للوحة التحكم",
+    "dashboard.createRoadmap": "أنشئ خارطتك",
+    "dashboard.fiveSteps": "5 خطوات قصيرة ومتتالية",
+    "dashboard.curatedCourses": "دورات مختارة لكل أسبوع",
+    "dashboard.aiCoach": "مدرب ذكي متاح في أي وقت",
+    "dashboard.buildRoadmap": "ابنِ خارطتك",
+    "dashboard.today": "اليوم",
+    "dashboard.yesterday": "أمس",
+    "dashboard.freePlan": "الخطة المجانية",
+    "dashboard.chat": "محادثة:",
+    "dashboard.quizzes": "اختبارات:",
+    "dashboard.notes": "ملاحظات:",
+    "dashboard.tasks": "مهام:",
+    "dashboard.aiToday": "الذكاء الاصطناعي اليوم:",
+    "dashboard.upgrade": "ترقية",
+    "dashboard.yourRoadmaps": "خرائطك",
+    "dashboard.roadmap": "خارطة الطريق",
+    "dashboard.active": "نشطة",
+    "dashboard.setActive": "تعيين كنشطة",
+    "dashboard.archived": "مؤرشفة",
+    "dashboard.subscriptionBilling": "الاشتراك والفوترة",
+    "dashboard.subscriptionDescription": "خطتك، استخدامك، وإدارة الاشتراك",
+    "dashboard.currentPlan": "الخطة الحالية",
+    "dashboard.usageThisMonth": "الاستخدام هذا الشهر",
+    "dashboard.createYourRoadmap": "أنشئ خارطتك",
+    "dashboard.fiveStepsShort": "5 خطوات قصيرة ومتتالية",
+    "dashboard.daysAgo": "أيام مضت",
+    "dashboard.weeksAgo": "أسابيع مضت",
+    "dashboard.percentThrough": "أنجزت {{percent}}% من الخارطة",
+    "dashboard.percentThroughAr": " · {{percent}}% من الخارطة",
+    "dashboard.roadmapsLabel": "الخرائط:",
+    "dashboard.streak": "سلسلة الحماس",
+    "dashboard.streakDays": "{{count}} يوم متتالٍ",
+    "dashboard.streakDaysZero": "لا توجد سلسلة بعد",
+    "dashboard.longestStreak": "الأطول",
+    "dashboard.studyTodayToKeepStreak": "ادرس اليوم لتحافظ على السلسلة.",
+    "dashboard.studyTodayStart": "ادرس اليوم لتبدأ السلسلة.",
+    "dashboard.chatMessages": "رسائل المحادثة:",
+    "dashboard.quizzesLabel": "الاختبارات:",
+    "dashboard.overallProgress": "التقدم العام",
+    "dashboard.weeksCompleted": "الأسابيع المكتملة",
+    "dashboard.coursesCompleted": "الدورات المكتملة",
+    "dashboard.activityThisMonth": "النشاط هذا الشهر",
+    "dashboard.progressAtGlance": "نظرة سريعة على تقدمك",
+    "dashboard.quizzesTaken": "الاختبارات المنجزة",
+    "dashboard.averageQuizScore": "متوسط درجات الاختبار",
+    "dashboard.aiMessages": "رسائل الذكاء الاصطناعي",
+    "dashboard.roadmapsCreated": "الخرائط المنشأة",
+    "dashboard.lastQuiz": "آخر اختبار: ",
+    "dashboard.lastActivity": "آخر نشاط: ",
+    "dashboard.viewFullRoadmap": "عرض الخارطة الكاملة",
+    "dashboard.noTasksYet": "لا توجد مهام بعد.",
+    "dashboard.progressOverview": "نظرة عامة على التقدم",
+    "dashboard.complete": "مكتمل",
+    "dashboard.weeklySchedule": "الجدول الأسبوعي",
+    "dashboard.continueRoadmap": "تابع خارطتك",
+    "dashboard.trackWeekly": "تتبع رحلتك الأسبوعية",
+    "dashboard.browseCourses": "تصفح الدورات",
+    "dashboard.talkToCoach": "تحدث للمدرب الذكي",
+    "pricing.title": "تسعير بسيط وشفاف",
+    "pricing.subtitle": "اختر الخطة التي تناسب أهدافك المهنية",
+    "pricing.free": "مجانية",
+    "pricing.premium": "بريميوم",
+    "pricing.pro": "برو",
+    "pricing.perMonth": "/ شهر",
+    "pricing.popular": "الأكثر شيوعاً",
+    "pricing.getStarted": "ابدأ الآن",
+    "pricing.upgrade": "رقِّ حسابك الآن",
+    "common.loading": "جاري التحميل...",
+    "common.error": "حدث خطأ ما",
+    "common.errorTitle": "خطأ",
+    "common.saved": "تم الحفظ",
+    "common.retry": "حاول مرة أخرى",
+    "common.save": "حفظ",
+    "common.cancel": "إلغاء",
+    "common.confirm": "تأكيد",
+    "common.delete": "حذف",
+    "common.edit": "تعديل",
+    "common.view": "عرض",
+    "common.add": "إضافة",
+    "common.next": "التالي",
+    "common.editLabel": "تعديل",
+    "common.archive": "أرشفة",
+    "careerDna.badge": "اختبار مجاني",
+    "careerDna.title": "الحمض النووي المهني",
+    "careerDna.subtitle": "اكتشف مدى ملاءمة شخصيتك لمجالك. في 90 ثانية.",
+    "careerDna.iAmStudent": "أنا طالب",
+    "careerDna.yes": "نعم",
+    "careerDna.no": "لا",
+    "careerDna.start": "ابدأ",
+    "careerDna.q5Major": "تخصصك الحالي هو...",
+    "careerDna.q5Field": "مجالك الحالي هو...",
+    "careerDna.selectField": "اختر مجالك",
+    "careerDna.seeResults": "شاهد النتائج",
+    "careerDna.backHome": "العودة للرئيسية",
+    "careerDna.rateLimit": "عدد كبير من المحاولات. حاول مرة أخرى خلال ساعة.",
+    "careerDna.q1": "عند مواجهة مشكلة، تفضل أن...",
+    "careerDna.q1.analyze": "تحلل البيانات",
+    "careerDna.q1.brainstorm": "تطرح الأفكار (عصف ذهني)",
+    "careerDna.q1.process": "تتبع عملية محددة",
+    "careerDna.q1.collaborate": "تتعاون مع الآخرين",
+    "careerDna.q2": "المواعيد النهائية تجعلك تشعر...",
+    "careerDna.q2.excited": "بالحماس",
+    "careerDna.q2.stressed": "بالتوتر",
+    "careerDna.q2.motivated": "بالتحفيز",
+    "careerDna.q2.anxious": "بالقلق",
+    "careerDna.q3": "بيئة العمل المثالية لك هي...",
+    "careerDna.q3.fast": "سريعة الوتيرة",
+    "careerDna.q3.structured": "منظمة ولها هيكلية",
+    "careerDna.q3.creative": "إبداعية",
+    "careerDna.q3.independent": "مستقلة",
+    "careerDna.q4": "في المشاريع الجماعية، أنت بطبيعتك...",
+    "careerDna.q4.lead": "تقود",
+    "careerDna.q4.support": "تدعم",
+    "careerDna.q4.create": "تبتكر وتصنع",
+    "careerDna.q4.analyze": "تحلل",
+    "careerDna.q5": "مجالك الحالي هو...",
+    "careerDna.q6": "قيم طاقتك بعد الدراسة/العمل (1–10)",
+    "careerDna.q7": "لو عاد بك الزمن، هل كنت ستختار هذا المجال مجدداً؟",
+    "careerDna.q7.yes": "نعم",
+    "careerDna.q7.no": "لا",
+    "careerDna.q7.unsure": "غير متأكد",
+    "careerDna.q8": "ما الذي يخيفك أكثر؟",
+    "careerDna.q8.wasting_time": "إضاعة الوقت",
+    "careerDna.q8.wrong_career": "اختيار مسار خاطئ",
+    "careerDna.q8.competition": "المنافسة",
+    "careerDna.q8.falling_behind": "التخلف عن الركب",
+    "careerDna.result.match": "نسبة التوافق",
+    "careerDna.result.archetype": "نمط شخصيتك",
+    "careerDna.result.superpower": "قوتك الخارقة",
+    "careerDna.result.hiddenTalent": "الموهبة الخفية",
+    "careerDna.result.suggestedCareers": "مسارات مهنية مقترحة لك",
+    "careerDna.result.getRoadmap": "احصل على خطة 12 أسبوع",
+    "careerDna.result.fullRoadmap": "احصل على خارطتك الكاملة",
+    "careerDna.result.challengeFriends": "تحدَّ أصدقاءك",
+    "careerDna.result.share": "مشاركة",
+    "careerDna.result.copyLink": "نسخ الرابط",
+    "careerDna.result.linkCopied": "تم نسخ الرابط",
+    "careerDna.result.shared": "تمت المشاركة!",
+    "careerDna.result.saveImage": "حفظ الصورة",
+    "careerDna.result.saved": "تم حفظ الصورة",
+    "careerDna.result.longPressHint": "اضغط مطولاً للحفظ في الصور",
+    "careerDna.result.yourField": "مجالك",
+    "careerDna.result.dnaSays": "حمضك المهني يقول أنك ستبدع في هذه المسارات",
+    "careerDna.result.unicornMatch": "توافق رؤيوي! حسن مسارك الآن",
+    "careerDna.result.quizTakersDiscount": "لمجتازي الاختبار: خصم 50% لأول 3 أشهر",
+    "careerDna.tier.visionaries": "أصحاب الرؤية",
+    "careerDna.tier.naturals": "الموهوبون بالفطرة",
+    "careerDna.tier.naturals.tagline": "كل شيء على ما يرام",
+    "careerDna.tier.explorers": "المستكشفون",
+    "careerDna.tier.explorers.tagline": "ثق بالرحلة",
+    "careerDna.tier.shifters": "المتحولون",
+    "careerDna.tier.shifters.tagline": "التكيف هو الحل",
+    "careerDna.tier.awakeners": "المستيقظون",
+    "careerDna.tier.awakeners.tagline": "إيجاد الطريق",
+    "careerDna.tier.misfits": "المتمردون",
+    "careerDna.tier.misfits.tagline": "مسارك الخاص",
+    "careerDna.persona.visionaries.v1.name": "الرائد",
+    "careerDna.persona.visionaries.v1.tagline": "ولدت لهذا المسار",
+    "careerDna.persona.visionaries.v2.name": "المهندس",
+    "careerDna.persona.visionaries.v2.tagline": "تصمم حياتك المهنية المثالية",
+    "careerDna.persona.visionaries.v3.name": "المحفز",
+    "careerDna.persona.visionaries.v3.tagline": "تحول الرؤية إلى تأثير",
+    "careerDna.persona.visionaries.v4.name": "المستنير",
+    "careerDna.persona.visionaries.v4.tagline": "تقود الطريق بطبيعتك",
+    "careerDna.persona.naturals.n1.name": "المنسق",
+    "careerDna.persona.naturals.n1.tagline": "تناغم سهل، ونمو ثابت",
+    "careerDna.persona.naturals.n2.name": "الموصل",
+    "careerDna.persona.naturals.n2.tagline": "تبني الجسور في مجالك",
+    "careerDna.persona.naturals.n3.name": "الباني",
+    "careerDna.persona.naturals.n3.tagline": "تشيّد نجاحك لبنة لبنة",
+    "careerDna.persona.naturals.n4.name": "الملاح",
+    "careerDna.persona.naturals.n4.tagline": "توجه مسارك للأمام",
+    "careerDna.persona.explorers.e1.name": "الباحث",
+    "careerDna.persona.explorers.e1.tagline": "الفضول يقود مسارك",
+    "careerDna.persona.explorers.e2.name": "المقدام",
+    "careerDna.persona.explorers.e2.tagline": "تجد طريقك الفريد",
+    "careerDna.persona.explorers.e3.name": "الفضولي",
+    "careerDna.persona.explorers.e3.tagline": "الاكتشاف هو قوتك الخارقة",
+    "careerDna.persona.explorers.e4.name": "المغامر",
+    "careerDna.persona.explorers.e4.tagline": "كل منعطف يكشف مسارات جديدة",
+    "careerDna.persona.shifters.s1.name": "المحول",
+    "careerDna.persona.shifters.s1.tagline": "التغيير هو محفزك",
+    "careerDna.persona.shifters.s2.name": "المحوري",
+    "careerDna.persona.shifters.s2.tagline": "تتكيف لتجد مكانك",
+    "careerDna.persona.shifters.s3.name": "المزهر",
+    "careerDna.persona.shifters.s3.tagline": "النمو عبر إعادة اختراع الذات",
+    "careerDna.persona.shifters.s4.name": "الحرباء",
+    "careerDna.persona.shifters.s4.tagline": "الازدهار من خلال المرونة",
+    "careerDna.persona.awakeners.a1.name": "المتألق متأخراً",
+    "careerDna.persona.awakeners.a1.tagline": "أفضل ما لديك لم يأتِ بعد",
+    "careerDna.persona.awakeners.a2.name": "العنقاء",
+    "careerDna.persona.awakeners.a2.tagline": "تنهض لندائك الحقيقي",
+    "careerDna.persona.awakeners.a3.name": "الصاعد",
+    "careerDna.persona.awakeners.a3.tagline": "تتسلق نحو الوضوح",
+    "careerDna.persona.awakeners.a4.name": "المكتشف",
+    "careerDna.persona.awakeners.a4.tagline": "تكشف الستار عن مسارك",
+    "careerDna.persona.misfits.m1.name": "المستقل",
+    "careerDna.persona.misfits.m1.tagline": "الطرق المرسومة ليست لك",
+    "careerDna.persona.misfits.m2.name": "المتمرد",
+    "careerDna.persona.misfits.m2.tagline": "قواعدك الخاصة، نجاحك الخاص",
+    "careerDna.persona.misfits.m3.name": "المتفرد",
+    "careerDna.persona.misfits.m3.tagline": "الاختلاف هو ميزتك",
+    "careerDna.persona.misfits.m4.name": "مغير القواعد",
+    "careerDna.persona.misfits.m4.tagline": "تعيد كتابة قواعد اللعبة",
+    "careerDna.squad.title": "نتائج الفريق",
+    "careerDna.squad.challengeFriends": "تحدَّ أصدقاءك لأخذ الاختبار",
+    "careerDna.squad.takeQuiz": "ابدأ الاختبار",
+    "careerDna.squad.compare": "قارن النتائج",
+    "study.notes": "الملاحظات",
+    "study.notesAdd": "إضافة ملاحظة",
+    "study.notesPlaceholder": "عنوان الملاحظة...",
+    "study.notesContentPlaceholder": "اكتب ملاحظتك...",
+    "study.tasks": "المهام",
+    "study.tasksAdd": "إضافة مهمة",
+    "study.tasksPlaceholder": "عنوان المهمة...",
+    "study.currentWeekTasks": "مهام هذا الأسبوع",
+    "study.noNotes": "لا توجد ملاحظات بعد.",
+    "study.noTasks": "لا توجد مهام بعد.",
+    "study.suggestedTasks": "مقترحة لهذا الأسبوع",
+    "study.yourTasks": "مهامك",
+    "study.suggestTasks": "اقترح مهاماً لهذا الأسبوع",
+    "study.notesLimit": "حد الملاحظات",
+    "study.notesLimitReached": "وصلت للحد الأقصى للملاحظات.",
+    "study.tasksLimit": "حد المهام",
+    "study.tasksLimitReached": "وصلت للحد الأقصى للمهام.",
+    "study.aiSuggestionsLimit": "حد اقتراحات الذكاء الاصطناعي",
+    "study.aiSuggestionsLimitReached": "وصلت للحد اليومي لاقتراحات الذكاء الاصطناعي.",
+    "quiz.title": "الاختبار الأسبوعي",
+    "quiz.generating": "جاري إعداد اختبارك...",
+    "quiz.question": "سؤال",
+    "quiz.of": "من",
+    "quiz.previous": "السابق",
+    "quiz.next": "التالي",
+    "quiz.submit": "إرسال الإجابات",
+    "quiz.score": "النتيجة",
+    "quiz.passed": "عمل رائع! 🎉",
+    "quiz.failed": "حاول مرة أخرى!",
+    "quiz.passedMessage": "لقد اجتزت الاختبار بنجاح",
+    "quiz.failedMessage": "تحتاج إلى 70% للنجاح. راجع المادة وحاول مرة أخرى.",
+    "quiz.correctAnswers": "إجابات صحيحة",
+    "quiz.reviewAnswers": "مراجعة الإجابات",
+    "quiz.correctAnswer": "الإجابة الصحيحة:",
+    "quiz.tryAgain": "حاول مرة أخرى",
+    "quiz.completeWeek": "إكمال الأسبوع",
+    "quiz.close": "إغلاق",
+    "quiz.takeQuiz": "أكمل الاختبار للإنهاء",
+    "checkout.success.title": "تم بنجاح! 🎉",
+    "checkout.success.description": "تمت ترقية حسابك. استمتع بجميع الميزات!",
+    "checkout.success.featuresTitle": "ميزاتك الجديدة:",
+    "checkout.success.feature1": "✓ عدد غير محدود من الخرائط",
+    "checkout.success.feature2": "✓ محادثة ذكية غير محدودة",
+    "checkout.success.feature3": "✓ اختبارات غير محدودة",
+    "checkout.success.feature4": "✓ توصيات دورات كاملة",
+    "checkout.success.feature5": "✓ تحليل السيرة الذاتية وتوصيات الوظائف",
+    "checkout.success.feature6": "✓ 10 وظائف حقيقية ترسل أسبوعياً (اختياري)",
+    "checkout.success.feature7": "✓ تتبع التقدم وتحليلات",
+    "checkout.success.goToDashboard": "الذهاب للوحة التحكم",
+    "checkout.success.manageBilling": "إدارة الفواتير",
+    "checkout.success.redirecting": "إعادة توجيه تلقائي خلال 5 ثوانٍ...",
+    "checkout.cancel.title": "تم إلغاء عملية الدفع",
+    "checkout.cancel.description": "لم يتم خصم أي مبلغ. يمكنك المحاولة مرة أخرى في أي وقت.",
+    "checkout.cancel.backToPricing": "العودة للأسعار",
+    "checkout.cancel.backToUpgrade": "العودة للترقية",
+    "checkout.cancel.continueFree": "المتابعة بالخطة المجانية",
+    "checkout.cancel.supportText": "لديك أسئلة؟ راسلنا على support@shyftcut.com",
+    "support.title": "الدعم الفني",
+    "support.validationError": "خطأ في التحقق",
+    "support.mustSignIn": "يجب تسجيل الدخول للإرسال.",
+    "support.requestSent": "تم إرسال الطلب!",
+    "support.sendError": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    "support.priorityNote": "طلباتك لها الأولوية (عضو بريميوم).",
+    "support.subject": "الموضوع",
+    "support.subjectPlaceholder": "موضوع مختصر",
+    "support.message": "الرسالة",
+    "support.messagePlaceholder": "صف مشكلتك أو سؤالك (10 أحرف كحد أدنى)...",
+    "support.sending": "جاري الإرسال...",
+    "support.submit": "إرسال الطلب",
+    "support.sentFrom": "مرسلة من",
+    "support.description": "أرسل طلبك وسنرد عليك وفقاً لأولوية خطتك.",
+    "support.requestSentDescription": "شكراً لتواصلك معنا. سنرد عليك وفقاً لأولوية الدعم.",
+    "upgrade.alreadyPremiumDesc": "استمتع بجميع الميزات. إدارة اشتراكك من ملفك الشخصي.",
+    "upgrade.manageSubscription": "إدارة الاشتراك",
+    "upgrade.backToDashboard": "العودة للوحة التحكم",
+    "upgrade.title": "الترقية إلى بريميوم",
+    "upgrade.description": "خرائط ومحادثات ذكية غير محدودة، تحليل CV، و10 وظائف أسبوعياً. إلغاء في أي وقت.",
+    "upgrade.monthly": "شهري",
+    "upgrade.yearly": "سنوي",
+    "upgrade.save30": "وفر 30% مع السنوي",
+    "upgrade.perMonth": "/ شهر",
+    "upgrade.perYear": "/ سنة",
+    "upgrade.upgradeNow": "رقِّ حسابك الآن",
+    "upgrade.noCardRequired": "إلغاء في أي وقت.",
+    "chat.title": "المدرب المهني الذكي",
+    "chat.ready24_7": "جاهز للمساعدة 24/7",
+    "chat.clear": "مسح",
+    "chat.welcomeTitle": "أهلاً! كيف يمكنني مساعدتك اليوم؟",
+    "chat.welcomeSubtitle": "اسألني أي شيء عن رحلتك المهنية",
+    "chat.sources": "المصادر",
+    "chat.messageLimit": "حد الرسائل",
+    "chat.rateLimit": "تم تجاوز الحد المسموح. حاول مرة أخرى لاحقاً.",
+    "chat.upgradeForUnlimited": "وصلت لحد الرسائل. قم بالترقية للحصول على تدريب غير محدود.",
+    "chat.failedToGetResponse": "عذراً، حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    "chat.notSupported": "غير مدعوم",
+    "chat.speechNotAvailable": "التعرف على الكلام غير متاح في متصفحك.",
+    "chat.microphoneRequired": "مطلوب إذن الميكروفون",
+    "chat.couldNotAccessMicrophone": "تعذر الوصول للميكروفون",
+    "chat.cleared": "تم المسح",
+    "chat.historyCleared": "تم مسح سجل المحادثة",
+    "chat.freeLimitNote": "الخطة المجانية: رسائل محدودة شهرياً.",
+    "chat.messagesLeft": "تبقى لك {{count}} رسالة هذا الشهر. ",
+    "chat.upgradeUnlimited": "رقِّ للحصول على غير محدود",
+    "chat.placeholder": "اكتب رسالتك...",
+    "chat.useWebSearch": "استخدم بحث الويب لإجابات محدثة",
+    "chat.webSearch": "البحث في الويب",
+    "chat.webSearchNote": "يستخدم معلومات الويب المباشرة عند توفرها",
+    "chat.voiceInput": "إدخال صوتي",
+    "chat.stopListening": "إيقاف الاستماع",
+    "chat.voiceNotSupported": "الإدخال الصوتي غير مدعوم",
+    "chat.dismiss": "تجاهل",
+    "notfound.title": "الصفحة غير موجودة",
+    "notfound.goBack": "رجوع",
+    "notfound.home": "الرئيسية",
+    "error.title": "حدث خطأ ما",
+    "error.goBack": "رجوع",
+    "error.tryAgain": "حاول مرة أخرى",
+    "error.quickLinks": "أو جرب هذه الروابط السريعة:",
+    "error.needHelp": "تحتاج مساعدة؟",
+    "common.backToHome": "العودة للرئيسية",
+    "landing.poweredBy": "مدعوم من Gemini",
+    "landing.heroTagline": "من الحيرة إلى مسار واضح لمدة 12 أسبوعاً—في 90 ثانية.",
+    "landing.statSeconds": "ثانية",
+    "landing.statSecondsSublabel": "لإنشاء الخارطة",
+    "landing.statWeeks": "أسبوع",
+    "landing.statWeeksSublabel": "مسار مهني منظم",
+    "landing.statPlatforms": "منصة",
+    "landing.statPlatformsSublabel": "دورات موثقة",
+    "landing.statCoaching": "تدريب",
+    "landing.statCoachingSublabel": "مساعد ذكي",
+    "landing.freeToStart": "مجاني للبدء",
+    "landing.noCreditCard": "إلغاء في أي وقت",
+    "landing.seconds90": "90 ثانية",
+    "landing.featuresTitle": "كل ما تحتاجه للنجاح",
+    "landing.featuresSubtitle": "منصة شاملة تجمع بين الذكاء الاصطناعي والتوجيه المهني لتحويل حياتك المهنية.",
+    "landing.choosePlan": "اختر خطتك",
+    "landing.choosePlanSubtitle": "ابدأ مجاناً أو ارتقِ إلى بريميوم للحصول على خرائط غير محدودة.",
+    "landing.viewPlans": "عرض الخطط",
+    "landing.fromBlog": "من المدونة",
+    "landing.fromBlogSubtitle": "نصائح وقصص لمساعدتك على المضي قدماً.",
+    "landing.allPosts": "كل المقالات",
+    "landing.footerCta": "ابدأ مجاناً • إلغاء في أي وقت",
+    "landing.ctaReadyTitle": "جاهز لتحويل مسارك المهني؟",
+    "landing.ctaReadyDesc": "انضم لآلاف المحترفين الذين وجدوا وضوحهم المهني مع Shyftcut.",
+    "common.english": "English",
+    "common.arabic": "العربية",
+    "landing.footerTagline": "خارطة طريقك المهنية في 90 ثانية.",
+    "landing.careerDnaCta": "اكتشف ما إذا كنت في المجال الصحيح — 90 ثانية",
+    "about.title": "عن Shyftcut",
+    "about.mission": "مهمتنا",
+    "about.missionBody": "يشعر الكثيرون بالضياع في مساراتهم المهنية. التوجيه التقليدي مكلف وبطيء وغالباً ما يكون قديماً. نستخدم الذكاء الاصطناعي لتقديم توجيه مخصص يلبي احتياجاتك الفريدة، في دقائق وليس شهوراً.",
+    "about.values": "قيمنا",
+    "about.journey": "رحلتنا",
+    "about.readyTitle": "جاهز للبدء؟",
+    "about.readySubtitle": "انضم لآلاف المحترفين الذين يغيرون مساراتهم مع Shyftcut.",
+    "about.startFree": "ابدأ مجاناً",
+    "contact.title": "اتصل بنا",
+    "profile.uploadPhoto": "رفع صورة",
+    "profile.generateWithAi": "توليد بالذكاء الاصطناعي (3/شهر)",
+    "profile.orPasteUrl": "أو الصق رابط صورة",
+    "profile.hideImageUrl": "إخفاء رابط الصورة",
+    "profile.imageUrl": "رابط الصورة",
+    "profile.avatarGenerated": "تم توليد الأفاتار",
+    "profile.avatarUpdated": "تم تحديث صورة ملفك الشخصي.",
+    "profile.avatarGenerateFailed": "فشل توليد الأفاتار",
+    "profile.photoUploaded": "تم رفع الصورة",
+    "profile.uploadFailed": "فشل رفع الصورة",
+    "profile.useJpgOrPng": "استخدم صورة بصيغة JPG أو PNG أو WebP.",
+    "profile.maxSize2mb": "الحد الأقصى 2 ميجابايت.",
+    "profile.updateBasicDetails": "تحديث التفاصيل الأساسية",
+    "profile.displayName": "اسم العرض",
+    "profile.yourName": "اسمك",
+    "profile.email": "البريد الإلكتروني",
+    "profile.phone": "الهاتف",
+    "profile.phonePlaceholder": "1234567890",
+    "profile.currentJobTitle": "المسمى الوظيفي الحالي",
+    "profile.selectRole": "اختر الدور الحالي",
+    "profile.industry": "المجال",
+    "profile.selectIndustry": "اختر المجال",
+    "profile.experienceLevel": "مستوى الخبرة",
+    "profile.selectLevel": "اختر المستوى",
+    "profile.targetCareer": "المسار المستهدف",
+    "profile.selectCareer": "اختر المسار",
+    "profile.preferredLanguage": "اللغة المفضلة",
+    "profile.english": "English",
+    "profile.arabic": "العربية",
+    "profile.profileUpdated": "تم تحديث ملفك الشخصي",
+    "profile.saveFailed": "فشل الحفظ",
+    "profile.selectJobTitle": "اختر المسمى الوظيفي",
+    "profile.selectTargetCareer": "اختر المسار المستهدف",
+    "profile.none": "— لا يوجد —",
+    "profile.skillsComma": "المهارات (مفصولة بفاصلة)",
+    "profile.skillsPlaceholder": "مثلاً: JavaScript, React, Project Management",
+    "profile.profileSettings": "إعدادات الملف الشخصي",
+    "profile.manageInfo": "إدارة معلوماتك الشخصية",
+    "profile.personalInfo": "المعلومات الشخصية",
+    "profile.somethingWrong": "حدث خطأ ما",
+    "profile.couldNotLoad": "لم نتمكن من تحميل ملفك الشخصي.",
+    "profile.backToDashboard": "العودة للوحة التحكم",
+    "profile.authMethodEmailGoogle": "بريد إلكتروني + Google",
+    "profile.authMethodGoogle": "Google",
+    "profile.authMethodEmail": "بريد إلكتروني",
+    "profile.passwordsDontMatch": "كلمات المرور غير متطابقة",
+    "profile.passwordSet": "تم تعيين كلمة المرور",
+    "profile.passwordSetDescription": "يمكنك الآن تسجيل الدخول بالبريد الإلكتروني وكلمة المرور.",
+    "profile.setPasswordFailed": "فشل تعيين كلمة المرور",
+    "profile.newPasswordsDontMatch": "كلمات المرور الجديدة غير متطابقة",
+    "profile.passwordChanged": "تم تغيير كلمة المرور",
+    "profile.passwordUpdated": "تم تحديث كلمة المرور الخاصة بك.",
+    "profile.changePasswordFailed": "فشل تغيير كلمة المرور",
+    "profile.enterPasswordToConfirm": "أدخل كلمة المرور للتأكيد",
+    "profile.typeDeleteToConfirm": "اكتب DELETE للتأكيد",
+    "profile.deleteAccountFailed": "فشل حذف الحساب",
+    "profile.weeklyLearningHours": "ساعات التعلم الأسبوعية",
+    "profile.learningStyle": "أسلوب التعلم",
+    "profile.selectStyle": "اختر الأسلوب",
+    "profile.budget": "الميزانية",
+    "profile.selectBudget": "اختر الميزانية",
+    "profile.freeOnly": "مجاني فقط",
+    "profile.upTo50": "حتى 50 دولار",
+    "profile.upTo200": "حتى 200 دولار",
+    "profile.unlimited": "غير محدود",
+    "profile.preferredLanguageLabel": "اللغة المفضلة",
+    "profile.location": "الموقع (المدينة أو الدولة)",
+    "profile.locationPlaceholder": "مثلاً: القاهرة، مصر",
+    "profile.workType": "نظام العمل",
+    "profile.socialLinks": "روابط التواصل الاجتماعي",
+    "profile.socialLinksDescription": "روابط اختيارية لملفاتك (مثل LinkedIn، Twitter، GitHub).",
+    "profile.linkedin": "LinkedIn",
+    "profile.linkedinPlaceholder": "https://linkedin.com/in/yourprofile",
+    "profile.twitter": "Twitter / X",
+    "profile.twitterPlaceholder": "https://twitter.com/yourhandle أو https://x.com/yourhandle",
+    "profile.github": "GitHub",
+    "profile.githubPlaceholder": "https://github.com/yourusername",
+    "profile.selectWorkType": "اختر نظام العمل",
+    "profile.remote": "عن بُعد (Remote)",
+    "profile.hybrid": "هجين (Hybrid)",
+    "profile.onSite": "في المكتب (On-site)",
+    "profile.findJobsWeekly": "احصل على 10 وظائف مرسلة أسبوعياً",
+    "profile.saveChanges": "حفظ التغييرات",
+    "profile.notificationPreferences": "تذكيرات الدراسة",
+    "profile.notificationPreferencesDescription": "احصل على تذكير للدراسة والحفاظ على السلسلة.",
+    "profile.emailReminders": "تذكيرات البريد الإلكتروني",
+    "profile.emailRemindersDescription": "أرسل لي بريداً يومياً إذا لم أدرس (في وقت التذكير).",
+    "profile.inAppReminder": "تذكير داخل التطبيق",
+    "profile.inAppReminderDescription": "أظهر تذكيراً في لوحة التحكم إذا لم أدرس اليوم.",
+    "profile.reminderTime": "وقت التذكير",
+    "profile.timezone": "المنطقة الزمنية",
+    "profile.accountSecurity": "الأمان والحساب",
+    "profile.accountSecurityDescription": "طريقة الدخول، كلمة المرور، وحذف الحساب",
+    "profile.signInMethod": "طريقة الدخول",
+    "profile.signedInWith": "تم الدخول باستخدام",
+    "profile.password": "كلمة المرور",
+    "profile.setPasswordToSignIn": "عيّن كلمة مرور لتسجيل الدخول بالإيميل أيضاً",
+    "profile.setPassword": "تعيين كلمة مرور",
+    "profile.newPassword": "كلمة مرور جديدة",
+    "profile.confirmPassword": "تأكيد كلمة المرور",
+    "profile.changePassword": "تغيير كلمة المرور",
+    "profile.currentPassword": "كلمة المرور الحالية",
+    "profile.confirmNewPassword": "تأكيد كلمة المرور الجديدة",
+    "profile.dangerZone": "منطقة الخطر",
+    "profile.deleteAccountDescription": "حذف حسابك وجميع البيانات نهائياً. لا يمكن التراجع عن هذا الإجراء.",
+    "profile.deleteAccount": "حذف الحساب",
+    "profile.subscription": "الاشتراك",
+    "profile.currentPlan": "الخطة الحالية",
+    "profile.viewPlans": "عرض الخطط",
+    "profile.couldNotOpenSubscription": "تعذر فتح إدارة الاشتراك",
+    "profile.manageSubscription": "إدارة الاشتراك",
+    "profile.skills": "المهارات",
+    "profile.enterPasswordDelete": "أدخل كلمة المرور للتأكيد. سيتم حذف حسابك وجميع بياناتك نهائياً.",
+    "profile.typeDeleteBelow": "اكتب DELETE في الحقل أدناه للتأكيد. سيتم حذف حسابك وجميع بياناتك نهائياً.",
+    "profile.typeDelete": "اكتب DELETE",
+    "profile.yourPassword": "كلمة المرور الخاصة بك",
+    "roadmap.markedIncomplete": "تم التحديد كغير مكتمل",
+    "roadmap.markedComplete": "تم التحديد كمكتمل!",
+    "roadmap.archived": "تمت أرشفة الخارطة",
+    "roadmap.couldNotLoad": "لم نتمكن من تحميل الخارطة. يرجى المحاولة مرة أخرى.",
+    "roadmap.noRoadmapFound": "لا توجد خارطة",
+    "roadmap.createRoadmap": "إنشاء خارطة",
+    "roadmap.weeksOf": "أسابيع",
+    "roadmap.week": "الأسبوع",
+    "roadmap.locked": "مغلق",
+    "roadmap.done": "تم",
+    "roadmap.courses": "دورات",
+    "roadmap.skillsToLearn": "مهارات للتعلم",
+    "roadmap.deliverables": "المخرجات",
+    "roadmap.recommendedCourses": "دورات موصى بها",
+    "roadmap.findOnPlatform": "ابحث في المنصة",
+    "roadmap.markIncomplete": "تحديد كغير مكتمل",
+    "roadmap.markComplete": "تحديد كمكتمل",
+    "roadmap.openLink": "فتح الرابط",
+    "roadmap.markWeekCompleteNoQuiz": "تحديد الأسبوع كمكتمل (تخطي الاختبار)",
+    "roadmap.quizLimit": "حد الاختبارات",
+    "roadmap.quizLimitReached": "وصلت للحد المجاني للاختبارات. قم بالترقية للمزيد.",
+    "roadmap.editRoadmap": "تعديل الخارطة",
+    "roadmap.editTitleDescription": "تعديل العنوان والوصف",
+    "roadmap.title": "العنوان",
+    "roadmap.roadmapTitle": "عنوان الخارطة",
+    "roadmap.description": "الوصف",
+    "roadmap.optionalDescription": "وصف اختياري",
+    "roadmap.archiveRoadmap": "أرشفة الخارطة",
+    "roadmap.archiveConfirm": "أرشفة هذه الخارطة؟ يمكنك استعادتها لاحقاً من القائمة.",
+    "roadmap.deleteRoadmap": "حذف الخارطة",
+    "roadmap.deleteConfirm": "حذف هذه الخارطة نهائياً؟ لا يمكن التراجع عن هذا. يمكن للمستخدمين المجانيين إنشاء خارطة جديدة.",
+    "courses.failedToSave": "فشل الحفظ",
+    "courses.courseLibrary": "مكتبة الدورات",
+    "courses.searchPlaceholder": "ابحث عن الدورات...",
+    "courses.platform": "المنصة",
+    "courses.allPlatforms": "كل المنصات",
+    "courses.difficulty": "المستوى",
+    "courses.allLevels": "كل المستويات",
+    "courses.beginner": "مبتدئ",
+    "courses.intermediate": "متوسط",
+    "courses.advanced": "متقدم",
+    "courses.sortBy": "ترتيب حسب",
+    "courses.mostRelevant": "الأكثر صلة",
+    "courses.highestRated": "الأعلى تقييماً",
+    "courses.priceLowToHigh": "السعر: من الأقل للأعلى",
+    "courses.priceHighToLow": "السعر: من الأعلى للأقل",
+    "courses.byWeek": "حسب الأسبوع",
+    "courses.by": "بواسطة",
+    "courses.free": "مجاني",
+    "courses.review": "تقييم",
+    "courses.startLearning": "ابدأ التعلم",
+    "courses.noCoursesFound": "لا توجد دورات",
+    "courses.tryAdjustingFilters": "جرب تعديل فلاتر البحث",
+    "courses.couldNotLoad": "لم نتمكن من تحميل دوراتك. يرجى المحاولة مرة أخرى."
+  },
+  "testimonials": [
+    {
+      "quote": "أعطتني Shyftcut مساراً واضحاً لمدة 12 أسبوعاً عندما كنت أشعر بالضياع التام. المدرب الذكي أجاب عن أسئلتي في الساعة 2 صباحاً. نقطة تحول حقيقية.",
+      "role": "مدير منتج ← قائد تقني"
+    },
+    {
+      "quote": "انتقلت من التسويق إلى تحليل البيانات في 12 أسبوعاً. خارطة الطريق كانت دقيقة والاختبارات أبقتني مسؤولاً عن تقدمي.",
+      "role": "تسويق ← محلل بيانات"
+    },
+    {
+      "quote": "أخيراً، توجيه مهني لا يكلف ثروة. توصيات الدورات من أكثر من 50 منصة وفرت علي شهوراً من البحث.",
+      "role": "مغيّر مسار مهني"
+    },
+    {
+      "quote": "معالج الـ 90 ثانية يعمل بالفعل. حصلت على خارطة كاملة قبل أن تبرد قهوتي. شيء لا يصدق.",
+      "role": "مطور برمجيات"
+    },
+    {
+      "quote": "أفضل استثمار قمت به في مسيرتي. الاشتراك المميز يستحق كل قرش للحصول على خرائط غير محدودة وتدريب ذكي 24/7.",
+      "role": "مصمم UX"
+    }
+  ],
+  "plans": {
+    "free": {
+      "name": "مجاني",
+      "description": "ابدأ مع الميزات الأساسية",
+      "features": [
+        "1 خارطة طريق (إجمالي)",
+        "10 رسائل ذكية شهرياً",
+        "3 اختبارات شهرياً",
+        "1 دورة موصى بها أسبوعياً",
+        "تتبع التقدم ولوحة التحكم",
+        "دعم عبر البريد الإلكتروني"
+      ],
+      "ctaKey": "ابدأ مجاناً"
+    },
+    "premium": {
+      "name": "بريميوم",
+      "description": "خرائط وذكاء اصطناعي بلا حدود",
+      "features": [
+        "خرائط طريق غير محدودة",
+        "محادثة ذكية غير محدودة",
+        "اختبارات غير محدودة",
+        "توصيات دورات كاملة",
+        "تحليل السيرة الذاتية (نسخ أو رفع)",
+        "إيجاد وظائف لي — 10 وظائف حقيقية أسبوعياً",
+        "تتبع التقدم وتحليلات",
+        "دعم عبر البريد الإلكتروني"
+      ],
+      "ctaKey": "رقِّ حسابك الآن"
+    }
+  },
+  "faqs": [
+    {
+      "q": "هل يمكنني تغيير الخطة لاحقاً؟",
+      "a": "نعم. يمكنك الترقية أو العودة للخطة المجانية في أي وقت من إعدادات الاشتراك. يتم احتساب الفرق نسبياً."
+    },
+    {
+      "q": "ما هي طرق الدفع المقبولة؟",
+      "a": "نقبل بطاقات الائتمان والخصم المباشر (Visa, Mastercard, American Express) من خلال معالج دفع آمن."
+    },
+    {
+      "q": "هل هناك سياسة استرداد أموال؟",
+      "a": "نعم. راجع صفحة سياسة الاسترداد للتفاصيل. نقدم استرداداً خلال فترة محددة للمشتركين الجدد."
+    },
+    {
+      "q": "هل تقدمون خصومات للطلاب؟",
+      "a": "نعمل على إضافة خصومات للطلاب قريباً. تواصل معنا على support@shyftcut.com للمزيد."
+    }
+  ],
+  "blogPosts": [
+    {
+      "slug": "how-to-transition-into-tech",
+      "title": "كيف تنتقل بنجاح إلى مجال التكنولوجيا في 2026",
+      "excerpt": "دليل شامل لمغيري المسار المهني الذين يتطلعون لدخول مجال التكنولوجيا، يغطي المهارات والموارد والاستراتيجيات.",
+      "content": "يستمر قطاع التكنولوجيا في التطور بسرعة، مقدماً فرصاً مذهلة لمغيري المسار المهني. سواء كنت قادماً من المالية، الرعاية الصحية، التعليم، أو أي مجال آخر، فإن المهارات التي طورتها قابلة للنقل أكثر مما تتخيل.\n\n## لماذا الآن هو الوقت المثالي\n\nالطلب على المواهب التقنية في أعلى مستوياته. تبحث الشركات بنشاط عن وجهات نظر متنوعة، ويستثمر الكثير منها في برامج تدريب لمغيري المسار. العمل عن بُعد فتح أيضاً فرصاً بغض النظر عن موقعك.\n\n## خطوات رئيسية لإجراء التحول\n\n### 1. حدد الدور المستهدف\nابدأ بالبحث عن أدوار تقنية مختلفة. فكر في:\n- تطوير البرمجيات (Software Development)\n- إدارة المنتجات (Product Management)\n- تصميم واجهة وتجربة المستخدم (UX/UI Design)\n- علم البيانات (Data Science)\n- هندسة العمليات (DevOps Engineering)\n\n### 2. ابنِ المهارات الأساسية\nركز على الأساسيات قبل التخصص. تقدم المنصات عبر الإنترنت دورات ممتازة، والكثير منها مجاني أو ميسور التكلفة.\n\n### 3. أنشئ معرض أعمال (Portfolio)\nالمشاريع العملية تتحدث بصوت أعلى من الشهادات. ابنِ أشياء تحل مشاكل حقيقية وتظهر عملية تفكيرك.\n\n### 4. تواصل بشكل استراتيجي\nانضم لمجتمعات تقنية، احضر لقاءات، وتواصل مع محترفين في دورك المستهدف. الكثير من الناس مستعدون لمساعدة مغيري المسار.\n\n### 5. فكر في المعسكرات التدريبية أو التعلم المنظم\nبينما التعلم الذاتي ممكن، البرامج المنظمة يمكن أن تسرع انتقالك وتوفر المساءلة.\n\n## تحديات شائعة وكيفية التغلب عليها\n\n- **متلازمة المحتال**: تذكر أن الجميع بدأ من مكان ما. خلفيتك الفريدة هي أصل لك.\n- **الحمل الزائد للمعلومات**: ركز على شيء واحد في كل مرة. العمق يغلب الاتساع في البداية.\n- **المخاوف المالية**: العديد من الموارد مجانية. فكر في التعلم بدوام جزئي أثناء العمل.\n\n## خطة العمل الخاصة بك\n\n1. اقضِ أسبوعاً في البحث عن الأدوار التي تهمك\n2. اختر مهارة واحدة للتركيز عليها للأشهر الثلاثة القادمة\n3. جد مجتمعاً للدعم والمساءلة\n4. ابنِ مشروعاً واحداً يظهر مهاراتك الجديدة\n5. ابدأ التواصل والتقديم\n\nالرحلة إلى التكنولوجيا صعبة ولكنها مجزية للغاية. مع النهج الصحيح والمثابرة، يمكنك إجراء هذا التحول بنجاح.",
+      "readingTime": "8 دقائق قراءة",
+      "category": "تحول مهني",
+      "authorRole": ""
+    },
+    {
+      "slug": "ai-skills-every-professional-needs",
+      "title": "مهارات الذكاء الاصطناعي التي يحتاجها كل محترف في 2026",
+      "excerpt": "الذكاء الاصطناعي يغير كل صناعة. تعلم أي مهارات الذكاء الاصطناعي ضرورية وكيف تطورها بغض النظر عن دورك.",
+      "content": "لم يعد الذكاء الاصطناعي مقتصراً على علماء البيانات والمهندسين. في 2026، أصبحت محو أمية الذكاء الاصطناعي ضرورية للمحترفين في جميع الصناعات.\n\n## طيف مهارات الذكاء الاصطناعي\n\n### محو الأمية الأساسية (للجميع)\n- فهم ما يمكن وما لا يمكن للذكاء الاصطناعي فعله\n- التعرف على تطبيقات الذكاء الاصطناعي في مجالك\n- استخدام أدوات الذكاء الاصطناعي بفعالية (ChatGPT, Copilot, إلخ)\n- التفكير النقدي حول مخرجات الذكاء الاصطناعي\n\n### المهارات المتوسطة (للعاملين المعرفيين)\n- هندسة الأوامر (Prompt Engineering) للحصول على نتائج أفضل\n- دمج الذكاء الاصطناعي في سير العمل\n- تفسير البيانات والتحقق من صحتها\n- اتخاذ القرارات بمساعدة الذكاء الاصطناعي\n\n### المهارات المتقدمة (للأدوار التقنية)\n- فهم أساسيات التعلم الآلي\n- العمل مع واجهات برمجة التطبيقات (APIs)\n- تحضير البيانات وجودتها\n- بناء أتمتة مدعومة بالذكاء الاصطناعي\n\n## كيف تبدأ التعلم\n\n1. **استخدم الذكاء الاصطناعي يومياً**: أفضل طريقة للتعلم هي الممارسة\n2. **خذ دورات منظمة**: تقدم المنصات برامج ممتازة لمحو أمية الذكاء الاصطناعي\n3. **تابع تطورات الذكاء الاصطناعي**: ابقَ مطلعاً على الإعلانات الكبرى\n4. **جرب بأمان**: استخدم أدوات الذكاء الاصطناعي في سيناريوهات منخفضة المخاطر أولاً\n\n## المهارات البشرية التي تهم أكثر\n\nبينما يؤتمت الذكاء الاصطناعي العديد من المهام، تصبح بعض المهارات البشرية أكثر قيمة:\n- التفكير النقدي والحكم\n- حل المشكلات بشكل إبداعي\n- الذكاء العاطفي\n- التواصل المعقد\n- التفكير الأخلاقي\n\nالهدف ليس منافسة الذكاء الاصطناعي، بل استخدامه بفعالية مع تطوير المهارات التي تظل بشرية بشكل فريد.",
+      "readingTime": "6 دقائق قراءة",
+      "category": "تطوير المهارات",
+      "authorRole": ""
+    },
+    {
+      "slug": "building-effective-learning-habits",
+      "title": "بناء عادات تعلم فعالة تدوم",
+      "excerpt": "اكتشف استراتيجيات مدعومة علمياً للتعلم المستمر وتطوير المهارات التي تناسب جدولك المزدحم.",
+      "content": "التعلم المستمر ضروري في عالم اليوم سريع التغير. ولكن كيف تبني عادات تعلم تدوم فعلاً؟\n\n## علم تكوين العادات\n\nتظهر الأبحاث أن العادات تتشكل من خلال حلقة: إشارة، روتين، مكافأة. لبناء عادات تعلم:\n\n1. **أنشئ إشارات واضحة**: حدد وقتاً ومكاناً محدداً للتعلم\n2. **ابدأ صغيراً**: 15 دقيقة أفضل من لا شيء\n3. **احتفل بالانتصارات**: كافئ نفسك بعد كل جلسة\n\n## استراتيجيات تعلم فعالة\n\n### التكرار المتباعد (Spaced Repetition)\nلا تكدس المعلومات. وزع تعلمك بمرور الوقت لاحتفاظ أفضل.\n\n### الاستدعاء النشط (Active Recall)\nاختبر نفسك بدلاً من مجرد إعادة القراءة. هذا يقوي الذاكرة.\n\n### التداخل (Interleaving)\nامزج مواضيع أو مهارات مختلفة في جلسة واحدة لنقل أفضل للمعلومة.\n\n### تعليم الآخرين\nشرح المفاهيم للآخرين يرسخ فهمك.\n\n## جعلها مستدامة\n\n- **كدس العادات**: اربط التعلم بروتين موجود\n- **تتبع التقدم**: التقدم المرئي يحفز الجهد المستمر\n- **جد المساءلة**: تعلم مع آخرين أو شارك رحلتك\n- **كن صبوراً**: المهارات تستغرق وقتاً لتتطور\n\nالمفتاح هو الاستمرارية وليس الكثافة. جلسات تعلم صغيرة ومنتظمة تتراكم لتشكل نمواً كبيراً بمرور الوقت.",
+      "readingTime": "5 دقائق قراءة",
+      "category": "التعلم",
+      "authorRole": ""
+    },
+    {
+      "slug": "remote-work-career-growth",
+      "title": "الازدهار في مسارك المهني أثناء العمل عن بُعد",
+      "excerpt": "العمل عن بُعد باقٍ ليبقى. تعلم كيف تطور مسارك المهني، تبقى مرئياً، وتبني علاقات ذات معنى من أي مكان.",
+      "content": "يوفر العمل عن بُعد مرونة مذهلة، لكنه يطرح تحديات فريدة للنمو المهني. إليك كيف تزدهر.\n\n## البقاء مرئياً\n\n### وثّق عملك\nتتبع إنجازاتك وشاركها بشكل استباقي مع مديرك.\n\n### كن حاضراً في الاجتماعات\nشغل الكاميرا، شارك بفعالية، وتابع بنود العمل.\n\n### تطوع لمشاريع مرئية\nابحث عن الفرص التي تضع عملك أمام صناع القرار.\n\n## بناء العلاقات عن بُعد\n\n- جدول محادثات قهوة افتراضية مع الزملاء\n- جد مرشدين داخل وخارج مؤسستك\n- انضم لمجتمعات مهنية وساهم بفعالية\n- احضر الفعاليات الشخصية عندما يكون ذلك ممكناً\n\n## إدارة تطورك\n\n- حدد أهدافاً مهنية واضحة مع مديرك\n- اطلب تعليقات منتظمة\n- استثمر في التعلم خلال ساعات العمل\n- ابنِ مجلساً استشارياً شخصياً\n\n## تجنب المزالق الشائعة\n\n- **الإفراط في العمل**: ضع حدوداً بين العمل والوقت الشخصي\n- **العزلة**: أعط الأولوية للتفاعلات الاجتماعية\n- **الركود**: ابحث بنشاط عن فرص النمو\n- **فجوات التواصل**: تواصل بإفراط بدلاً من التقصير\n\nيمكن للعمل عن بُعد أن يسرع مسارك المهني إذا كنت متعمداً بشأن الرؤية، العلاقات، والتطوير.",
+      "readingTime": "7 دقائق قراءة",
+      "category": "العمل عن بُعد",
+      "authorRole": ""
+    },
+    {
+      "slug": "negotiating-your-salary",
+      "title": "الدليل الكامل للتفاوض على الراتب",
+      "excerpt": "أتقن فن التفاوض على الراتب باستراتيجيات مثبتة تساعدك في الحصول على الأجر الذي تستحقه.",
+      "content": "التفاوض على الراتب مهارة حاسمة يمكن أن تؤثر بشكل كبير على دخلك مدى الحياة. إليك كيف تفعل ذلك بفعالية.\n\n## قبل التفاوض\n\n### ابحث في السوق\n- استخدم قواعد بيانات الرواتب لفهم معدلات السوق\n- تحدث مع أشخاص في أدوار مماثلة\n- ضع في اعتبارك الموقع، حجم الشركة، والصناعة\n\n### اعرف قيمتك\n- وثّق إنجازاتك\n- حدد تأثيرك بالأرقام حيثما أمكن\n- جهز أمثلة محددة\n\n### تدرب على عرضك\n- تدرب مع صديق أو مرشد\n- توقع الاعتراضات وجهز الردود\n- تدرب على البقاء هادئاً تحت الضغط\n\n## أثناء التفاوض\n\n1. **دعهم يقدمون العرض الأول** عندما يكون ذلك ممكناً\n2. **توقف قليلاً قبل الرد** على أي رقم\n3. **استخدم النطاقات** بشكل استراتيجي\n4. **ركز على التعويض الإجمالي**، ليس فقط الراتب الأساسي\n5. **كن متعاوناً**، لا عدائياً\n\n## أخطاء شائعة لتجنبها\n\n- قبول العرض الأول دون تفاوض\n- مشاركة راتبك الحالي بلا ضرورة\n- التركيز فقط على الراتب وتجاهل المزايا\n- جعل الأمر شخصياً أو عاطفياً\n- إعطاء إنذارات نهائية\n\n## عندما يقولون لا\n\nإذا لم يتمكنوا من تلبية رقمك:\n- اسأل ما الذي يجب أن يتغير للحصول على زيادة\n- فاوض على مزايا أخرى (إجازة، مرونة، تدريب)\n- حدد جدولاً زمنياً لإعادة زيارة المحادثة\n- اعرف متى تنسحب\n\nتذكر: التفاوض متوقع ومحترم. عدم التفاوض غالباً ما يترك مالاً على الطاولة.",
+      "readingTime": "9 دقائق قراءة",
+      "category": "النمو المهني",
+      "authorRole": ""
+    },
+    {
+      "slug": "kickstart-tech-career-2026",
+      "title": "انطلق في مسارك التقني – كيف يستعد الطلاب لوظائف المستقبل في 2026",
+      "excerpt": "بحلول 2026، ستتطلب 92% من الوظائف مهارات رقمية. يوضح هذا الدليل للطلاب كيفية الاستعداد لوظائف التكنولوجيا المطلوبة باستخدام استراتيجيات ذكية وأدوات مثل Shyftcut.",
+      "content": "يتطور سوق العمل التقني أسرع من أي وقت مضى، ويحتاج طلاب اليوم إلى أن يكونوا استباقيين لركوب الموجة. بحلول عام 2026، ستتطلب 92% من الوظائف مهارات رقمية أساسية على الأقل - علامة واضحة على أن مجرد الحصول على شهادة قد لا يكون كافياً. من الذكاء الاصطناعي (AI) إلى علم البيانات، يبحث أصحاب العمل عن مرشحين بارعين تقنياً، وقابلين للتكيف، ومتعلمين باستمرار. الخبر السار؟ كطالب، أنت في وضع ممتاز لبناء هذه المهارات مبكراً. سيوضح لك هذا الدليل كيفية الاستعداد لأكثر وظائف التكنولوجيا طلباً في 2026 وأنت لا تزال في الدراسة، مستفيداً من استراتيجيات ذكية (وبعض مساعدة الذكاء الاصطناعي) لبدء مسار مهني ناجح.\n\n## المجالات والمهارات الأكثر طلباً لعام 2026\n\nالتكنولوجيا عالم واسع، لكن بعض المجالات تبرز في 2026 بنمو هائل. الذكاء الاصطناعي، علم البيانات، تطوير البرمجيات، والتسويق الرقمي تقود الحزمة في فرص العمل. أصحاب العمل متحمسون لأخصائيي الذكاء الاصطناعي والتعلم الآلي، محللي البيانات، خبراء الحوسبة السحابية، ومحترفي الأمن السيبراني. حتى الصناعات غير التقنية تتوقع من الموظفين الجدد أن يكونوا مثقفين رقمياً. كطالب، تركيز جهودك على هذه المناطق عالية النمو يمكن أن يؤتي ثماره بشكل كبير. خذ مواد اختيارية أو دورات عبر الإنترنت في البرمجة (Python وJava مستخدمتان على نطاق واسع)، تحليل البيانات، أساسيات الذكاء الاصطناعي، أو التسويق الرقمي. بناء أساس في هذه التخصصات سيجعلك مرشحاً قوياً في سوق عمل حيث المهارات التقنية هي الأهم. لا تقل أهمية المهارات الناعمة مثل التواصل، العمل الجماعي، والتفكير الإبداعي.\n\n## التعلم خارج الفصل الدراسي\n\nلتتميز حقاً، تجاوز منهجك الجامعي. الخبرة العملية والتعلم الذاتي يظهران المبادرة لأصحاب العمل المستقبليين. إليك بعض الطرق لتطوير المهارات أثناء الدراسة:\n\n**الدورات والشهادات عبر الإنترنت:** استفد من منصات مثل Coursera أو Udemy لتعلم مهارات عملية. المفتاح هو اختيار دورات محترمة وموثقة يعترف بها أصحاب العمل. فكر في الحصول على شهادة صناعية (مثل AWS Cloud Practitioner أو Google Analytics) للتحقق من خبرتك.\n\n**المشاريع الشخصية:** لا شيء يثبت قدرتك أفضل من معرض مشاريع. ابنِ تطبيقاً بسيطاً، ابدأ مشروع تحليل بيانات، أو أنشئ حملة تسويق رقمي لنادٍ طلابي. هذه المشاريع تظهر التطبيق العملي لمهاراتك.\n\n**التدريب والهاكاثون:** يوفر التدريب تعرضاً لأدوات وممارسات مكان العمل. كذلك، المشاركة في الهاكاثونات يمكن أن تصقل مهارات حل المشكلات وتوسع شبكتك.\n\n## الاستفادة من الذكاء الاصطناعي لتخطيط المسار المهني\n\nميزة تمتلكها لم تكن لدى الأجيال السابقة هي الوصول إلى التوجيه المدعوم بالذكاء الاصطناعي. لماذا لا تستخدم قوة الذكاء الاصطناعي لتخطيط مسارك؟ يمكن للذكاء الاصطناعي تحليل اهتماماتك لتقديم خارطة طريق مخصصة. على سبيل المثال، **Shyftcut** هي منصة مهنية تستخدم الذكاء الاصطناعي لإنشاء خرائط تعلم مخصصة لمدة 12 أسبوعاً. بعد الإجابة عن اختبار قصير حول هدفك المهني ومستوى خبرتك، سيحدد Shyftcut فجوات مهاراتك ويوصي بدورات حقيقية لسدها. ما يجعل هذا قوياً بشكل خاص هو أن الذكاء الاصطناعي لا يخمن فقط - بل يبحث في الويب عن دورات حقيقية وموثقة. النتيجة هي خطة تعلم خطوة بخطوة تخبرك بالضبط بما تدرسه كل أسبوع.\n\n## من الحرم الجامعي إلى المهنة – ابدأ الآن\n\nرحلتك من الكلية إلى مهنة ناجحة تبدأ الآن، ليس عند التخرج. تكافئ صناعة التكنولوجيا أولئك الذين يتعلمون باستمرار. الجهد الذي تستثمره اليوم في تعلم المهارات المطلوبة، وإكمال المشاريع، والاستفادة من أدوات مثل Shyftcut للتوجيه سيدفع أرباحاً عندما تدخل سوق العمل.\n\n**جاهز لبدء مسارك التقني؟** لا تترك مستقبلك للصدفة. ابدأ ببناء خارطة طريقك المهنية المخصصة مع Shyftcut واكتسب ميزة تنافسية.",
+      "readingTime": "12 دقيقة قراءة",
+      "category": "تطوير المهارات",
+      "authorRole": ""
+    },
+    {
+      "slug": "ai-powered-job-hunt-2026",
+      "title": "البحث عن وظيفة بقوة الذكاء الاصطناعي – الحصول على وظيفة أحلامك في 2026",
+      "excerpt": "أكثر من 87% من الشركات تستخدم الذكاء الاصطناعي في التوظيف. تعلم كيف تحسن سيرتك الذاتية لأنظمة ATS، وتستخدم أدوات الذكاء الاصطناعي للتحضير للمقابلات.",
+      "content": "البحث عن وظيفة في 2026 ليس كما كان قبل عقد من الزمان. اليوم، البحث عن وظيفة هو مسعى تقني عالٍ، حيث يحول الذكاء الاصطناعي كيفية عثور المرشحين على الوظائف وكيفية عثور أصحاب العمل على المرشحين. إذا كنت خريجاً جديداً أو محترفاً شاباً، فمن المحتمل أنك لاحظت أنظمة تتبع المتقدمين (ATS) التي تمسح سيرتك الذاتية وروبوتات الدردشة التي تجدول المقابلات. في الواقع، اعتباراً من عام 2026، تستخدم أكثر من 87% من الشركات الذكاء الاصطناعي في عملية التوظيف. ماذا يعني هذا بالنسبة لك؟ يعني أنك بحاجة لأن تكون أكثر ذكاءً واستراتيجية. سيوضح لك هذا الدليل كيفية الاستفادة من أدوات الذكاء الاصطناعي والذكاء البشري للحصول على وظيفة أحلامك.\n\n## حسن سيرتك الذاتية وLinkedIn للذكاء الاصطناعي\n\nأولاً وقبل كل شيء: تأكد من أن سيرتك الذاتية يمكنها اجتياز \"اختبار الروبوت\". مع استخدام معظم الشركات لبرامج ATS لتصفية الطلبات، فإن السيرة الذاتية ذات الشكل الجميل التي ليست صديقة لـ ATS قد يتم رفضها تلقائياً. لتجنب ذلك، استخدم تنسيقاً نظيفاً وقم بتضمين الكلمات المفتاحية من الوصف الوظيفي. تظهر الدراسات أن العديد من مسؤولي التوظيف يستخدمون الذكاء الاصطناعي لمطابقة الكلمات المفتاحية والمؤهلات، لذا صمم كل طلب وفقاً لذلك. بالمثل، حافظ على تحديث ملفك الشخصي على LinkedIn. أدوات الذكاء الاصطناعي الخاصة بمسؤولي التوظيف تزحف إلى ملفات LinkedIn للعثور على المرشحين.\n\n## استفد من أدوات الذكاء الاصطناعي لتعزيز بحثك\n\nلماذا لا تحارب النار بالنار؟ تماماً كما يستخدم أصحاب العمل الذكاء الاصطناعي للعثور على مرشحين، يمكنك استخدام الذكاء الاصطناعي لتصبح مرشحاً أفضل. هناك ترسانة متنامية من الأدوات:\n\n**مراجعة السيرة الذاتية بالذكاء الاصطناعي:** أدوات يمكنها مسح سيرتك الذاتية وإخبارك بمدى مطابقتها لإعلان وظيفة معين.\n\n**روبوتات التدريب على المقابلة:** هل تشعر بالتوتر بشأن المقابلات؟ يمكن لروبوتات الدردشة محاكاة أسئلة المقابلة وحتى تحليل إجاباتك.\n\n**منصات المساعد المهني:** تذهب منصات مثل Shyftcut خطوة أبعد من خلال العمل كمساعد مهني شامل. إذا اكتشفت أن متطلبات وظيفة معينة تظهر بشكل متكرر في مجالك - وتفتقدها - يمكن لـ Shyftcut مساعدتك في سد تلك الفجوة عبر خارطة طريق مخصصة.\n\n## التواصل والعلامة التجارية الشخصية (نعم، لا تزال مهمة)\n\nحتى في مشهد التوظيف المدعوم بالذكاء الاصطناعي، يظل القول المأثور القديم \"ليس فقط ما تعرفه، ولكن من تعرفه\" صحيحاً. غالباً ما يوصلك التواصل أبعد من إرسال 100 طلب عبر الإنترنت. استخدم منصات مثل LinkedIn للتواصل مع الخريجين والانضمام إلى مجموعات الصناعة. عندما يرى مديرو التوظيف أنك تساهم في المجال، فهذا يشير إلى الشغف والمبادرة.\n\n## تفوق في المقابلة مع الذكاء الاصطناعي والأصالة\n\nبحلول الوقت الذي تصل فيه للمقابلة، تكون قد أثرت إعجاب الروبوتات - الآن حان الوقت لإثارة إعجاب البشر. التحضير هو المفتاح. استخدم أدوات الذكاء الاصطناعي للتدرب على الأسئلة الشائعة والبحث عن الشركة. ومع ذلك، لا تحفظ كل شيء. يمكن للمحاورين معرفة ما إذا كنت تسرد إجابات محفوظة. بدلاً من ذلك، حدد النقاط الرئيسية والقصص التي تريد سردها.\n\n**الخلاصة:** قد يكون البحث عن وظيفة في 2026 مشبعاً بالذكاء الاصطناعي، لكنه في النهاية يتقلص إلى توظيف الناس للناس. استخدم الذكاء الاصطناعي كحليف لك، ولكن قم أيضاً بتنمية العناصر البشرية في ترشيحك. وإذا كنت بحاجة إلى يد العون، تذكر أن Shyftcut مصمم للباحثين عن عمل مثلك.",
+      "readingTime": "10 دقائق قراءة",
+      "category": "البحث عن عمل",
+      "authorRole": ""
+    },
+    {
+      "slug": "zero-to-data-scientist-2026",
+      "title": "من الصفر إلى عالم بيانات – خارطة طريق تحولك المهني لعام 2026",
+      "excerpt": "مسار خطوة بخطوة لتحويل مسارك المهني إلى علم البيانات بحلول 2026: المهارات التي يجب تعلمها، كيفية الحصول على خبرة عملية، وكيف يساعدك Shyftcut.",
+      "content": "هل تريد أن تصبح عالم بيانات بحلول 2026، لكنك تبدأ من الصفر أو قادم من مجال مختلف تماماً؟ أنت لست وحدك. يعد مغيرو المسار المهني إلى علم البيانات من أسرع مجموعات المواهب نمواً. يقدم علم البيانات عملاً مثيراً في طليعة الذكاء الاصطناعي، بالإضافة إلى رواتب جذابة. التحول، مع ذلك، قد يبدو شاقاً. علم البيانات مجال متعدد التخصصات، يمزج البرمجة والإحصاء والمعرفة بالمجال. لكن لا ترهب: مع خطة واضحة، يمكنك الانتقال من الصفر إلى عالم بيانات.\n\n## لماذا علم البيانات ولماذا الآن؟\n\nلنبدأ بالدافع. علم البيانات ليس مجرد مسمى عصري؛ إنه دور ذو تأثير حقيقي. الشركات تغرق في البيانات وتحتاج إلى أشخاص مهرة لاستخراج الرؤى. بحلول 2026، تغلغل تأثير علم البيانات في جميع القطاعات. يشير تقرير مستقبل الوظائف إلى زيادة متوقعة بنسبة 117% في الطلب على المتخصصين في البيانات الضخمة بحلول 2030.\n\n## الخطوة 1: ابنِ أساس تعلمك (برمجة، رياضيات، إحصاء)\n\nكل رحلة تحتاج إلى أساس قوي. لعلم البيانات، يتكون ذلك من:\n\n**مهارات البرمجة:** بايثون (Python) هي لغة علم البيانات. ابدأ هناك. تعلم أساسيات بايثون، ثم ركز على المكتبات الشائعة: pandas للتلاعب بالبيانات، NumPy للحوسبة الرقمية، وMatplotlib/Seaborn لتصور البيانات.\n\n**الرياضيات والإحصاء:** لست بحاجة إلى دكتوراه في الرياضيات، لكن يجب أن تكون مرتاحاً مع أساسيات الإحصاء والجبر الخطي. فهم مفاهيم مثل التوزيعات الاحتمالية واختبار الفرضيات سيكون حاسماً.\n\n**محو الأمية البيانية:** تعلم كيف تعمل قواعد البيانات وكيفية الاستعلام عنها (SQL ضرورية). هذا هو المكان الذي يمكن أن يكون فيه Shyftcut مغيراً للعبة. بإدخال هدفك (\"عالم بيانات\") ونقطة بدايتك، سينشئ Shyftcut خارطة طريق مخصصة.\n\n## الخطوة 2: الغوص في التعلم الآلي والمشاريع الحقيقية\n\nبمجرد وضع الأساس، حان الوقت للدخول في قلب علم البيانات: التعلم الآلي. ابدأ بالأساسيات: الانحدار الخطي واللوجستي. ثم تعلم عن أشجار القرار. النظرية وحدها لا تكفي - تحتاج إلى تطبيق هذه الخوارزميات على بيانات حقيقية. هنا يأتي دور المشاريع (Kaggle ومشاريع المحفظة).\n\n## الخطوة 3: تحويل مسارك المهني – اكتساب الخبرة والمصداقية\n\nامتلاك المهارات رائع، ولكن لتحويل مسارك حقاً، تحتاج إلى ترجمة تلك المهارات إلى خبرة عمل. فكر في العمل الحر، أو التطوع، أو التقدم لتدريب داخلي.\n\n## دور Shyftcut في رحلتك\n\nلا يرمي Shyftcut المعلومات عليك فقط - إنه ينشئ خارطة طريق منظمة لمدة 12 أسبوعاً مصممة لحياتك. بينما تتبع الخارطة، تتبع تقدمك. يقدم Shyftcut تتبع التقدم وحتى بعض عناصر التلعيب لإبقائك متحفزاً.\n\n**الخلاصة:** تغيير المسارات خطوة جريئة، لكنها قابلة للتحقيق تماماً. ابدأ رحلتك في علم البيانات اليوم.",
+      "readingTime": "14 دقيقة قراءة",
+      "category": "علم البيانات",
+      "authorRole": ""
+    },
+    {
+      "slug": "upskilling-ai-era-mid-career-2026",
+      "title": "تطوير المهارات في عصر الذكاء الاصطناعي – دليل للمحترفين في منتصف المسار",
+      "excerpt": "ما يقرب من 40% من الوظائف معرضة لتغييرات مدفوعة بالذكاء الاصطناعي. دليل للمحترفين ذوي الخبرة لتحديد فجوات المهارات واستخدام Shyftcut كمستشار دائم.",
+      "content": "إذا كنت محترفاً في منتصف مسارك المهني (الثلاثينيات، الأربعينيات أو الخمسينيات)، فمن المحتمل أنك لاحظت مكان العمل يتغير تحت قدميك. ما يقرب من 40% من الوظائف حول العالم معرضة لتغييرات مدفوعة بالذكاء الاصطناعي. المفتاح هو البقاء ذا صلة من خلال تطوير المهارات باستمرار (Upskilling).\n\n## لماذا تطوير المهارات يهم أكثر من أي وقت مضى\n\nعمر المهارات يتقلص. بحلول 2030، ستكون 39% من المهارات الأساسية لمعظم الوظائف مختلفة عما كانت عليه في أوائل 2020. الوظائف لا تُلغى بقدر ما يُعاد تصميمها. المهارات البشرية (الإبداع، حل المشكلات، إدارة الناس) تظل مطلوبة بشدة ولكن غالباً ما تكملها المعرفة التقنية.\n\n## حدد فجوات مهاراتك وأهدافك المهنية\n\nتأمل في دورك ومجالك، واستخدم الملاحظات وتقييمات الأداء، وامسح إعلانات الوظائف بحثاً عن المتطلبات التي لا تمتلكها. يمكن لـ **Shyftcut** إجراء تحليل لفجوة المهارات: عندما تُدخل خبرتك الحالية واتجاهك المستهدف، يمكن لذكائه الاصطناعي تسليط الضوء على المهارات التي تفتقدها وبناء خطة تعلم لك.\n\n## أنشئ (والتزم بـ) خطة تعلم\n\nاستخدم التعلم المصغر (مثلاً 30 دقيقة يومياً)، اختر التنسيق المناسب، وركز على مهارة واحدة في كل مرة. يبني Shyftcut جدولاً زمنياً منظماً مع نقاط تفتيش ومعايير نجاح.\n\n**أفضل وقت للبدء بتطوير المهارات كان بالأمس؛ ثاني أفضل وقت هو اليوم.** انضم لـ Shyftcut الآن للحصول على خطة تطوير مهارات مخصصة.",
+      "readingTime": "11 دقيقة قراءة",
+      "category": "تطوير المهارات",
+      "authorRole": ""
+    },
+    {
+      "slug": "remote-work-readiness-2026",
+      "title": "الجاهزية للعمل عن بُعد – الاستعداد لمسار تقني ناجح عن بُعد في 2026",
+      "excerpt": "بحلول 2026، أصبح العمل عن بُعد والهجين هو القاعدة في التكنولوجيا. تعلم المهارات الأساسية وكيف يساعدك Shyftcut على البقاء حاداً للأدوار العالمية.",
+      "content": "لقد تحرر عالم العمل من مقصورة المكتب. بحلول 2026، العمل عن بُعد والهجين ليسا مجرد امتيازات - في العديد من الصناعات، أصبحا القاعدة. هذا صحيح بشكل خاص في الأدوار التقنية والرقمية. بالنسبة للمحترفين في الأسواق الناشئة، يعد هذا التحول فرصة ذهبية. يمكنك أن تكون جالساً في القاهرة وتعمل لصالح شركة ناشئة في وادي السيليكون.\n\n## فهم مشهد العمل عن بُعد في 2026\n\nالعمل عن بُعد ليس قالباً واحداً. بعد 2020، تعلمت الشركات أن الإنتاجية يمكن أن تظل عالية خارج المكتب، لكنها تعلمت أيضاً أنها تتطلب شروطاً معينة. برزت دول كمراكز للعمل عن بُعد بفضل القوى العاملة الشابة البارعة في التكنولوجيا.\n\n## تطوير مهارات العمل عن بُعد الأساسية\n\n**التواصل الرقمي:** عندما لا تكون حاضراً شخصياً، يجب أن تكون مهارات الاتصال لديك من الدرجة الأولى. كن واضحاً وسريعاً.\n**الإدارة الذاتية:** في المنزل، تحتاج إلى خلق هيكل. أظهر أنه يمكنك إدارة وقتك.\n**الإلمام بأدوات العمل عن بُعد:** كن مرتاحاً مع Zoom, Slack, Jira.\n\n## اعرض جاهزيتك للعمل عن بُعد\n\nحسن سيرتك الذاتية للأدوار البعيدة. ابنِ حضوراً عبر الإنترنت. كيف يدخل Shyftcut في المعادلة؟ يمكن أن يساعد Shyftcut في ضمان امتلاكك للمهارات المهنية التي تتطلبها الوظائف التقنية عن بُعد.\n\n**الخلاصة: انطلق للعالمية.** كونك \"جاهزاً للعمل عن بُعد\" يعني أساساً أنك تحول العالم بأسره إلى سوق عملك. ابدأ الآن.",
+      "readingTime": "9 دقائق قراءة",
+      "category": "العمل عن بُعد",
+      "authorRole": ""
+    },
+    {
+      "slug": "career-shift-digital-marketing-2026",
+      "title": "التحول المهني للتسويق الرقمي في 2026 – خارطة طريقك للنجاح",
+      "excerpt": "خارطة طريق عملية لتحويل مسارك المهني إلى التسويق الرقمي في 2026: مهارات للتعلم، دورات وشهادات، وكيف يوجه Shyftcut خطة تعلمك.",
+      "content": "هل تفكر في تحويل مسارك المهني إلى التسويق الرقمي؟ في السنوات الأخيرة، جذب التسويق الرقمي العديد من الأشخاص من خلفيات مختلفة. التحول المهني ليس سهلاً، لكنه شائع وواقعي اليوم. التسويق الرقمي جذاب لأنه يجمع بين الإبداع والتكنولوجيا.\n\n## لماذا التسويق الرقمي؟ فرص في 2026\n\nأينما تنظر في الأعمال اليوم، ترى بصمة التسويق الرقمي. الشركات تنفق ميزانيات متزايدة على الإعلانات عبر الإنترنت. حاجز الدخول ليس مرتفعاً: ما يهم هو اكتساب مهارات عملية وإظهار النتائج.\n\n## الخطوة 1: مهارات التسويق الرقمي الأساسية\n\n**SEO & SEM:** فهم كيفية عمل خوارزميات البحث.\n**تسويق وسائل التواصل الاجتماعي:** إنشاء محتوى لكل منصة.\n**التحليلات:** إتقان أدوات مثل Google Analytics.\n**تسويق المحتوى والبريد الإلكتروني:** إنشاء محتوى جذاب.\n\n## الخطوة 2: التعلم والتأهيل\n\nاستخدم الدورات والشهادات عبر الإنترنت. المشاريع العملية هي المفتاح. يمكن لـ **Shyftcut** المساعدة: أدخل هدفك وخلفيتك وسيصمم خطة تعلم لمدة 12 أسبوعاً.\n\n## الخطوة 3: دخول المجال\n\nتقدم للأدوار المبتدئة. استفد من خبرتك السابقة وأعد صياغتها للتسويق الرقمي. بمجرد أن تحصل على دورك الأول، يمكن لـ Shyftcut تحديث خطتك أثناء نموك.\n\n**جاهز لبدء فصلك الجديد في التسويق الرقمي؟** استخدم Shyftcut لتصميم خطة تعلم مخصصة.",
+      "readingTime": "10 دقائق قراءة",
+      "category": "التسويق الرقمي",
+      "authorRole": ""
+    }
+  ],
+  "seo": {
+    "/": {
+      "title": "خارطة طريقك المهنية في 90 ثانية | Shyftcut",
+      "description": "توجيه مهني مدعوم بالذكاء الاصطناعي يحول الحيرة إلى مسار واضح لمدة 12 أسبوعاً. احصل على خرائط مخصصة، دورات موثقة، وتدريب ذكي 24/7."
+    },
+    "/pricing": {
+      "title": "الأسعار – خطط مجانية وبريميوم | Shyftcut",
+      "description": "تسعير بسيط وشفاف. ابدأ مجاناً بخارطة واحدة؛ أو رَقِّ لبريميوم للحصول على خرائط وتدريب ذكي غير محدود. إلغاء في أي وقت."
+    },
+    "/about": {
+      "title": "عنّا – توجيه مهني بالذكاء الاصطناعي | Shyftcut",
+      "description": "تساعدك Shyftcut في بناء مسار مهني واضح لمدة 12 أسبوعاً بخرائط مدعومة بالذكاء الاصطناعي ودورات موثقة. تعرف على قصتنا."
+    },
+    "/contact": {
+      "title": "اتصل بنا | Shyftcut",
+      "description": "تواصل مع Shyftcut. أسئلة حول خرائط الطريق المهنية، الأسعار، أو الدعم؟ نحن هنا للمساعدة."
+    },
+    "/blog": {
+      "title": "نصائح وأدلة مهنية | مدونة Shyftcut",
+      "description": "نصائح مهنية، أدلة للتحول الوظيفي، ورؤى من فريق Shyftcut. كيف تنجح في رحلتك المهنية وتحصل على دورك القادم."
+    },
+    "/careers": {
+      "title": "وظائف – انضم لـ Shyftcut | عمل عن بُعد",
+      "description": "انضم لـ Shyftcut. أدوار عن بُعد في المنتج والهندسة والنمو. نحن نبني مستقبل التوجيه المهني المدعوم بالذكاء الاصطناعي."
+    },
+    "/login": {
+      "title": "تسجيل الدخول | Shyftcut",
+      "description": "سجل الدخول لحساب Shyftcut للوصول إلى خارطتك المهنية، المدرب الذكي، وتتبع التقدم."
+    },
+    "/signup": {
+      "title": "تسجيل – احصل على خارطتك | Shyftcut",
+      "description": "أنشئ حساب Shyftcut واحصل على خارطة طريقك المهنية المخصصة في 90 ثانية. البداية مجانية."
+    },
+    "/terms": {
+      "title": "شروط الخدمة | Shyftcut",
+      "description": "شروط الخدمة لـ Shyftcut. اقرأ حول القبول، وصف الخدمة، الحسابات، الدفعات، والاستخدام المقبول."
+    },
+    "/privacy": {
+      "title": "سياسة الخصوصية | Shyftcut",
+      "description": "سياسة الخصوصية لـ Shyftcut. كيف نجمع ونستخدم ونحمي معلوماتك. حقوقك وأمن البيانات."
+    },
+    "/cookies": {
+      "title": "سياسة ملفات تعريف الارتباط | Shyftcut",
+      "description": "كيف تستخدم Shyftcut ملفات تعريف الارتباط والتقنيات المشابهة. أنواع الكوكيز وكيفية إدارتها."
+    },
+    "/refund": {
+      "title": "سياسة الاسترداد | Shyftcut",
+      "description": "سياسة استرداد الأموال في Shyftcut. نظراً للطبيعة الرقمية لخدماتنا، جميع المبيعات نهائية. استثناءات للرسوم المكررة."
+    },
+    "/career-dna": {
+      "title": "اختبار الحمض النووي المهني | جد مجالك المثالي | Shyftcut",
+      "description": "خض اختبار الـ 90 ثانية المجاني. اكتشف مدى توافق شخصيتك مع مجالك وتعرف على المسارات التي تناسب نقاط قوتك."
+    }
+  },
+  "inlineStrings": {
+    "landing.heroTagline": "من الحيرة إلى مسار واضح لمدة 12 أسبوعاً—في 90 ثانية.",
+    "pricing.choosePlan": "اختر خطتك",
+    "pricing.planDesc": "ابدأ مجاناً أو رَقِّ لبريميوم للحصول على خرائط غير محدودة.",
+    "pricing.viewPlans": "عرض الخطط",
+    "blog.fromBlog": "من المدونة",
+    "blog.allPosts": "كل المقالات",
+    "cta.readyTitle": "جاهز لتحويل مسارك المهني؟",
+    "cta.readyDesc": "انضم لآلاف المحترفين الذين وجدوا وضوحهم المهني مع Shyftcut.",
+    "cta.startFree": "ابدأ مجاناً • إلغاء في أي وقت",
+    "mobile.poweredBy": "مدعوم من Gemini",
+    "mobile.langSwitch": "العربية",
+    "nav.upgrade": "ترقية"
+  },
+  "careerFields": [
+    "مهندس برمجيات",
+    "عالم بيانات",
+    "مدير منتج",
+    "مصمم تجربة مستخدم (UX)",
+    "مهندس DevOps",
+    "مهندس سحابة (Cloud)",
+    "مهندس تعلم آلي",
+    "مطور واجهات أمامية",
+    "مطور واجهات خلفية",
+    "مطور ويب شامل (Full Stack)",
+    "محلل أمن سيبراني",
+    "محلل أعمال",
+    "مدير مشاريع",
+    "مدير تسويق",
+    "مدير مبيعات",
+    "مدير موارد بشرية",
+    "طالب",
+    "أخرى"
+  ],
+  "careers": {
+    "benefits": [
+      {
+        "title": "عن بُعد أولاً",
+        "description": "اعمل من أي مكان في العالم. نحن نؤمن بالمرونة."
+      },
+      {
+        "title": "ميزانية تعلم",
+        "description": "1000 دولار/سنة للدورات والكتب والمؤتمرات."
+      },
+      {
+        "title": "مزايا صحية",
+        "description": "تغطية صحية شاملة."
+      },
+      {
+        "title": "ساعات مرنة",
+        "description": "اعمل في الوقت الذي تكون فيه أكثر إنتاجية. لا يوجد دوام صارم من 9-5."
+      }
+    ],
+    "openings": [
+      {
+        "title": "مهندس Full-Stack أول",
+        "department": "الهندسة",
+        "location": "عن بُعد",
+        "type": "دوام كامل"
+      },
+      {
+        "title": "مهندس ذكاء اصطناعي/تعلم آلي",
+        "department": "فريق الذكاء الاصطناعي",
+        "location": "عن بُعد",
+        "type": "دوام كامل"
+      },
+      {
+        "title": "مصمم منتج",
+        "department": "التصميم",
+        "location": "عن بُعد",
+        "type": "دوام كامل"
+      },
+      {
+        "title": "كاتب محتوى (عربي)",
+        "department": "التسويق",
+        "location": "عن بُعد",
+        "type": "عقد"
+      }
+    ],
+    "steps": [
+      {
+        "title": "قدّم",
+        "description": "أرسل طلبك مع السيرة الذاتية وخطاب التغطية."
+      },
+      {
+        "title": "محادثة",
+        "description": "مكالمة تعارف سريعة للتعرف عليك والإجابة عن الأسئلة."
+      },
+      {
+        "title": "التحدي",
+        "description": "مشروع منزلي ذو صلة بالدور."
+      },
+      {
+        "title": "المقابلة النهائية",
+        "description": "تعمق مع الفريق الذي ستعمل معه."
+      }
+    ],
+    "hero": {
+      "backToHome": "العودة للرئيسية",
+      "joinShyftcut": "انضم لـ Shyftcut",
+      "openRoles": "الوظائف المتاحة"
+    }
+  },
+  "contact": {
+    "faqs": [
+      {
+        "question": "كيف تعمل خارطة الطريق بالذكاء الاصطناعي؟",
+        "answer": "يحلل ذكاؤنا الاصطناعي مهاراتك الحالية وأهدافك المهنية لإنشاء مسار تعلم مخصص لمدة 12 أسبوعاً مع دورات موثقة من أفضل المنصات."
+      },
+      {
+        "question": "هل يمكنني إلغاء اشتراكي في أي وقت؟",
+        "answer": "نقدم مستوى مجانياً يتيح لك إنشاء خارطة واحدة. قم بالترقية في أي وقت لفتح خرائط وتدريب غير محدود."
+      },
+      {
+        "question": "ما مدى دقة توصيات الدورات؟",
+        "answer": "تعتمد توصياتنا على بيانات الوقت الفعلي من منصات التعلم الكبرى، بما في ذلك التقييمات والمراجعات والصلة بأهدافك المحددة."
+      }
+    ],
+    "hero": {
+      "backToHome": "العودة للرئيسية",
+      "title": "تواصل معنا",
+      "subtitle": "لديك سؤال أو ملاحظة؟ نود أن نسمع منك. فريقنا جاهز للمساعدة."
+    },
+    "options": {
+      "emailUs": "راسلنا",
+      "responseTime": "وقت الاستجابة",
+      "responseTimeValue": "عادة خلال 24 ساعة",
+      "location": "الموقع",
+      "locationValue": "فريق عن بُعد، عالمي"
+    },
+    "form": {
+      "sendMessage": "أرسل لنا رسالة",
+      "name": "الاسم",
+      "namePlaceholder": "الاسم الكامل",
+      "email": "البريد الإلكتروني",
+      "subject": "الموضوع",
+      "subjectPlaceholder": "موضوع مختصر",
+      "message": "الرسالة",
+      "messagePlaceholder": "صف مشكلتك أو سؤالك (10 أحرف كحد أدنى)...",
+      "topic": "الموضوع",
+      "topicGeneral": "عام",
+      "topicSales": "مبيعات",
+      "topicSupport": "دعم فني",
+      "topicPartnership": "شراكة",
+      "topicFeedback": "ملاحظات/اقتراحات",
+      "topicOther": "أخرى",
+      "submit": "إرسال الرسالة"
+    },
+    "toasts": {
+      "messageSent": "تم إرسال الرسالة!",
+      "messageSentDesc": "شكراً لتواصلك. سنرد عليك قريباً.",
+      "validationError": "خطأ في التحقق",
+      "sendError": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+    },
+    "validation": {
+      "nameRequired": "الاسم مطلوب",
+      "nameTooLong": "الاسم طويل جداً",
+      "emailInvalid": "البريد الإلكتروني غير صالح",
+      "subjectRequired": "الموضوع مطلوب",
+      "subjectTooLong": "الموضوع طويل جداً",
+      "messageMin": "يجب أن تكون الرسالة 10 أحرف على الأقل",
+      "messageTooLong": "الرسالة طويلة جداً"
+    }
+  },
+  "about": {
+    "values": [
+      {
+        "title": "الوضوح أولاً",
+        "description": "نؤمن بأن الجميع يستحق مساراً واضحاً لأهدافه المهنية."
+      },
+      {
+        "title": "إتاحة الوصول",
+        "description": "يجب أن يكون التوجيه المهني متاحاً للجميع."
+      },
+      {
+        "title": "الابتكار",
+        "description": "نستفيد من أحدث تقنيات الذكاء الاصطناعي لتقديم توجيه مخصص."
+      },
+      {
+        "title": "التعاطف",
+        "description": "التحولات المهنية صعبة. نحن نصمم بتعاطف وتفهم."
+      }
+    ],
+    "timeline": [
+      {
+        "year": "2024",
+        "event": "ولدت الفكرة"
+      },
+      {
+        "year": "2025",
+        "event": "بناء المنتج"
+      },
+      {
+        "year": "2026",
+        "event": "الإطلاق فبراير 2026"
+      }
+    ],
+    "hero": {
+      "backToHome": "العودة للرئيسية"
+    }
+  },
+  "refund": {
+    "hero": {
+      "backToHome": "العودة للرئيسية",
+      "title": "سياسة الاسترداد",
+      "lastUpdated": "آخر تحديث: 28 يناير 2026"
+    },
+    "sections": {
+      "allSalesFinal": "جميع المبيعات نهائية",
+      "allSalesFinalDesc": "نظراً للطبيعة الرقمية لخدماتنا، لا نقدم استرداداً لأي اشتراكات أو مشتريات. بمجرد معالجة الدفع، يعتبر البيع نهائياً.",
+      "whyNoRefunds": "لماذا لا نقدم استرداداً؟",
+      "whyNoRefundsDesc": "Shyftcut هي خدمة رقمية تمنحك وصولاً فورياً لخرائط الطريق، الدورات، والمدرب الذكي. هذه الخدمات لا يمكن \"إعادتها\".",
+      "whatYouGet": [
+        "خرائط طريق مهنية بالذكاء الاصطناعي",
+        "توصيات دورات منتقاة",
+        "تدريب ذكي 24/7",
+        "تتبع التقدم والاختبارات"
+      ],
+      "beforeSubscribe": "قبل الاشتراك",
+      "beforeSubscribeEncourage": "نشجعك على:",
+      "beforeSubscribeItems": [
+        "استكشاف المستوى المجاني لفهم المنصة",
+        "مراجعة صفحة الأسعار بعناية",
+        "التواصل معنا إذا كان لديك أي أسئلة"
+      ],
+      "exceptions": "استثناءات",
+      "exceptionsDesc": "في حالات نادرة قد ننظر في استثناءات (مثل الرسوم المكررة). المراجعة فردية ووفقاً لتقديرنا.",
+      "cancellation": "الإلغاء",
+      "cancellationDesc": "يمكنك الإلغاء في أي وقت. يظل وصولك نشطاً حتى نهاية فترة الفوترة الحالية.",
+      "contactUs": "اتصل بنا",
+      "contactUsDesc": "أسئلة حول هذه السياسة أو مشاكل الحساب:"
+    },
+    "exceptions": [
+      {
+        "title": "رسوم مكررة",
+        "description": "بسبب أخطاء تقنية فقط"
+      },
+      {
+        "title": "معاملات غير مصرح بها",
+        "description": "مع التحقق المناسب"
+      }
+    ]
+  },
+  "featureComparison": {
+    "headers": {
+      "feature": "الميزة",
+      "free": "مجاني",
+      "premium": "بريميوم"
+    },
+    "rows": [
+      {
+        "feature": "خرائط الطريق"
+      },
+      {
+        "feature": "رسائل المحادثة الذكية"
+      },
+      {
+        "feature": "الاختبارات"
+      },
+      {
+        "feature": "الملاحظات"
+      },
+      {
+        "feature": "المهام"
+      },
+      {
+        "feature": "اقتراحات مهام بالذكاء الاصطناعي"
+      },
+      {
+        "feature": "مؤقت التركيز (بومودورو)"
+      },
+      {
+        "feature": "توصيات الدورات"
+      },
+      {
+        "feature": "تحليل السيرة الذاتية (CV)"
+      },
+      {
+        "feature": "توصيات وظائف (10/أسبوع)"
+      },
+      {
+        "feature": "تتبع التقدم"
+      },
+      {
+        "feature": "دعم عبر البريد الإلكتروني"
+      }
+    ]
+  },
+  "legalPages": {
+    "terms": {
+      "heroTitle": "شروط الخدمة",
+      "sections": [
+        {
+          "id": "acceptance",
+          "title": "1. قبول الشروط",
+          "content": "بالوصول إلى Shyftcut واستخدامه، فإنك توافق على الالتزام بشروط الخدمة هذه وجميع القوانين المعمول بها."
+        },
+        {
+          "id": "description",
+          "title": "2. وصف الخدمة",
+          "content": "Shyftcut هي منصة توجيه مهني مدعومة بالذكاء الاصطناعي توفر: خرائط طريق مخصصة، توصيات دورات، تدريب ذكي، وتتبع التقدم."
+        },
+        {
+          "id": "accounts",
+          "title": "3. حسابات المستخدمين",
+          "content": "أنت مسؤول عن الحفاظ على سرية حسابك وكلمة مرورك."
+        },
+        {
+          "id": "payments",
+          "title": "4. الاشتراكات والدفعات",
+          "content": "تتم معالجة المدفوعات بشكل آمن. تتجدد الاشتراكات تلقائياً ما لم يتم إلغاؤها."
+        },
+        {
+          "id": "acceptable-use",
+          "title": "5. الاستخدام المقبول",
+          "content": "توافق على عدم استخدام الخدمة لأي غرض غير قانوني أو محاولة الوصول غير المصرح به لأنظمتنا."
+        },
+        {
+          "id": "ip",
+          "title": "6. الملكية الفكرية",
+          "content": "جميع المحتويات والميزات في Shyftcut مملوكة لنا ومحمية بموجب قوانين الملكية الفكرية."
+        },
+        {
+          "id": "disclaimer",
+          "title": "7. إخلاء المسؤولية عن الضمانات",
+          "content": "يتم تقديم Shyftcut \"كما هي\". لا نضمن خلو الخدمة من الأخطاء. التوجيه المهني المقدم للأغراض الإعلامية فقط."
+        },
+        {
+          "id": "contact",
+          "title": "8. اتصل بنا",
+          "content": "للاستفسارات حول هذه الشروط، تواصل معنا على support@shyftcut.com."
+        }
+      ]
+    },
+    "privacy": {
+      "heroTitle": "سياسة الخصوصية",
+      "keyPoints": [
+        "نجمع فقط ما نحتاجه لتقديم خدماتنا",
+        "بياناتك مشفرة ومحمية",
+        "لا نبيع بياناتك أبداً",
+        "يمكنك الوصول لبياناتك أو حذفها في أي وقت"
+      ],
+      "sections": [
+        {
+          "id": "info-collect",
+          "title": "1. المعلومات التي نجمعها"
+        },
+        {
+          "id": "how-use",
+          "title": "2. كيف نستخدم معلوماتك"
+        },
+        {
+          "id": "data-sharing",
+          "title": "3. مشاركة البيانات"
+        },
+        {
+          "id": "data-security",
+          "title": "4. أمن البيانات"
+        },
+        {
+          "id": "your-rights",
+          "title": "5. حقوقك"
+        },
+        {
+          "id": "cookies",
+          "title": "6. ملفات تعريف الارتباط (Cookies)"
+        },
+        {
+          "id": "retention",
+          "title": "7. الاحتفاظ بالبيانات"
+        },
+        {
+          "id": "contact",
+          "title": "8. اتصل بنا"
+        }
+      ]
+    },
+    "cookies": {
+      "heroTitle": "سياسة ملفات تعريف الارتباط",
+      "sections": [
+        {
+          "id": "what-are",
+          "title": "ما هي ملفات تعريف الارتباط؟"
+        },
+        {
+          "id": "types",
+          "title": "أنواع ملفات تعريف الارتباط"
+        },
+        {
+          "id": "third-party",
+          "title": "ملفات تعريف الارتباط للطرف الثالث"
+        },
+        {
+          "id": "managing",
+          "title": "إدارة ملفات تعريف الارتباط"
+        },
+        {
+          "id": "contact",
+          "title": "اتصل بنا"
+        }
+      ],
+      "cookieTypes": [
+        {
+          "name": "sb-auth-token",
+          "purpose": "المصادقة والجلسة",
+          "duration": "الجلسة",
+          "type": "ضروري"
+        },
+        {
+          "name": "shyftcut-language",
+          "purpose": "تفضيل اللغة",
+          "duration": "سنة واحدة",
+          "type": "وظيفي"
+        },
+        {
+          "name": "theme",
+          "purpose": "تفضيل الوضع المظلم/الفاتح",
+          "duration": "سنة واحدة",
+          "type": "وظيفي"
+        },
+        {
+          "name": "shyftcut-cookie-consent",
+          "purpose": "تفضيل الموافقة على الكوكيز",
+          "duration": "سنة واحدة",
+          "type": "ضروري"
+        }
+      ]
+    },
+    "common": {
+      "backToHome": "العودة للرئيسية",
+      "lastUpdated": "آخر تحديث: 28 يناير 2026"
+    }
+  },
+  "footerLinks": [
+    {
+      "to": "/pricing",
+      "label": "الأسعار"
+    },
+    {
+      "to": "/roadmap",
+      "label": "خارطة الطريق"
+    },
+    {
+      "to": "/courses",
+      "label": "الدورات"
+    },
+    {
+      "to": "/chat",
+      "label": "المدرب الذكي"
+    },
+    {
+      "to": "/about",
+      "label": "عنّا"
+    },
+    {
+      "to": "/blog",
+      "label": "المدونة"
+    },
+    {
+      "to": "/contact",
+      "label": "اتصل بنا"
+    },
+    {
+      "to": "/privacy",
+      "label": "الخصوصية"
+    },
+    {
+      "to": "/terms",
+      "label": "الشروط"
+    },
+    {
+      "to": "/cookies",
+      "label": "الكوكيز"
+    },
+    {
+      "to": "/refund",
+      "label": "الاسترداد"
+    }
+  ],
+  "appSidebarLinks": [
+    {
+      "href": "/dashboard",
+      "label": "لوحة التحكم"
+    },
+    {
+      "href": "/roadmap",
+      "label": "خارطة الطريق"
+    },
+    {
+      "href": "/study",
+      "label": "التركيز (Focus)"
+    },
+    {
+      "href": "/courses",
+      "label": "الدورات"
+    },
+    {
+      "href": "/chat",
+      "label": "المدرب الذكي"
+    },
+    {
+      "href": "/career-tools",
+      "label": "أدوات مهنية"
+    },
+    {
+      "href": "/community",
+      "label": "المجتمع"
+    }
+  ],
+  "appMoreSheetLinks": [
+    {
+      "href": "/courses",
+      "label": "الدورات"
+    },
+    {
+      "href": "/career-tools",
+      "label": "أدوات مهنية"
+    },
+    {
+      "href": "/community",
+      "label": "المجتمع"
+    },
+    {
+      "href": "/wizard",
+      "label": "إنشاء خارطة"
+    },
+    {
+      "href": "/support",
+      "label": "الدعم"
+    },
+    {
+      "href": "/",
+      "label": "الرئيسية"
+    },
+    {
+      "href": "upgrade",
+      "label": "ترقية"
+    }
+  ],
+  "hardcodedStrings": {
+    "checkoutButton": {
+      "sessionExpired": "انتهت الجلسة. يرجى تسجيل الدخول مجدداً."
+    },
+    "contact": {
+      "validationError": "خطأ في التحقق"
+    }
+  }
+}

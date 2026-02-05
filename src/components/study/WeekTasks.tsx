@@ -1,0 +1,388 @@
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { CheckSquare, Square, Plus, Pencil, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useTasks, type Task } from '@/hooks/useTasks';
+import { useUsageLimits } from '@/hooks/useUsageLimits';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch } from '@/lib/api';
+import { UpgradePrompt } from '@/components/common/UpgradePrompt';
+
+interface SuggestedTask {
+  title: string;
+  description?: string;
+}
+
+interface WeekTasksProps {
+  roadmapWeekId: string;
+  /** If true, show "Suggested for this week" / "Your tasks" sections (for AI tasks). */
+  showSections?: boolean;
+}
+
+export function WeekTasks({ roadmapWeekId, showSections }: WeekTasksProps) {
+  const { t } = useLanguage();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { session, getAccessToken } = useAuth();
+  const { canCreateTask, canSuggestTasks, getTasksRemaining, getAiSuggestionsRemaining, limits } = useUsageLimits();
+  const { tasks, isLoading, createTask, updateTask, deleteTask } = useTasks(roadmapWeekId);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
+  const [title, setTitle] = useState('');
+  const [suggestedTasks, setSuggestedTasks] = useState<SuggestedTask[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [addingSuggestion, setAddingSuggestion] = useState<string | null>(null);
+  const [showTasksUpgrade, setShowTasksUpgrade] = useState(false);
+  const [showAiSuggestionsUpgrade, setShowAiSuggestionsUpgrade] = useState(false);
+  const atTasksLimit = !canCreateTask();
+  const atAiSuggestionsLimit = !canSuggestTasks();
+
+  const userTasks = tasks.filter((x) => x.source === 'user');
+  const aiTasks = tasks.filter((x) => x.source === 'ai');
+  const hasAi = aiTasks.length > 0;
+  const hasSuggestions = suggestedTasks.length > 0;
+
+  const resetForm = () => {
+    setTitle('');
+    setShowAdd(false);
+    setEditing(null);
+  };
+
+  const handleCreate = () => {
+    if (!title.trim()) return;
+    if (atTasksLimit) {
+      setShowTasksUpgrade(true);
+      return;
+    }
+    createTask.mutate(
+      { title: title.trim(), roadmap_week_id: roadmapWeekId, source: 'user' },
+      {
+        onSuccess: () => {
+          resetForm();
+          queryClient.invalidateQueries({ queryKey: ['usage-limits'] });
+          toast({ title: t('common.saved') });
+        },
+        onError: (err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.includes('limit') || message.toLowerCase().includes('upgrade')) setShowTasksUpgrade(true);
+          else toast({ title: t('common.errorTitle'), variant: 'destructive' });
+        },
+      }
+    );
+  };
+
+  const handleToggleComplete = (task: Task) => {
+    updateTask.mutate(
+      { id: task.id, completed: !task.completed },
+      {
+        onError: () => toast({ title: t('common.errorTitle'), variant: 'destructive' }),
+      }
+    );
+  };
+
+  const handleUpdate = () => {
+    if (!editing || !title.trim()) return;
+    updateTask.mutate(
+      { id: editing.id, title: title.trim() },
+      {
+        onSuccess: () => {
+          resetForm();
+          toast({ title: t('common.saved') });
+        },
+        onError: () => toast({ title: t('common.errorTitle'), variant: 'destructive' }),
+      }
+    );
+  };
+
+  const handleDelete = (task: Task) => {
+    deleteTask.mutate(task.id, {
+      onSuccess: () => toast({ title: t('common.saved') }),
+      onError: () => toast({ title: t('common.errorTitle'), variant: 'destructive' }),
+    });
+  };
+
+  const openEdit = (task: Task) => {
+    setEditing(task);
+    setTitle(task.title);
+  };
+
+  const handleSuggestTasks = async () => {
+    if (atAiSuggestionsLimit) {
+      setShowAiSuggestionsUpgrade(true);
+      return;
+    }
+    setSuggestLoading(true);
+    setSuggestedTasks([]);
+    try {
+      const token = await getAccessToken();
+      const data = await apiFetch<{ suggestions?: SuggestedTask[] }>('/api/tasks/suggest', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ roadmap_week_id: roadmapWeekId }),
+      });
+      const list = data?.suggestions ?? [];
+      setSuggestedTasks(Array.isArray(list) ? list : []);
+      queryClient.invalidateQueries({ queryKey: ['usage-limits'] });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('limit') || message.toLowerCase().includes('upgrade')) setShowAiSuggestionsUpgrade(true);
+      else toast({ title: t('common.errorTitle'), variant: 'destructive' });
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
+  const handleAddSuggestion = (suggestion: SuggestedTask) => {
+    if (atTasksLimit) {
+      setShowTasksUpgrade(true);
+      return;
+    }
+    setAddingSuggestion(suggestion.title);
+    createTask.mutate(
+      {
+        title: suggestion.title,
+        notes: suggestion.description ?? '',
+        roadmap_week_id: roadmapWeekId,
+        source: 'ai',
+      },
+      {
+        onSuccess: () => {
+          setSuggestedTasks((prev) => prev.filter((s) => s.title !== suggestion.title));
+          setAddingSuggestion(null);
+          queryClient.invalidateQueries({ queryKey: ['usage-limits'] });
+          toast({ title: t('common.saved') });
+        },
+        onError: (err: unknown) => {
+          setAddingSuggestion(null);
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.includes('limit') || message.toLowerCase().includes('upgrade')) setShowTasksUpgrade(true);
+          else toast({ title: t('common.errorTitle'), variant: 'destructive' });
+        },
+      }
+    );
+  };
+
+  const renderTaskList = (list: Task[]) =>
+    list.map((task) => (
+      <div
+        key={task.id}
+        className={`flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2 ${
+          task.completed ? 'opacity-70' : ''
+        }`}
+      >
+        <button
+          type="button"
+          className="shrink-0 touch-manipulation"
+          onClick={() => handleToggleComplete(task)}
+          aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
+        >
+          {task.completed ? (
+            <CheckSquare className="h-5 w-5 text-primary" />
+          ) : (
+            <Square className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
+        <span
+          className={`min-w-0 flex-1 text-sm ${task.completed ? 'line-through text-muted-foreground' : ''}`}
+        >
+          {task.title}
+        </span>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => openEdit(task)}
+            aria-label={t('common.edit')}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => handleDelete(task)}
+            aria-label={t('common.delete')}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    ));
+
+  if (isLoading) {
+    return (
+      <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        {t('common.loading')}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-4">
+      <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
+        <CheckSquare className="h-4 w-4" />
+        {t('study.tasks')}
+      </h4>
+      <div className="space-y-2">
+        {atAiSuggestionsLimit ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+            <span className="text-sm text-muted-foreground">{t('study.aiSuggestionsLimitReached')}</span>
+            <Button size="sm" variant="default" onClick={() => setShowAiSuggestionsUpgrade(true)}>
+              {t('pricing.upgrade')}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 text-muted-foreground"
+            onClick={handleSuggestTasks}
+            disabled={suggestLoading || !session}
+          >
+            {suggestLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            {t('study.suggestTasks')}
+          </Button>
+        )}
+        {hasSuggestions && (
+          <>
+            <p className="text-xs font-medium text-muted-foreground">{t('study.suggestedTasks')}</p>
+            {suggestedTasks.map((s) => (
+              <div
+                key={s.title}
+                className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-2"
+              >
+                <span className="min-w-0 flex-1 text-sm">{s.title}</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={() => handleAddSuggestion(s)}
+                  disabled={addingSuggestion === s.title}
+                >
+                  {addingSuggestion === s.title ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.add')}
+                </Button>
+              </div>
+            ))}
+          </>
+        )}
+        {showSections && hasAi && !hasSuggestions && (
+          <>
+            <p className="text-xs font-medium text-muted-foreground">{t('study.suggestedTasks')}</p>
+            {renderTaskList(aiTasks)}
+          </>
+        )}
+        {(hasSuggestions || (showSections && hasAi) || userTasks.length > 0 || showAdd || editing) && (
+          <p className="text-xs font-medium text-muted-foreground">{t('study.yourTasks')}</p>
+        )}
+        {userTasks.length === 0 && !hasAi && !hasSuggestions && !showAdd && !editing && (
+          <p className="text-sm text-muted-foreground">{t('study.noTasks')}</p>
+        )}
+        {renderTaskList(userTasks)}
+        {showAdd && (
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t('study.tasksPlaceholder')}
+              className="text-sm flex-1"
+              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            />
+            <Button size="sm" onClick={handleCreate} disabled={!title.trim() || createTask.isPending}>
+              {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.save')}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={resetForm}>
+              {t('common.cancel')}
+            </Button>
+          </div>
+        )}
+        {!showAdd && !editing && (
+          atTasksLimit ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+              <span className="text-sm text-muted-foreground">{t('study.tasksLimitReached')} ({limits.tasks})</span>
+              <Button size="sm" variant="default" onClick={() => setShowTasksUpgrade(true)}>
+                {t('pricing.upgrade')}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => setShowAdd(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t('study.tasksAdd')}
+            </Button>
+          )
+        )}
+      </div>
+
+      {showTasksUpgrade && (
+        <Dialog open={showTasksUpgrade} onOpenChange={setShowTasksUpgrade}>
+          <DialogContent className="max-w-md" aria-describedby="tasks-upgrade-desc">
+            <DialogTitle className="sr-only">{t('study.tasksLimit')}</DialogTitle>
+            <DialogDescription id="tasks-upgrade-desc" className="sr-only">
+              {t('study.tasksLimitReached')}
+            </DialogDescription>
+            <UpgradePrompt feature="tasks" remaining={getTasksRemaining()} limit={limits.tasks} />
+          </DialogContent>
+        </Dialog>
+      )}
+      {showAiSuggestionsUpgrade && (
+        <Dialog open={showAiSuggestionsUpgrade} onOpenChange={setShowAiSuggestionsUpgrade}>
+          <DialogContent className="max-w-md" aria-describedby="ai-suggestions-upgrade-desc">
+            <DialogTitle className="sr-only">{t('study.aiSuggestionsLimit')}</DialogTitle>
+            <DialogDescription id="ai-suggestions-upgrade-desc" className="sr-only">
+              {t('study.aiSuggestionsLimitReached')}
+            </DialogDescription>
+            <UpgradePrompt feature="ai_suggestions" remaining={getAiSuggestionsRemaining()} limit={limits.aiSuggestionsPerDay} />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && resetForm()}>
+        <DialogContent className="max-w-md" aria-describedby="edit-task-desc">
+          <DialogHeader>
+            <DialogTitle>{t('common.edit')}</DialogTitle>
+            <DialogDescription id="edit-task-desc" className="sr-only">
+              {t('study.tasksPlaceholder')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t('study.tasksPlaceholder')}
+              onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetForm}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleUpdate} disabled={!title.trim() || updateTask.isPending}>
+              {updateTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

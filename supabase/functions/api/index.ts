@@ -1,0 +1,3478 @@
+// Supabase Edge Function: single router for all /api/* routes.
+// Frontend sends X-Path header (e.g. /api/profile). Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY; optional RESEND_API_KEY, GEMINI_API_KEY, etc.
+
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { getAuthUser } from "../_shared/auth.ts";
+import { getSupabase } from "../_shared/supabase.ts";
+import { logError, safeErrorMessage } from "../_shared/log.ts";
+import { moderateContent } from "../_shared/moderation.ts";
+import {
+  getGeminiConfig,
+  getGeminiGenerateContentUrl,
+  getGeminiStreamUrl,
+  getGeminiHeaders,
+  geminiFetchWithRetry,
+  messagesToGeminiContents,
+  contentsFromChatMessages,
+  openAiFunctionToGeminiDeclaration,
+  GEMINI_IMAGE_MODEL,
+  checkGeminiFinishReason,
+  isOkFinishReasonForFunctionCall,
+  logGeminiUsage,
+  createCachedContent,
+  MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE,
+  isGemini3Flash,
+  submitBatchGenerateContent,
+  getBatchStatus,
+} from "../_shared/gemini.ts";
+import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
+
+const CHAT_BLOCKED_MESSAGE = "This response was blocked by content filters. Please rephrase and try again.";
+
+const DIFFICULTY_LEVELS = ["beginner", "intermediate", "advanced"] as const;
+const MAX_TITLE_LEN = 500;
+const MAX_DESCRIPTION_LEN = 2000;
+const MAX_STRING_ITEM_LEN = 500;
+const MAX_QUESTION_LEN = 1000;
+const MAX_OPTION_LEN = 500;
+const MAX_EXPLANATION_LEN = 2000;
+
+// Input validation limits (abuse prevention and model limits)
+const MAX_CHAT_MESSAGE_LEN = 32_000;
+const MAX_CHAT_MESSAGES = 20;
+const MAX_CHAT_TOTAL_CHARS = 100_000;
+const MAX_CHAT_HISTORY_MESSAGE_LEN = 50_000; // for persisted messages
+const MAX_PROFILE_FIELD_LEN = 500;
+const MAX_PROFILE_ARRAY_ITEMS = 50;
+const MAX_PROFILE_ARRAY_ITEM_LEN = 200;
+const MAX_QUIZ_WEEK_TITLE_LEN = 500;
+const MAX_QUIZ_SKILLS_ITEMS = 50;
+const MAX_QUIZ_SKILL_LEN = 200;
+const MAX_FC_ARGS_BYTES = 512 * 1024; // 512KB for function call JSON
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Strong password: min 8 chars, at least one digit, lowercase, uppercase, symbol. Aligns with Supabase Dashboard and client validatePassword(). */
+function validatePasswordStrong(password: string): { valid: boolean; error?: string } {
+  if (typeof password !== "string" || password.length < 8) return { valid: false, error: "New password must be at least 8 characters" };
+  if (!/\d/.test(password)) return { valid: false, error: "Password must include at least one number" };
+  if (!/[a-z]/.test(password)) return { valid: false, error: "Password must include at least one lowercase letter" };
+  if (!/[A-Z]/.test(password)) return { valid: false, error: "Password must include at least one uppercase letter" };
+  if (!/[!@#$%^&*()_+\-=[\]{};':"|<>?,./~\\]/.test(password)) return { valid: false, error: "Password must include at least one symbol" };
+  return { valid: true };
+}
+
+/** JSON schema for roadmap structured output (Gemini 3 grounding + responseMimeType application/json). */
+const ROADMAP_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string", description: "Roadmap title." },
+    description: { type: "string", description: "Brief roadmap description." },
+    difficulty_level: { type: "string", enum: ["beginner", "intermediate", "advanced"], description: "Difficulty level." },
+    weeks: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          week_number: { type: "number", description: "1-based week index." },
+          title: { type: "string", description: "Week title." },
+          description: { type: "string", description: "Week description." },
+          skills_to_learn: { type: "array", items: { type: "string" }, description: "Skills to learn this week." },
+          deliverables: { type: "array", items: { type: "string" }, description: "Deliverables for this week." },
+          estimated_hours: { type: "number", description: "Estimated hours per week." },
+          courses: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string", description: "Course title from search results." },
+                platform: { type: "string", description: "Platform name (e.g. Coursera, YouTube)." },
+                url: { type: "string", description: "Real, working course URL from search. Must be from an allowed platform: udemy.com, coursera.org, linkedin.com, youtube.com, pluralsight.com, skillshare.com, edx.org, futurelearn.com, khanacademy.org, codecademy.com, datacamp.com, freecodecamp.org, masterclass.com, cloudskillsboost.google, learn.microsoft.com, aws.amazon.com." },
+                instructor: { type: "string" },
+                duration: { type: "string" },
+                difficulty_level: { type: "string" },
+                price: { type: "number" },
+                rating: { type: "number" },
+              },
+              required: ["title", "platform", "url"],
+            },
+            description: "Courses with real URLs from web search.",
+          },
+        },
+        required: ["week_number", "title", "description", "skills_to_learn", "deliverables", "estimated_hours", "courses"],
+      },
+    },
+  },
+  required: ["title", "description", "difficulty_level", "weeks"],
+};
+
+const MIN_CV_PASTE_LEN = 50;
+const MAX_CV_PASTE_LEN = 50_000;
+
+/** JSON schema for CV analysis structured output. */
+const CV_ANALYSIS_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    strengths: {
+      type: "array",
+      items: { type: "string" },
+      description: "3–5 key strengths from the CV.",
+    },
+    gaps: {
+      type: "array",
+      items: { type: "string" },
+      description: "Gaps vs target role (skills or experience to develop).",
+    },
+    recommendations: {
+      type: "array",
+      items: { type: "string" },
+      description: "3–5 short actionable recommendations.",
+    },
+    skill_keywords: {
+      type: "array",
+      items: { type: "string" },
+      description: "Extracted skill keywords for job matching.",
+    },
+  },
+  required: ["strengths", "gaps", "recommendations", "skill_keywords"],
+};
+
+/** JSON schema for Career DNA analyzer (Gemini Flash, minimal thinking). */
+const CAREER_DNA_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    matchScore: { type: "number", description: "0-100 match between personality and declared field." },
+    personalityArchetype: { type: "string", description: "e.g. Strategic Empath, Ambitious Realist" },
+    archetypeDescription: { type: "string", description: "2-3 sentence description of the archetype." },
+    superpower: { type: "string", description: "User's strongest work-related trait." },
+    superpowerRarity: { type: "string", description: "e.g. only 17% of people have this trait" },
+    hiddenTalent: { type: "string", description: "Less obvious strength." },
+    hiddenTalentCareerHint: { type: "string", description: "Career this talent suits, e.g. Product Management" },
+    suggestedCareers: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          career: { type: "string" },
+          matchPercent: { type: "number" },
+          reason: { type: "string" },
+        },
+        required: ["career", "matchPercent", "reason"],
+      },
+      description: "Top 3 alternative careers from allowed list.",
+    },
+    shareableQuote: { type: "string", description: "Short shareable line, e.g. I'm a 73% match for my major" },
+    scoreTier: { type: "string", enum: ["visionaries", "naturals", "explorers", "shifters", "awakeners", "misfits"], description: "90-100 visionaries, 75-89 naturals, 60-74 explorers, 45-59 shifters, 30-44 awakeners, 0-29 misfits" },
+    personaCharacterId: { type: "string", description: "One of: v1,v2,v3,v4 (visionaries), n1-n4 (naturals), e1-e4 (explorers), s1-s4 (shifters), a1-a4 (awakeners), m1-m4 (misfits). Pick the one that best fits the user's answers." },
+  },
+  required: ["matchScore", "personalityArchetype", "archetypeDescription", "superpower", "superpowerRarity", "hiddenTalent", "hiddenTalentCareerHint", "suggestedCareers", "shareableQuote", "scoreTier"],
+};
+
+/** JSON schema for jobs find (Gemini grounding) – array of job objects. */
+const JOBS_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    jobs: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Job title." },
+          company: { type: "string", description: "Company name." },
+          url: { type: "string", description: "Real job listing URL (must be valid HTTP/HTTPS from search)." },
+          location_type: { type: "string", enum: ["remote", "hybrid", "on_site"], description: "Work arrangement." },
+          location: { type: "string", description: "Location string if any." },
+          match_score: { type: "number", description: "0–100 match score for the candidate." },
+        },
+        required: ["title", "company", "url", "location_type", "match_score"],
+      },
+      description: "Up to 10 real open job listings with URLs from web search.",
+    },
+  },
+  required: ["jobs"],
+};
+
+/** Extract concatenated text from Gemini content parts (skip thought parts). Used for structured JSON response. */
+function extractTextFromParts(parts: Array<{ text?: string; thought?: boolean }>): string {
+  if (!parts?.length) return "";
+  return parts
+    .filter((p) => (p as { thought?: boolean }).thought !== true)
+    .map((p) => p.text ?? "")
+    .join("");
+}
+
+/** Grounding metadata from Gemini (Google Search). Candidate may have groundingMetadata. */
+type GroundingMetadata = {
+  webSearchQueries?: string[];
+  groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
+};
+
+function extractGroundingFromCandidate(candidate: unknown): { queries: string[]; citations: Array<{ uri: string; title?: string }> } | null {
+  const gm = (candidate as { groundingMetadata?: GroundingMetadata })?.groundingMetadata;
+  if (!gm) return null;
+  const queries = Array.isArray(gm.webSearchQueries) ? gm.webSearchQueries : [];
+  const citations = (gm.groundingChunks ?? [])
+    .map((c) => c.web)
+    .filter((w): w is { uri?: string; title?: string } => !!w && !!w.uri)
+    .map((w) => ({ uri: w.uri!, title: w.title }));
+  if (queries.length === 0 && citations.length === 0) return null;
+  return { queries, citations };
+}
+
+/** Strip null bytes and control characters, then trim and cap length. Do not log full content in production. */
+function sanitizeUserText(s: unknown, maxLen: number): string {
+  if (s == null) return "";
+  let t = String(s)
+    .replace(/\0/g, "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .trim();
+  return t.length > maxLen ? t.slice(0, maxLen) : t;
+}
+
+// Guest roadmap generation: rate limit by IP (in-memory; resets on cold start)
+const guestRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const GUEST_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const GUEST_RATE_LIMIT_MAX = 3;
+
+// Study tools: free-tier limits (premium = unlimited)
+const NOTES_LIMIT_FREE = 20;
+const TASKS_LIMIT_FREE = 30;
+const AI_SUGGEST_PER_DAY_FREE = 5;
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req.headers.get("cf-connecting-ip") ?? "unknown";
+}
+
+function checkGuestRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let entry = guestRateLimitMap.get(ip);
+  if (!entry) {
+    guestRateLimitMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (now - entry.windowStart > GUEST_RATE_LIMIT_WINDOW_MS) {
+    entry = { count: 1, windowStart: now };
+    guestRateLimitMap.set(ip, entry);
+    return true;
+  }
+  if (entry.count >= GUEST_RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+// Career DNA quiz: rate limit by IP
+const careerDnaRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const CAREER_DNA_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const CAREER_DNA_RATE_LIMIT_MAX = 10;
+
+function checkCareerDnaRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let entry = careerDnaRateLimitMap.get(ip);
+  if (!entry) {
+    careerDnaRateLimitMap.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (now - entry.windowStart > CAREER_DNA_RATE_LIMIT_WINDOW_MS) {
+    entry = { count: 1, windowStart: now };
+    careerDnaRateLimitMap.set(ip, entry);
+    return true;
+  }
+  if (entry.count >= CAREER_DNA_RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+async function hashIp(ip: string): Promise<string> {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip));
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 32);
+  } catch {
+    return "unknown";
+  }
+}
+
+// Rate limit for contact, support, newsletter (in-memory; resets on cold start)
+const publicRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const PUBLIC_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const CONTACT_RATE_LIMIT_MAX = 5;
+const NEWSLETTER_RATE_LIMIT_MAX = 3;
+const SUPPORT_RATE_LIMIT_MAX = 5;
+
+function checkPublicRateLimit(key: string, maxPerWindow: number): boolean {
+  const now = Date.now();
+  let entry = publicRateLimitMap.get(key);
+  if (!entry) {
+    publicRateLimitMap.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  if (now - entry.windowStart > PUBLIC_RATE_LIMIT_WINDOW_MS) {
+    entry = { count: 1, windowStart: now };
+    publicRateLimitMap.set(key, entry);
+    return true;
+  }
+  if (entry.count >= maxPerWindow) return false;
+  entry.count++;
+  return true;
+}
+
+function trimStr(s: unknown, maxLen: number): string {
+  if (s == null) return "";
+  const t = String(s).trim();
+  return t.length > maxLen ? t.slice(0, maxLen) : t;
+}
+
+function normalizeDifficultyLevel(value: unknown): "beginner" | "intermediate" | "advanced" {
+  const s = String(value ?? "").trim().toLowerCase();
+  if (DIFFICULTY_LEVELS.includes(s as (typeof DIFFICULTY_LEVELS)[number])) return s as "beginner" | "intermediate" | "advanced";
+  return "intermediate";
+}
+
+function isPaidTier(tier: string | undefined): boolean {
+  return tier === "premium" || tier === "pro";
+}
+
+/** Previous calendar day in UTC (YYYY-MM-DD). */
+function prevDay(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Compute current streak (consecutive days ending on endDate) and longest streak from distinct activity dates; upsert study_streaks. */
+async function updateStudyStreak(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  endDate: string
+): Promise<void> {
+  const { data: rows } = await supabase
+    .from("study_activity")
+    .select("activity_date")
+    .eq("user_id", userId)
+    .order("activity_date", { ascending: false });
+  const dateSet = new Set<string>();
+  for (const r of rows ?? []) {
+    const d = (r as { activity_date?: string }).activity_date;
+    if (d) dateSet.add(d);
+  }
+  let currentStreak = 0;
+  let d = endDate;
+  while (dateSet.has(d)) {
+    currentStreak++;
+    d = prevDay(d);
+  }
+  const sorted = [...dateSet].sort().reverse();
+  let longestStreak = 0;
+  let run = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i === 0 || sorted[i] === prevDay(sorted[i - 1])) run++;
+    else {
+      longestStreak = Math.max(longestStreak, run);
+      run = 1;
+    }
+  }
+  longestStreak = Math.max(longestStreak, run, currentStreak);
+  await supabase.from("study_streaks").upsert(
+    {
+      user_id: userId,
+      current_streak: currentStreak,
+      longest_streak: longestStreak,
+      last_activity_date: endDate,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" }
+  );
+  if (currentStreak >= 7) await awardBadge(supabase, userId, "streak_7");
+  if (currentStreak >= 30) await awardBadge(supabase, userId, "streak_30");
+}
+
+async function awardBadge(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  badgeId: string
+): Promise<void> {
+  await supabase.from("user_badges").upsert(
+    { user_id: userId, badge_id: badgeId },
+    { onConflict: "user_id,badge_id" }
+  );
+}
+
+/** Call courses-search edge function to get a real course URL. Returns null on any failure or missing config. */
+async function fetchCourseUrlFromSearch(
+  supabaseUrl: string,
+  anonKey: string,
+  platform: string,
+  query: string,
+  language: string
+): Promise<string | null> {
+  if (!supabaseUrl?.trim() || !anonKey?.trim()) return null;
+  const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/courses-search`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${anonKey}` },
+      body: JSON.stringify({
+        platform: String(platform).trim().slice(0, 100),
+        query: String(query).trim().slice(0, 300),
+        language: language === "ar" ? "ar" : "en",
+      }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { url?: string | null };
+    return typeof data?.url === "string" && data.url ? data.url : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fill missing course URLs in roadmapData by calling courses-search. Mutates roadmapData.weeks[].courses[].url. */
+async function fillMissingCourseUrls(
+  roadmapData: Record<string, unknown>,
+  language: string,
+  supabaseUrl: string,
+  anonKey: string,
+  maxToFill: number
+): Promise<void> {
+  const weeks = Array.isArray(roadmapData.weeks) ? roadmapData.weeks as Array<Record<string, unknown>> : [];
+  const toFill: { weekIndex: number; courseIndex: number; platform: string; title: string }[] = [];
+  for (let wi = 0; wi < weeks.length; wi++) {
+    const courses = Array.isArray(weeks[wi].courses) ? weeks[wi].courses as Array<Record<string, unknown>> : [];
+    for (let ci = 0; ci < courses.length; ci++) {
+      const c = courses[ci];
+      const url = c?.url;
+      const hasUrl = typeof url === "string" && url.trim() && isValidCourseUrl(url) && isAllowedCourseHost(url);
+      if (hasUrl) continue;
+      const platform = typeof c?.platform === "string" ? c.platform.trim() : "";
+      const title = typeof c?.title === "string" ? c.title.trim() : "";
+      if (platform && title && getPlatformDomain(platform)) toFill.push({ weekIndex: wi, courseIndex: ci, platform, title });
+    }
+  }
+  if (toFill.length === 0) return;
+  const slice = toFill.slice(0, maxToFill);
+  const results = await Promise.all(
+    slice.map(({ platform, title }) => fetchCourseUrlFromSearch(supabaseUrl, anonKey, platform, title, language))
+  );
+  for (let i = 0; i < slice.length; i++) {
+    const url = results[i];
+    if (!url) continue;
+    const { weekIndex, courseIndex } = slice[i];
+    const weeksArr = roadmapData.weeks as Array<Record<string, unknown>>;
+    const courses = weeksArr[weekIndex]?.courses as Array<Record<string, unknown>> | undefined;
+    if (courses?.[courseIndex]) (courses[courseIndex] as Record<string, unknown>).url = url;
+  }
+}
+
+function cleanRoadmapOutput(roadmapData: Record<string, unknown>): void {
+  roadmapData.title = trimStr(roadmapData.title, MAX_TITLE_LEN);
+  roadmapData.description = trimStr(roadmapData.description, MAX_DESCRIPTION_LEN);
+  roadmapData.difficulty_level = normalizeDifficultyLevel(roadmapData.difficulty_level);
+  const weeks = Array.isArray(roadmapData.weeks) ? roadmapData.weeks : [];
+  for (const w of weeks) {
+    if (w && typeof w === "object") {
+      const week = w as Record<string, unknown>;
+      week.title = trimStr(week.title, MAX_TITLE_LEN);
+      week.description = trimStr(week.description, MAX_DESCRIPTION_LEN);
+      if (Array.isArray(week.skills_to_learn)) week.skills_to_learn = week.skills_to_learn.map((s: unknown) => trimStr(s, MAX_STRING_ITEM_LEN));
+      if (Array.isArray(week.deliverables)) week.deliverables = week.deliverables.map((s: unknown) => trimStr(s, MAX_STRING_ITEM_LEN));
+      if (Array.isArray(week.courses)) {
+        for (const c of week.courses) {
+          if (c && typeof c === "object") {
+            const course = c as Record<string, unknown>;
+            course.title = trimStr(course.title, MAX_TITLE_LEN);
+            const platform = trimStr(course.platform, MAX_STRING_ITEM_LEN);
+            course.platform = platform;
+            const rawUrl = typeof course.url === "string" ? course.url.trim().slice(0, 2048) : "";
+            const validUrl = isValidCourseUrl(rawUrl) ? rawUrl : null;
+            course.url = validUrl && isAllowedCourseHost(validUrl) ? validUrl : null;
+          }
+        }
+      }
+    }
+  }
+}
+
+function cleanQuizOutput(quizData: Record<string, unknown>): { questions: Array<Record<string, unknown>> } {
+  const raw = Array.isArray(quizData.questions) ? quizData.questions : [];
+  const questions: Array<Record<string, unknown>> = [];
+  for (const q of raw) {
+    if (!q || typeof q !== "object") continue;
+    const item = q as Record<string, unknown>;
+    const options = Array.isArray(item.options) ? item.options.map((o: unknown) => trimStr(o, MAX_OPTION_LEN)) : [];
+    const correctIndex = typeof item.correct_index === "number" ? Math.floor(item.correct_index) : 0;
+    const validCorrectIndex = options.length > 0 ? Math.max(0, Math.min(correctIndex, options.length - 1)) : 0;
+    questions.push({
+      question: trimStr(item.question, MAX_QUESTION_LEN),
+      options,
+      correct_index: validCorrectIndex,
+      explanation: trimStr(item.explanation, MAX_EXPLANATION_LEN),
+    });
+  }
+  return { questions };
+}
+
+async function verifyPassword(supabaseUrl: string, anonKey: string, email: string, password: string): Promise<boolean> {
+  const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: anonKey },
+    body: JSON.stringify({ email, password }),
+  });
+  return res.ok;
+}
+
+function route(path: string): string | null {
+  const parts = path.replace(/^\/api\/?/, "").split("/").filter(Boolean);
+  const p0 = parts[0];
+  const p1 = parts[1];
+  const p2 = parts[2];
+  const p3 = parts[3];
+  const p4 = parts[4];
+  if (p0 === "profile") {
+    if (p1 === "avatar" && p2 === "generate") return "profile/avatar/generate";
+    if (p1 === "avatar" && p2 === "upload") return "profile/avatar/upload";
+    return "profile";
+  }
+  if (p0 === "contact") return "contact";
+  if (p0 === "support") return "support";
+  if (p0 === "newsletter") return "newsletter";
+  if (p0 === "roadmaps") return "roadmaps";
+  if (p0 === "roadmap") {
+    if (!p1) return "roadmap/index";
+    if (p1 === "active") return "roadmap/active";
+    if (p1 === "generate") return "roadmap/generate";
+    if (p1 === "generate-guest") return "roadmap/generate-guest";
+    if (p1 === "weeks" && p2 === "complete") return "roadmap/weeks/complete";
+    return "roadmap/index";
+  }
+  if (p0 === "subscription") return "subscription";
+  if (p0 === "usage") return "usage";
+  if (p0 === "analytics") return "analytics";
+  if (p0 === "chat") {
+    if (!p1) return "chat";
+    if (p1 === "history") return "chat/history";
+    if (p1 === "messages") return "chat/messages";
+    return "chat";
+  }
+  if (p0 === "quiz") {
+    if (p1 === "generate") return "quiz/generate";
+    if (p1 === "results") return "quiz/results";
+    return null;
+  }
+  if (p0 === "checkout") {
+    if (p1 === "create") return "checkout/create";
+    if (p1 === "portal") return "checkout/portal";
+    return null;
+  }
+  if (p0 === "auth") {
+    if (p1 === "sync") return "auth/sync";
+    if (p1 === "account") return "auth/account";
+    if (p1 === "set-password") return "auth/set-password";
+    if (p1 === "change-password") return "auth/change-password";
+    return null;
+  }
+  if (p0 === "courses" && p1) return "courses/id";
+  if (p0 === "notes") {
+    if (p1) return "notes/id";
+    return "notes";
+  }
+  if (p0 === "tasks") {
+    if (p1 === "suggest") return "tasks/suggest";
+    if (p1) return "tasks/id";
+    return "tasks";
+  }
+  if (p0 === "admin" && p1 === "batch") return "admin/batch";
+  if (p0 === "cv" && p1 === "analyze") return "cv/analyze";
+  if (p0 === "jobs") {
+    if (p1 === "find") return "jobs/find";
+    if (p1 === "weekly") return "jobs/weekly";
+    if (!p1) return "jobs/list";
+    return null;
+  }
+  if (p0 === "study-streak") return "study-streak";
+  if (p0 === "study-activity") return "study-activity";
+  if (p0 === "notification-preferences") return "notification-preferences";
+  if (p0 === "unsubscribe-email") return "unsubscribe-email";
+  if (p0 === "push-subscription") return "push-subscription";
+  if (p0 === "vapid-public") return "vapid-public";
+  if (p0 === "career-dna") {
+    if (p1 === "analyze") return "career-dna/analyze";
+    if (p1 === "result" && p2) return "career-dna/result";
+    if (p1 === "squad") {
+      if (!p2) return "career-dna/squad/create"; // POST = create
+      return "career-dna/squad/get"; // GET /squad/:slug
+    }
+    return null;
+  }
+  if (p0 === "community") {
+    if (p1 === "peers") return "community/peers";
+    if (p1 === "connections") return "community/connections";
+    if (p1 === "leaderboard") return "community/leaderboard";
+    if (p1 === "groups") {
+      if (!p2) return "community/groups";
+      if (p2 === "top-by-streak") return "community/groups/top-by-streak";
+      if (p3 === "join") return "community/groups/join";
+      if (p3 === "leave") return "community/groups/leave";
+      if (p3 === "members") return "community/groups/members";
+      return "community/groups/id";
+    }
+    if (p1 === "chat" && p2 === "room" && p3) {
+      if (p4 === "messages") return "community/chat/messages";
+      return "community/chat/room";
+    }
+    if (p1 === "badges") return "community/badges";
+    if (p1 === "me" && p2 === "badges") return "community/me/badges";
+    return null;
+  }
+  return null;
+}
+
+async function ensureProfileAndSubscription(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  email: string | undefined,
+  displayName: string | undefined
+) {
+  const name = (displayName ?? email?.split("@")[0] ?? "User").trim().slice(0, 500);
+  const normalizedEmail = email?.trim().toLowerCase() ?? null;
+  const { error: profileErr } = await supabase.from("profiles").upsert(
+    { user_id: userId, email: normalizedEmail, display_name: name, preferred_language: "en" },
+    { onConflict: "user_id" }
+  );
+  if (profileErr) {
+    logError("api", "ensureProfileAndSubscription: profiles upsert failed", new Error(profileErr.message));
+    throw new Error("Failed to ensure profile");
+  }
+  const { error: subErr } = await supabase.from("subscriptions").upsert(
+    { user_id: userId, tier: "free", status: "active" },
+    { onConflict: "user_id" }
+  );
+  if (subErr) {
+    logError("api", "ensureProfileAndSubscription: subscriptions upsert failed", new Error(subErr.message));
+    throw new Error("Failed to ensure subscription record");
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  const pathHeader = req.headers.get("x-path") ?? req.headers.get("X-Path");
+  const url = new URL(req.url);
+  const pathFromQuery = url.searchParams.get("path");
+  const path = pathHeader ?? pathFromQuery ?? url.pathname.replace(/^.*\/api\/?/, "/api/");
+  const normalizedPath = path.startsWith("/api") ? path : `/api/${path}`;
+  const pathSegments = normalizedPath.replace(/^\/api\/?/, "").split("/").filter(Boolean);
+  const routeKey = route(normalizedPath);
+
+  if (!routeKey) {
+    return jsonResponse({ error: "Not found" }, 404);
+  }
+
+  const supabase = getSupabase();
+  let body: Record<string, unknown> = {};
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    try {
+      const text = await req.text();
+      if (text) body = JSON.parse(text) as Record<string, unknown>;
+    } catch (parseErr) {
+      logError("api", "body parse failed", parseErr);
+    }
+  }
+
+  const authHeader = req.headers.get("authorization") ?? null;
+  const authResult = await getAuthUser(authHeader);
+  const user = "user" in authResult ? authResult.user : null;
+  const authFailureReason = "reason" in authResult ? authResult.reason : null;
+  const requireAuth = ![
+    "contact",
+    "newsletter",
+    "roadmap/generate-guest",
+    "admin/batch",
+    "jobs/weekly",
+    "unsubscribe-email",
+    "vapid-public",
+    "career-dna/analyze",
+    "career-dna/result",
+    "career-dna/squad/create",
+    "career-dna/squad/get",
+  ].includes(routeKey);
+  if (requireAuth && !user) {
+    return jsonResponse(
+      { error: "Unauthorized", code: authFailureReason ?? "unauthorized" },
+      401
+    );
+  }
+
+  function checkAdminSecret(): boolean {
+    const secret = Deno.env.get("ADMIN_SECRET") ?? "";
+    if (!secret) return false;
+    const header = req.headers.get("x-admin-secret") ?? req.headers.get("X-Admin-Secret") ?? "";
+    return header === secret;
+  }
+
+  try {
+    switch (routeKey) {
+      case "profile": {
+        if (req.method !== "GET" && req.method !== "PATCH") {
+          return jsonResponse({ error: "Method not allowed" }, 405);
+        }
+        await ensureProfileAndSubscription(
+          supabase,
+          user!.id,
+          user!.email,
+          user!.user_metadata?.display_name as string | undefined
+        );
+        if (req.method === "PATCH") {
+          const { data: current } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", user!.id)
+            .single();
+          if (!current) return jsonResponse({ error: "Profile not found" }, 404);
+          const trimStr = (v: unknown): string | null =>
+            v != null && String(v).trim() !== "" ? String(v).trim() : null;
+          const b = body as Record<string, unknown>;
+          const displayName = trimStr(b.display_name) ?? (current.display_name != null ? String(current.display_name).trim() : null) ?? null;
+          const sanitizeSocialUrl = (v: unknown, allowed: (url: string) => boolean): string | null => {
+            const s = trimStr(v);
+            if (!s) return null;
+            try {
+              const u = new URL(s.startsWith("http") ? s : `https://${s}`);
+              const hostPath = u.hostname + u.pathname;
+              if (!allowed(hostPath)) return null;
+              return u.toString();
+            } catch {
+              return null;
+            }
+          };
+          const linkedinOk = (url: string) => /linkedin\.com\/in\//i.test(url);
+          const twitterOk = (url: string) => /(twitter\.com|x\.com)\//i.test(url);
+          const githubOk = (url: string) => /github\.com\//i.test(url);
+          const cur = current as { linkedin_url?: string; twitter_url?: string; github_url?: string };
+          const linkedinUrl = !("linkedin_url" in b) ? (cur.linkedin_url ?? null) : (trimStr(b.linkedin_url) === null ? null : (sanitizeSocialUrl(b.linkedin_url, linkedinOk) ?? cur.linkedin_url ?? null));
+          const twitterUrl = !("twitter_url" in b) ? (cur.twitter_url ?? null) : (trimStr(b.twitter_url) === null ? null : (sanitizeSocialUrl(b.twitter_url, twitterOk) ?? cur.twitter_url ?? null));
+          const githubUrl = !("github_url" in b) ? (cur.github_url ?? null) : (trimStr(b.github_url) === null ? null : (sanitizeSocialUrl(b.github_url, githubOk) ?? cur.github_url ?? null));
+          const updatePayload = {
+            display_name: displayName ?? current.display_name,
+            avatar_url: trimStr(b.avatar_url) ?? b.avatar_url ?? current.avatar_url ?? null,
+            job_title: trimStr(b.job_title) ?? b.job_title ?? current.job_title ?? null,
+            target_career: trimStr(b.target_career) ?? b.target_career ?? current.target_career ?? null,
+            experience_level: trimStr(b.experience_level) ?? b.experience_level ?? current.experience_level ?? null,
+            industry: trimStr(b.industry) ?? b.industry ?? current.industry ?? null,
+            skills: Array.isArray(b.skills) ? b.skills : (current.skills ?? []),
+            learning_style: trimStr(b.learning_style) ?? b.learning_style ?? current.learning_style ?? null,
+            weekly_hours: typeof b.weekly_hours === "number" ? b.weekly_hours : (current.weekly_hours ?? 10),
+            budget: trimStr(b.budget) ?? b.budget ?? current.budget ?? null,
+            preferred_language: trimStr(b.preferred_language) ?? b.preferred_language ?? current.preferred_language ?? "en",
+            onboarding_completed: typeof b.onboarding_completed === "boolean" ? b.onboarding_completed : (current.onboarding_completed ?? false),
+            location: trimStr(b.location) ?? b.location ?? current.location ?? null,
+            job_work_preference: ["remote", "hybrid", "on_site"].includes(String(b.job_work_preference ?? "")) ? b.job_work_preference : (current.job_work_preference ?? null),
+            find_jobs_enabled: typeof b.find_jobs_enabled === "boolean" ? b.find_jobs_enabled : (current.find_jobs_enabled ?? false),
+            linkedin_url: linkedinUrl,
+            twitter_url: twitterUrl,
+            github_url: githubUrl,
+            phone: (() => {
+              if (!("phone" in b)) return (current as { phone?: string }).phone ?? null;
+              const raw = trimStr(b.phone);
+              if (!raw) return null;
+              const sanitized = raw.replace(/\s/g, "").slice(0, 20);
+              if (!/^\+?[\d]{7,20}$/.test(sanitized)) return (current as { phone?: string }).phone ?? null;
+              return sanitized.startsWith("+") ? sanitized : `+${sanitized}`;
+            })(),
+            updated_at: new Date().toISOString(),
+          };
+          const { data: updated, error } = await supabase
+            .from("profiles")
+            .update(updatePayload)
+            .eq("user_id", user!.id)
+            .select()
+            .single();
+          if (error) throw error;
+          return jsonResponse(updated ?? current);
+        }
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user!.id)
+          .single();
+        return jsonResponse(profile ?? null);
+      }
+
+      case "profile/avatar/generate": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const AVATAR_LIMIT_PER_MONTH = 3;
+        const bucketName = "avatars";
+        try {
+          const sub = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+          const tier = (sub?.data?.tier ?? "free") as string;
+          if (!isPaidTier(tier)) {
+            return jsonResponse({ error: "Avatar generation is for Premium subscribers only." }, 402);
+          }
+          const startOfMonth = new Date();
+          startOfMonth.setDate(1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const { count } = await supabase
+            .from("avatar_generations")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user!.id)
+            .gte("created_at", startOfMonth.toISOString());
+          if ((count ?? 0) >= AVATAR_LIMIT_PER_MONTH) {
+            return jsonResponse(
+              { error: `You have used your ${AVATAR_LIMIT_PER_MONTH} avatar generations this month. Next month you can generate more.` },
+              402
+            );
+          }
+          const config = getGeminiConfig();
+          if (!config) return jsonResponse({ error: "AI image generation is not configured." }, 500);
+          const avatarImageSize = (Deno.env.get("GEMINI_AVATAR_IMAGE_SIZE") ?? "2K").toUpperCase() === "4K" ? "4K" : "2K";
+          const imageUrl = getGeminiGenerateContentUrl(GEMINI_IMAGE_MODEL);
+          const prompt =
+            "Generate a single clean, professional profile avatar image. Style: simple and friendly, like modern app profile pictures (e.g. Google Chrome profile icons). Minimalist, neutral or soft gradient background. Show only head and shoulders, no text. High quality, suitable for a user avatar. Square aspect ratio.";
+          const res = await geminiFetchWithRetry(imageUrl, {
+            method: "POST",
+            headers: getGeminiHeaders(config.apiKey),
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: prompt }] }],
+              generationConfig: {
+                responseModalities: ["TEXT", "IMAGE"],
+                responseMimeType: "image/png",
+                imageConfig: { aspectRatio: "1:1", imageSize: avatarImageSize },
+              },
+            }),
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            console.error("avatar generate Gemini error:", res.status, errText);
+            return jsonResponse({ error: "Avatar generation failed. Please try again." }, 500);
+          }
+          const json = (await res.json()) as {
+            candidates?: Array<{
+              finishReason?: string;
+              content?: {
+                parts?: Array<{
+                  inlineData?: { data?: string };
+                  inline_data?: { data?: string };
+                  thought?: boolean;
+                }>;
+              };
+            }>;
+            usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
+          };
+          const cands = json.candidates ?? [];
+          const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+          if (!finishCheck.ok) {
+            console.error("avatar generate: blocked finish reason", finishCheck.finishReason);
+            return jsonResponse({ error: finishCheck.userMessage ?? "Avatar generation was blocked. Please try again." }, 400);
+          }
+          logGeminiUsage(json.usageMetadata, "profile/avatar/generate");
+          const parts = json.candidates?.[0]?.content?.parts ?? [];
+          let base64Data: string | null = null;
+          // Gemini 3 Pro Image may return thought parts then final image; use last non-thought image
+          for (const part of parts) {
+            if ((part as { thought?: boolean }).thought === true) continue;
+            const data = part.inlineData?.data ?? (part as { inline_data?: { data?: string } }).inline_data?.data;
+            if (data) base64Data = data;
+          }
+          if (!base64Data) {
+            console.error("avatar generate: no image in response");
+            return jsonResponse({ error: "No image was generated. Please try again." }, 500);
+          }
+          const binary = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+          const fileName = `${user!.id}/${Date.now()}.png`;
+          const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, binary, {
+            contentType: "image/png",
+            upsert: true,
+          });
+          if (uploadError) {
+            console.error("avatar upload error:", uploadError);
+            return jsonResponse(
+              { error: "Failed to save avatar. Ensure the 'avatars' storage bucket exists and is public." },
+              500
+            );
+          }
+          const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+          const avatarUrl = urlData?.publicUrl ?? "";
+          await supabase.from("avatar_generations").insert({ user_id: user!.id });
+          await supabase
+            .from("profiles")
+            .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+            .eq("user_id", user!.id);
+          return jsonResponse({ avatar_url: avatarUrl });
+        } catch (err) {
+          logError("profile/avatar/generate", "unexpected error", err);
+          return jsonResponse({ error: "Avatar generation failed. Please try again." }, 500);
+        }
+      }
+
+      case "profile/avatar/upload": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const bucketName = "avatars";
+        const MAX_AVATAR_BASE64_BYTES = 2 * 1024 * 1024; // 2MB decoded
+        const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/webp"];
+        try {
+          const payload = body as { image?: string; mime?: string };
+          const base64 = typeof payload?.image === "string" ? payload.image.trim() : "";
+          const mime = typeof payload?.mime === "string" ? payload.mime.trim().toLowerCase() : "image/png";
+          if (!base64) return jsonResponse({ error: "image (base64) is required" }, 400);
+          if (!ALLOWED_MIMES.includes(mime)) return jsonResponse({ error: "mime must be image/jpeg, image/png, or image/webp" }, 400);
+          let binary: Uint8Array;
+          try {
+            binary = Uint8Array.from(atob(base64.replace(/^data:image\/\w+;base64,/, "")), (c) => c.charCodeAt(0));
+          } catch {
+            return jsonResponse({ error: "Invalid base64 image" }, 400);
+          }
+          if (binary.length > MAX_AVATAR_BASE64_BYTES) return jsonResponse({ error: "Image too large. Max 2MB." }, 400);
+          const ext = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
+          const fileName = `${user!.id}/${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, binary, {
+            contentType: mime,
+            upsert: true,
+          });
+          if (uploadError) {
+            console.error("profile/avatar/upload error:", uploadError);
+            return jsonResponse(
+              { error: "Failed to save avatar. Ensure the 'avatars' storage bucket exists and is public." },
+              500
+            );
+          }
+          const { data: urlData } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+          const avatarUrl = urlData?.publicUrl ?? "";
+          await supabase
+            .from("profiles")
+            .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+            .eq("user_id", user!.id);
+          return jsonResponse({ avatar_url: avatarUrl });
+        } catch (err) {
+          logError("profile/avatar/upload", "unexpected error", err);
+          return jsonResponse({ error: "Avatar upload failed. Please try again." }, 500);
+        }
+      }
+
+      case "cv/analyze": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (subscription?.data?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          return jsonResponse({ error: "CV analysis is for Premium subscribers only." }, 402);
+        }
+        const { pasteText } = body as { pasteText?: string };
+        const text = sanitizeUserText(pasteText, MAX_CV_PASTE_LEN);
+        if (text.length < MIN_CV_PASTE_LEN) {
+          return jsonResponse({ error: "Paste at least 50 characters of your CV to analyze." }, 400);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const { data: profile } = await supabase.from("profiles").select("target_career, job_title").eq("user_id", user!.id).single();
+        const targetRole = (profile as { target_career?: string } | null)?.target_career ?? "the role they are targeting";
+        const systemPrompt = `You are a career coach. Analyze the candidate's CV/resume and return a JSON object with:
+- strengths: 3–5 key strengths (short strings).
+- gaps: 3–5 gaps vs the target role (skills or experience to develop).
+- recommendations: 3–5 short actionable recommendations.
+- skill_keywords: extracted skill keywords for job matching (e.g. JavaScript, React, project management).
+Target role context: ${targetRole}. Return only valid JSON matching the schema.`;
+        const genUrl = getGeminiGenerateContentUrl(config.model);
+        const aiRes = await geminiFetchWithRetry(genUrl, {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: `Analyze this CV:\n\n${text}` }] }],
+            generationConfig: {
+              thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+              temperature: 1.0,
+              maxOutputTokens: 4096,
+              responseMimeType: "application/json",
+              responseJsonSchema: CV_ANALYSIS_RESPONSE_JSON_SCHEMA,
+            },
+          }),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (!aiRes.ok) {
+          console.error("cv/analyze Gemini error:", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "CV analysis failed. Please try again." }, 500);
+        }
+        let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        try {
+          aiJson = (await aiRes.json()) as typeof aiJson;
+        } catch {
+          return jsonResponse({ error: "CV analysis failed." }, 500);
+        }
+        const cands = aiJson.candidates ?? [];
+        const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+        if (!finishCheck.ok) {
+          return jsonResponse({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "cv/analyze");
+        const parts = cands[0]?.content?.parts ?? [];
+        const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+        if (!jsonText.trim()) return jsonResponse({ error: "Invalid analysis response." }, 500);
+        let analysis: Record<string, unknown>;
+        try {
+          analysis = JSON.parse(jsonText) as Record<string, unknown>;
+        } catch {
+          return jsonResponse({ error: "Invalid analysis response." }, 500);
+        }
+        return jsonResponse({ analysis });
+      }
+
+      case "jobs/list": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (subscription?.data?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          return jsonResponse({ error: "Job recommendations are for Premium subscribers only." }, 402);
+        }
+        const { data: list } = await supabase
+          .from("job_recommendations")
+          .select("*")
+          .eq("user_id", user!.id)
+          .order("fetched_at", { ascending: false })
+          .limit(50);
+        return jsonResponse(list ?? []);
+      }
+
+      case "jobs/find": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (subscription?.data?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          return jsonResponse({ error: "Find jobs is for Premium subscribers only." }, 402);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const { data: profile } = await supabase.from("profiles").select("target_career, job_title, skills, location, job_work_preference").eq("user_id", user!.id).single();
+        const p = profile as { target_career?: string; job_title?: string; skills?: string[]; location?: string; job_work_preference?: string } | null;
+        const workPref = ["remote", "hybrid", "on_site"].includes(String(p?.job_work_preference ?? "")) ? p!.job_work_preference : "remote";
+        const locationStr = trimStr(p?.location ?? "", 200) || "any";
+        const skillsStr = Array.isArray(p?.skills) ? p.skills.join(", ") : "";
+        const targetRole = trimStr(p?.target_career ?? p?.job_title ?? "software developer", 200);
+        const systemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (real job listing URL from search - must be valid HTTP/HTTPS), location_type (one of: remote, hybrid, on_site), location (string if any), match_score (0-100). Prefer real job boards: Indeed, LinkedIn, Remotive, company career pages. User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Skills: ${skillsStr}. Only include jobs that match the user's work preference (${workPref}). Return only valid JSON.`;
+        const genUrl = getGeminiGenerateContentUrl(config.model);
+        const aiRes = await geminiFetchWithRetry(genUrl, {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: `Find 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Return real job URLs only.` }] }],
+            tools: [{ google_search: {} }],
+            generationConfig: {
+              thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+              temperature: 1.0,
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json",
+              responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
+            },
+          }),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (!aiRes.ok) {
+          console.error("jobs/find Gemini error:", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "Job search failed. Please try again." }, 500);
+        }
+        let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        try {
+          aiJson = (await aiRes.json()) as typeof aiJson;
+        } catch {
+          return jsonResponse({ error: "Job search failed." }, 500);
+        }
+        const cands = aiJson.candidates ?? [];
+        const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+        if (!finishCheck.ok) {
+          return jsonResponse({ error: finishCheck.userMessage ?? "Job search was blocked. Please try again." }, 400);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "jobs/find");
+        const parts = cands[0]?.content?.parts ?? [];
+        const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+        if (!jsonText.trim()) return jsonResponse({ error: "Invalid job search response." }, 500);
+        let parsed: { jobs?: Array<{ title?: string; company?: string; url?: string; location_type?: string; location?: string; match_score?: number }> };
+        try {
+          parsed = JSON.parse(jsonText) as typeof parsed;
+        } catch {
+          return jsonResponse({ error: "Invalid job search response." }, 500);
+        }
+        const jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
+        const fetchedAt = new Date().toISOString();
+        const toInsert = jobs.slice(0, 10).filter((j) => typeof j?.url === "string" && (j.url.startsWith("http://") || j.url.startsWith("https://"))).map((j) => {
+          let url = (j.url ?? "").trim().slice(0, 2048);
+          try {
+            new URL(url);
+          } catch {
+            url = "https://example.com";
+          }
+          const locType = ["remote", "hybrid", "on_site"].includes(String(j.location_type ?? "")) ? j.location_type : "remote";
+          const score = typeof j.match_score === "number" ? Math.max(0, Math.min(100, Math.round(j.match_score))) : null;
+          return {
+            user_id: user!.id,
+            title: trimStr(j.title ?? "Job", 500),
+            company: trimStr(j.company ?? "", 500) || null,
+            url,
+            location_type: locType,
+            location: trimStr(j.location ?? "", 500) || null,
+            match_score: score,
+            source: "gemini_grounding",
+            fetched_at: fetchedAt,
+          };
+        });
+        if (toInsert.length > 0) {
+          await supabase.from("job_recommendations").insert(toInsert);
+        }
+        return jsonResponse({ jobs: toInsert, saved: toInsert.length });
+      }
+
+      case "jobs/weekly": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+        const headerSecret = req.headers.get("x-cron-secret") ?? req.headers.get("X-Cron-Secret") ?? (body as { cron_secret?: string }).cron_secret ?? "";
+        if (!cronSecret || headerSecret !== cronSecret) {
+          return jsonResponse({ error: "Unauthorized" }, 401);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "GEMINI_API_KEY not set" }, 500);
+        const { data: paidUsers } = await supabase
+          .from("profiles")
+          .select("user_id, target_career, job_title, skills, location, job_work_preference")
+          .eq("find_jobs_enabled", true);
+        if (!paidUsers?.length) return jsonResponse({ ok: true, processed: 0 });
+        const subs = await supabase.from("subscriptions").select("user_id, tier").in("user_id", paidUsers.map((u: { user_id: string }) => u.user_id));
+        const paidTierUserIds = new Set((subs?.data ?? []).filter((s: { tier: string }) => isPaidTier(s.tier)).map((s: { user_id: string }) => s.user_id));
+        let processed = 0;
+        for (const row of paidUsers as Array<{ user_id: string; target_career?: string; job_title?: string; skills?: string[]; location?: string; job_work_preference?: string }>) {
+          if (!paidTierUserIds.has(row.user_id)) continue;
+          const workPref = ["remote", "hybrid", "on_site"].includes(String(row.job_work_preference ?? "")) ? row.job_work_preference : "remote";
+          const locationStr = trimStr(row.location ?? "", 200) || "any";
+          const skillsStr = Array.isArray(row.skills) ? row.skills.join(", ") : "";
+          const targetRole = trimStr(row.target_career ?? row.job_title ?? "software developer", 200);
+          const systemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (real job listing URL from search - must be valid HTTP/HTTPS), location_type (one of: remote, hybrid, on_site), location (string if any), match_score (0-100). Prefer real job boards. User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Skills: ${skillsStr}. Only include jobs that match the user's work preference (${workPref}). Return only valid JSON.`;
+          const genUrl = getGeminiGenerateContentUrl(config.model);
+          try {
+            const aiRes = await geminiFetchWithRetry(genUrl, {
+              method: "POST",
+              headers: getGeminiHeaders(config.apiKey),
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: `Find 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Return real job URLs only.` }] }],
+                tools: [{ google_search: {} }],
+                generationConfig: {
+                  thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+                  temperature: 1.0,
+                  maxOutputTokens: 8192,
+                  responseMimeType: "application/json",
+                  responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
+                },
+              }),
+            });
+            if (!aiRes.ok) continue;
+            const aiJson = (await aiRes.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: unknown };
+            const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+            const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+            const parsed = JSON.parse(jsonText || "{}") as { jobs?: Array<{ title?: string; company?: string; url?: string; location_type?: string; location?: string; match_score?: number }> };
+            const jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
+            const fetchedAt = new Date().toISOString();
+            const toInsert = jobs.slice(0, 10).filter((j) => typeof j?.url === "string" && (j.url.startsWith("http://") || j.url.startsWith("https://"))).map((j) => {
+              let url = (j.url ?? "").trim().slice(0, 2048);
+              try {
+                new URL(url);
+              } catch {
+                url = "https://example.com";
+              }
+              const locType = ["remote", "hybrid", "on_site"].includes(String(j.location_type ?? "")) ? j.location_type : "remote";
+              const score = typeof j.match_score === "number" ? Math.max(0, Math.min(100, Math.round(j.match_score))) : null;
+              return {
+                user_id: row.user_id,
+                title: trimStr(j.title ?? "Job", 500),
+                company: trimStr(j.company ?? "", 500) || null,
+                url,
+                location_type: locType,
+                location: trimStr(j.location ?? "", 500) || null,
+                match_score: score,
+                source: "gemini_grounding",
+                fetched_at: fetchedAt,
+              };
+            });
+            if (toInsert.length > 0) {
+              await supabase.from("job_recommendations").insert(toInsert);
+              processed++;
+            }
+          } catch (e) {
+            logError("jobs/weekly", `user ${row.user_id}`, e);
+          }
+        }
+        return jsonResponse({ ok: true, processed });
+      }
+
+      case "roadmaps": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: list } = await supabase
+          .from("roadmaps")
+          .select("*")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false });
+        return jsonResponse(list ?? []);
+      }
+
+      case "subscription": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        await ensureProfileAndSubscription(
+          supabase,
+          user!.id,
+          user!.email,
+          user!.user_metadata?.display_name as string | undefined
+        );
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", user!.id)
+          .single();
+        return jsonResponse(sub ?? null);
+      }
+
+      case "usage": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { count: roadmapsCreated } = await supabase
+          .from("roadmaps")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id);
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const iso = startOfMonth.toISOString();
+        const { count: chatMessagesThisMonth } = await supabase
+          .from("chat_history")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("role", "user")
+          .gte("created_at", iso);
+        const { count: quizzesTakenThisMonth } = await supabase
+          .from("quiz_results")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .gte("completed_at", iso);
+        const { count: notesCount } = await supabase
+          .from("notes")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id);
+        const { count: tasksCount } = await supabase
+          .from("tasks")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const todayIso = startOfToday.toISOString();
+        const { count: aiSuggestionsToday } = await supabase
+          .from("ai_suggest_calls")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .gte("created_at", todayIso);
+        return jsonResponse({
+          roadmapsCreated: roadmapsCreated ?? 0,
+          chatMessagesThisMonth: chatMessagesThisMonth ?? 0,
+          quizzesTakenThisMonth: quizzesTakenThisMonth ?? 0,
+          notesCount: notesCount ?? 0,
+          tasksCount: tasksCount ?? 0,
+          aiSuggestionsToday: aiSuggestionsToday ?? 0,
+        });
+      }
+
+      case "analytics": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        const iso = startOfMonth.toISOString();
+        const { count: roadmapsCreatedVal } = await supabase
+          .from("roadmaps")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id);
+        const { count: chatMessagesThisMonth } = await supabase
+          .from("chat_history")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("role", "user")
+          .gte("created_at", iso);
+        const { count: quizzesTaken } = await supabase
+          .from("quiz_results")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id);
+        const { data: avgRow } = await supabase
+          .from("quiz_results")
+          .select("score")
+          .eq("user_id", user!.id);
+        const scores = (avgRow ?? []).map((r: { score?: number }) => r.score).filter((s): s is number => typeof s === "number");
+        const averageQuizScore = scores.length ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10 : null;
+        const { data: lastQuizRows } = await supabase
+          .from("quiz_results")
+          .select("completed_at")
+          .eq("user_id", user!.id)
+          .order("completed_at", { ascending: false })
+          .limit(1);
+        const lastQuizAt = lastQuizRows?.[0]?.completed_at ?? null;
+        const { data: rwRows } = await supabase
+          .from("roadmap_weeks")
+          .select("completed_at")
+          .eq("user_id", user!.id)
+          .not("completed_at", "is", null)
+          .order("completed_at", { ascending: false })
+          .limit(1);
+        const roadmapWeeksLast = rwRows?.[0]?.completed_at ?? null;
+        const { data: chatRows } = await supabase
+          .from("chat_history")
+          .select("created_at")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const chatLast = chatRows?.[0]?.created_at ?? null;
+        const dates: (string | null)[] = [lastQuizAt, roadmapWeeksLast, chatLast];
+        const lastActiveAt = dates.reduce<string | null>((acc, d) => {
+          if (!d) return acc;
+          if (!acc) return d;
+          return new Date(d) > new Date(acc) ? d : acc;
+        }, null);
+        return jsonResponse({
+          roadmapsCreated: roadmapsCreatedVal ?? 0,
+          chatMessagesThisMonth: chatMessagesThisMonth ?? 0,
+          quizzesTaken: quizzesTaken ?? 0,
+          averageQuizScore,
+          lastQuizAt,
+          lastActiveAt,
+        });
+      }
+
+      case "roadmap/index": {
+        if (req.method !== "GET" && req.method !== "PATCH" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        const id = url.searchParams.get("id") ?? (body.id as string);
+        if (!id) return jsonResponse({ error: "id query required" }, 400);
+        const { data: roadmap } = await supabase
+          .from("roadmaps")
+          .select("*")
+          .eq("id", id)
+          .eq("user_id", user!.id)
+          .single();
+        if (!roadmap) return jsonResponse({ error: "Roadmap not found" }, 404);
+        if (req.method === "DELETE") {
+          const { error: delErr } = await supabase.from("roadmaps").delete().eq("id", id).eq("user_id", user!.id);
+          if (delErr) return jsonResponse({ error: "Failed to delete roadmap" }, 500);
+          return jsonResponse({ success: true });
+        }
+        if (req.method === "PATCH") {
+          const { title, description, status } = body as { title?: string; description?: string; status?: string };
+          if (status === "active") {
+            await supabase.from("roadmaps").update({ status: "inactive" }).eq("user_id", user!.id).neq("id", id);
+          }
+          const newTitle = title !== undefined ? title : roadmap.title;
+          const newDescription = description !== undefined ? description : roadmap.description;
+          const newStatus = status !== undefined ? status : (roadmap.status ?? "active");
+          const { data: updated } = await supabase
+            .from("roadmaps")
+            .update({ title: newTitle, description: newDescription, status: newStatus, updated_at: new Date().toISOString() })
+            .eq("id", id)
+            .eq("user_id", user!.id)
+            .select()
+            .single();
+          return jsonResponse(updated ?? { success: true });
+        }
+        const { data: weeks } = await supabase
+          .from("roadmap_weeks")
+          .select("*")
+          .eq("roadmap_id", roadmap.id)
+          .order("week_number");
+        const weeksWithCourses = await Promise.all(
+          (weeks ?? []).map(async (w: { id: string }) => {
+            const { data: courses } = await supabase.from("course_recommendations").select("*").eq("roadmap_week_id", w.id);
+            const { data: q } = await supabase.from("quiz_results").select("score, total_questions").eq("roadmap_week_id", w.id).eq("user_id", user!.id).order("completed_at", { ascending: false }).limit(1);
+            const lastQuiz = q?.[0];
+            return {
+              ...w,
+              course_recommendations: courses ?? [],
+              last_quiz_score: lastQuiz?.score ?? null,
+              last_quiz_total: lastQuiz?.total_questions ?? null,
+            };
+          })
+        );
+        return jsonResponse({ ...roadmap, roadmap_weeks: weeksWithCourses });
+      }
+
+      case "roadmap/active": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: roadmap } = await supabase
+          .from("roadmaps")
+          .select("*")
+          .eq("user_id", user!.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (!roadmap) return jsonResponse(null);
+        // Backfill profile.target_career from active roadmap when profile lacks it
+        const targetRole = (roadmap as { target_role?: string }).target_role;
+        if (targetRole?.trim()) {
+          const { data: prof } = await supabase.from("profiles").select("target_career").eq("user_id", user!.id).single();
+          const curTarget = (prof as { target_career?: string } | null)?.target_career;
+          if (!curTarget?.trim()) {
+            await supabase.from("profiles").update({ target_career: targetRole.trim().slice(0, 200), updated_at: new Date().toISOString() }).eq("user_id", user!.id);
+          }
+        }
+        const { data: weeks } = await supabase
+          .from("roadmap_weeks")
+          .select("*")
+          .eq("roadmap_id", roadmap.id)
+          .order("week_number");
+        const weeksWithCourses = await Promise.all(
+          (weeks ?? []).map(async (w: { id: string }) => {
+            const { data: courses } = await supabase.from("course_recommendations").select("*").eq("roadmap_week_id", w.id);
+            const { data: q } = await supabase.from("quiz_results").select("score, total_questions").eq("roadmap_week_id", w.id).eq("user_id", user!.id).order("completed_at", { ascending: false }).limit(1);
+            const lastQuiz = q?.[0];
+            return {
+              ...w,
+              course_recommendations: courses ?? [],
+              last_quiz_score: lastQuiz?.score ?? null,
+              last_quiz_total: lastQuiz?.total_questions ?? null,
+            };
+          })
+        );
+        return jsonResponse({ ...roadmap, roadmap_weeks: weeksWithCourses });
+      }
+
+      case "roadmap/weeks/complete": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { weekId } = body as { weekId?: string };
+        if (!weekId) return jsonResponse({ error: "weekId required" }, 400);
+        const { data: week } = await supabase
+          .from("roadmap_weeks")
+          .update({ is_completed: true, completed_at: new Date().toISOString() })
+          .eq("id", weekId)
+          .eq("user_id", user!.id)
+          .select("roadmap_id")
+          .single();
+        const roadmapId = week?.roadmap_id;
+        if (roadmapId) {
+          const { data: allWeeks } = await supabase.from("roadmap_weeks").select("is_completed").eq("roadmap_id", roadmapId);
+          const completed = (allWeeks ?? []).filter((w: { is_completed?: boolean }) => w.is_completed).length;
+          const total = (allWeeks ?? []).length;
+          const progress = total ? Math.round((completed / total) * 100) : 0;
+          await supabase.from("roadmaps").update({ progress_percentage: progress }).eq("id", roadmapId).eq("user_id", user!.id);
+        }
+        const todayUtc = new Date().toISOString().slice(0, 10);
+        await supabase.from("study_activity").insert({
+          user_id: user!.id,
+          activity_date: todayUtc,
+          source: "week_complete",
+          roadmap_week_id: weekId,
+        });
+        await updateStudyStreak(supabase, user!.id, todayUtc);
+        if (roadmapId) {
+          const { data: completedWeeks } = await supabase.from("roadmap_weeks").select("id").eq("roadmap_id", roadmapId).eq("user_id", user!.id).eq("is_completed", true);
+          if ((completedWeeks ?? []).length === 1) await awardBadge(supabase, user!.id, "first_week");
+        }
+        return jsonResponse({ success: true });
+      }
+
+      case "study-streak": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: streak } = await supabase
+          .from("study_streaks")
+          .select("current_streak, longest_streak, last_activity_date")
+          .eq("user_id", user!.id)
+          .single();
+        const { data: activityRows } = await supabase
+          .from("study_activity")
+          .select("activity_date")
+          .eq("user_id", user!.id)
+          .gte("activity_date", new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
+          .order("activity_date", { ascending: false });
+        const activityDates = [...new Set((activityRows ?? []).map((r: { activity_date?: string }) => r.activity_date).filter(Boolean))] as string[];
+        return jsonResponse({
+          current_streak: (streak as { current_streak?: number })?.current_streak ?? 0,
+          longest_streak: (streak as { longest_streak?: number })?.longest_streak ?? 0,
+          last_activity_date: (streak as { last_activity_date?: string })?.last_activity_date ?? null,
+          activity_dates: activityDates,
+        });
+      }
+
+      case "study-activity": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { minutes, date: activityDateParam } = body as { minutes?: number; date?: string };
+        const minMinutes = typeof minutes === "number" && minutes >= 15 ? minutes : 15;
+        const todayUtc = new Date().toISOString().slice(0, 10);
+        const activityDate = typeof activityDateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(activityDateParam) ? activityDateParam : todayUtc;
+        await supabase.from("study_activity").insert({
+          user_id: user!.id,
+          activity_date: activityDate,
+          source: "study_session",
+          study_minutes: minMinutes,
+        });
+        await updateStudyStreak(supabase, user!.id, activityDate);
+        return jsonResponse({ success: true });
+      }
+
+      case "unsubscribe-email": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const token = url.searchParams.get("token")?.trim();
+        if (!token || !UUID_REGEX.test(token)) {
+          return new Response(
+            `<html><body><p>Invalid or missing unsubscribe link.</p><p><a href="/">Go to Shyftcut</a></p></body></html>`,
+            { status: 400, headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders } }
+          );
+        }
+        const { data: prefs, error: findErr } = await supabase
+          .from("notification_preferences")
+          .select("user_id")
+          .eq("unsubscribe_token", token)
+          .single();
+        if (findErr || !prefs) {
+          return new Response(
+            `<html><body><p>This unsubscribe link is invalid or already used.</p><p><a href="/">Go to Shyftcut</a></p></body></html>`,
+            { status: 404, headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders } }
+          );
+        }
+        await supabase
+          .from("notification_preferences")
+          .update({ email_reminders: false, updated_at: new Date().toISOString() })
+          .eq("unsubscribe_token", token);
+        return new Response(
+          `<html><body><p>You've been unsubscribed from study reminder emails.</p><p>You can turn them back on in <a href="/profile">Profile &rarr; Study reminders</a>.</p><p><a href="/">Go to Shyftcut</a></p></body></html>`,
+          { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders } }
+        );
+      }
+
+      case "vapid-public": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const publicKey = Deno.env.get("VAPID_PUBLIC_KEY")?.trim();
+        if (!publicKey) return jsonResponse({ error: "Push not configured" }, 503);
+        return jsonResponse({ publicKey });
+      }
+
+      case "push-subscription": {
+        if (req.method !== "POST" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        const endpoint = typeof (body as { endpoint?: string }).endpoint === "string" ? (body as { endpoint: string }).endpoint.trim() : "";
+        const p256dh = typeof (body as { keys?: { p256dh?: string } }).keys?.p256dh === "string" ? (body as { keys: { p256dh: string } }).keys.p256dh.trim() : (typeof (body as { p256dh?: string }).p256dh === "string" ? (body as { p256dh: string }).p256dh.trim() : "");
+        const auth = typeof (body as { keys?: { auth?: string } }).keys?.auth === "string" ? (body as { keys: { auth: string } }).keys.auth.trim() : (typeof (body as { auth?: string }).auth === "string" ? (body as { auth: string }).auth.trim() : "");
+        if (req.method === "POST") {
+          if (!endpoint || !p256dh || !auth) return jsonResponse({ error: "endpoint and keys (p256dh, auth) required" }, 400);
+          const userAgent = typeof (body as { user_agent?: string }).user_agent === "string" ? (body as { user_agent: string }).user_agent.slice(0, 500) : null;
+          await supabase.from("push_subscriptions").delete().eq("user_id", user!.id).eq("endpoint", endpoint);
+          await supabase.from("push_subscriptions").insert({ user_id: user!.id, endpoint, p256dh, auth, user_agent: userAgent });
+          return jsonResponse({ success: true });
+        }
+        const delEndpoint = typeof (body as { endpoint?: string }).endpoint === "string" ? (body as { endpoint: string }).endpoint.trim() : null;
+        if (delEndpoint) await supabase.from("push_subscriptions").delete().eq("user_id", user!.id).eq("endpoint", delEndpoint);
+        else await supabase.from("push_subscriptions").delete().eq("user_id", user!.id);
+        return jsonResponse({ success: true });
+      }
+
+      case "notification-preferences": {
+        if (req.method !== "GET" && req.method !== "PATCH") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: existing } = await supabase
+          .from("notification_preferences")
+          .select("*")
+          .eq("user_id", user!.id)
+          .single();
+        const defaults = {
+          email_reminders: true,
+          push_enabled: false,
+          reminder_time: "20:00",
+          timezone: "UTC",
+          in_app_reminder: true,
+        };
+        if (req.method === "GET") {
+          const prefs = existing ?? { user_id: user!.id, ...defaults };
+          return jsonResponse(prefs);
+        }
+        const b = body as Record<string, unknown>;
+        const trimStr = (v: unknown): string | null => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
+        const emailReminders = typeof b.email_reminders === "boolean" ? b.email_reminders : (existing?.email_reminders ?? defaults.email_reminders);
+        const pushEnabled = typeof b.push_enabled === "boolean" ? b.push_enabled : (existing?.push_enabled ?? defaults.push_enabled);
+        const reminderTimeRaw = trimStr(b.reminder_time) ?? (existing?.reminder_time ?? defaults.reminder_time);
+        const reminderTime = /^\d{1,2}:\d{2}$/.test(String(reminderTimeRaw)) ? String(reminderTimeRaw) : defaults.reminder_time;
+        const timezone = trimStr(b.timezone) ?? (existing?.timezone ?? defaults.timezone) ?? "UTC";
+        const inAppReminder = typeof b.in_app_reminder === "boolean" ? b.in_app_reminder : (existing?.in_app_reminder ?? defaults.in_app_reminder);
+        const payload = {
+          user_id: user!.id,
+          email_reminders: emailReminders,
+          push_enabled: pushEnabled,
+          reminder_time: reminderTime,
+          timezone: timezone,
+          in_app_reminder: inAppReminder,
+          updated_at: new Date().toISOString(),
+        };
+        const { data: updated, error } = await supabase
+          .from("notification_preferences")
+          .upsert(payload, { onConflict: "user_id" })
+          .select()
+          .single();
+        if (error) throw error;
+        return jsonResponse(updated ?? payload);
+      }
+
+      case "community/peers": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) return jsonResponse({ error: "Community is for Premium subscribers." }, 402);
+        const targetCareer = url.searchParams.get("target_career")?.trim() || null;
+        const experienceLevel = url.searchParams.get("experience_level")?.trim() || null;
+        let query = supabase.from("profiles").select("user_id, display_name, avatar_url, job_title, target_career, experience_level, linkedin_url").neq("user_id", user!.id);
+        if (targetCareer) query = query.eq("target_career", targetCareer);
+        if (experienceLevel) query = query.eq("experience_level", experienceLevel);
+        const { data: profiles } = await query.limit(50);
+        const userIds = (profiles ?? []).map((p: { user_id: string }) => p.user_id);
+        const { data: streaks } = userIds.length ? await supabase.from("study_streaks").select("user_id, current_streak, longest_streak").in("user_id", userIds) : { data: [] };
+        const streakMap = new Map((streaks ?? []).map((s: { user_id: string; current_streak?: number; longest_streak?: number }) => [s.user_id, { current_streak: s.current_streak ?? 0, longest_streak: s.longest_streak ?? 0 }]));
+        const { data: conns } = await supabase.from("connections").select("target_user_id").eq("user_id", user!.id);
+        const connectedSet = new Set((conns ?? []).map((c: { target_user_id: string }) => c.target_user_id));
+        const peers = (profiles ?? []).map((p: { user_id: string; display_name?: string; avatar_url?: string; job_title?: string; target_career?: string; experience_level?: string; linkedin_url?: string }) => ({
+          user_id: p.user_id,
+          display_name: p.display_name ?? null,
+          avatar_url: p.avatar_url ?? null,
+          job_title: p.job_title ?? null,
+          target_career: p.target_career ?? null,
+          experience_level: p.experience_level ?? null,
+          linkedin_url: p.linkedin_url ?? null,
+          current_streak: streakMap.get(p.user_id)?.current_streak ?? 0,
+          longest_streak: streakMap.get(p.user_id)?.longest_streak ?? 0,
+          connected: connectedSet.has(p.user_id),
+        }));
+        return jsonResponse(peers);
+      }
+
+      case "community/connections": {
+        if (req.method !== "POST" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) return jsonResponse({ error: "Community is for Premium subscribers." }, 402);
+        const targetUserId = (body as { target_user_id?: string }).target_user_id;
+        if (!targetUserId || targetUserId === user!.id) return jsonResponse({ error: "Invalid target_user_id" }, 400);
+        if (req.method === "POST") {
+          await supabase.from("connections").upsert({ user_id: user!.id, target_user_id: targetUserId }, { onConflict: "user_id,target_user_id" });
+          return jsonResponse({ success: true });
+        }
+        await supabase.from("connections").delete().eq("user_id", user!.id).eq("target_user_id", targetUserId);
+        return jsonResponse({ success: true });
+      }
+
+      case "community/leaderboard": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) return jsonResponse({ error: "Leaderboard is for Premium subscribers." }, 402);
+        const period = url.searchParams.get("period") || "all";
+        const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "20", 10)));
+        let streakQuery = supabase.from("study_streaks").select("user_id, current_streak, longest_streak, last_activity_date").order("current_streak", { ascending: false }).limit(limit);
+        if (period === "week" || period === "month") {
+          const cut = new Date();
+          if (period === "week") cut.setDate(cut.getDate() - 7);
+          else cut.setMonth(cut.getMonth() - 1);
+          const cutStr = cut.toISOString().slice(0, 10);
+          streakQuery = streakQuery.gte("last_activity_date", cutStr);
+        }
+        const { data: streakRows } = await streakQuery;
+        const userIds = (streakRows ?? []).map((r: { user_id: string }) => r.user_id);
+        const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
+        const profileMap = new Map((profs ?? []).map((p: { user_id: string; display_name?: string; avatar_url?: string }) => [p.user_id, p]));
+        const leaderboard = (streakRows ?? []).map((r: { user_id: string; current_streak?: number; longest_streak?: number; last_activity_date?: string }, i: number) => {
+          const prof = profileMap.get(r.user_id);
+          return {
+            rank: i + 1,
+            user_id: r.user_id,
+            display_name: prof?.display_name ?? null,
+            avatar_url: prof?.avatar_url ?? null,
+            current_streak: r.current_streak ?? 0,
+            longest_streak: r.longest_streak ?? 0,
+            last_activity_date: r.last_activity_date ?? null,
+          };
+        });
+        return jsonResponse(leaderboard);
+      }
+
+      case "community/groups": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const targetCareer = url.searchParams.get("target_career")?.trim() || null;
+        const experienceLevel = url.searchParams.get("experience_level")?.trim() || null;
+        if (req.method === "GET") {
+          let q = supabase.from("study_groups").select("id, name, description, roadmap_id, target_career, experience_level, created_by_user_id, created_at");
+          if (targetCareer) q = q.eq("target_career", targetCareer);
+          if (experienceLevel) q = q.eq("experience_level", experienceLevel);
+          const { data: groups, error } = await q.order("created_at", { ascending: false }).limit(50);
+          if (error) throw error;
+          const creatorIds = [...new Set((groups ?? []).map((g: { created_by_user_id: string }) => g.created_by_user_id))];
+          const { data: creators } = creatorIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", creatorIds) : { data: [] };
+          const creatorMap = new Map((creators ?? []).map((c: { user_id: string; display_name?: string; avatar_url?: string }) => [c.user_id, c]));
+          const { data: memberCounts } = await supabase.from("study_group_members").select("group_id");
+          const countMap = new Map<string, number>();
+          for (const m of memberCounts ?? []) {
+            const gid = (m as { group_id: string }).group_id;
+            countMap.set(gid, (countMap.get(gid) ?? 0) + 1);
+          }
+          const { data: myMemberships } = await supabase.from("study_group_members").select("group_id").eq("user_id", user!.id);
+          const myGroupIds = new Set((myMemberships ?? []).map((m: { group_id: string }) => m.group_id));
+          const list = (groups ?? []).map((g: { id: string; name: string; description?: string; roadmap_id?: string; target_career?: string; experience_level?: string; created_by_user_id: string; created_at: string }) => {
+            const creator = creatorMap.get(g.created_by_user_id);
+            return {
+              id: g.id,
+              name: g.name,
+              description: g.description ?? null,
+              roadmap_id: g.roadmap_id ?? null,
+              target_career: g.target_career ?? null,
+              experience_level: g.experience_level ?? null,
+              created_by_user_id: g.created_by_user_id,
+              created_at: g.created_at,
+              creator_name: creator?.display_name ?? null,
+              creator_avatar: creator?.avatar_url ?? null,
+              member_count: countMap.get(g.id) ?? 0,
+              is_member: myGroupIds.has(g.id),
+            };
+          });
+          return jsonResponse(list);
+        }
+        if (req.method === "POST") {
+          const name = typeof (body as { name?: string }).name === "string" ? String((body as { name: string }).name).trim() : "";
+          if (!name || name.length > 200) return jsonResponse({ error: "Group name is required (max 200 characters)" }, 400);
+          const description = typeof (body as { description?: string }).description === "string" ? String((body as { description: string }).description).trim().slice(0, 1000) : null;
+          const modEnabled = Deno.env.get("COMMUNITY_MODERATION_ENABLED") !== "false";
+          if (modEnabled) {
+            const groupText = name + "\n\n" + (description ?? "");
+            const mod = await moderateContent(groupText);
+            if (!mod.allowed) {
+              return jsonResponse({
+                error: "Group name or description not allowed",
+                reason: mod.reason ?? "Content violates community guidelines.",
+              }, 400);
+            }
+          }
+          const roadmapId = typeof (body as { roadmap_id?: string }).roadmap_id === "string" && UUID_REGEX.test((body as { roadmap_id: string }).roadmap_id) ? (body as { roadmap_id: string }).roadmap_id : null;
+          const targetCareerBody = typeof (body as { target_career?: string }).target_career === "string" ? String((body as { target_career: string }).target_career).trim().slice(0, 200) : null;
+          const experienceLevelBody = typeof (body as { experience_level?: string }).experience_level === "string" ? String((body as { experience_level: string }).experience_level).trim().slice(0, 100) : null;
+          const { data: inserted, error } = await supabase.from("study_groups").insert({
+            name,
+            description,
+            roadmap_id: roadmapId,
+            target_career: targetCareerBody,
+            experience_level: experienceLevelBody,
+            created_by_user_id: user!.id,
+          }).select("id, name, description, created_by_user_id, created_at").single();
+          if (error) throw error;
+          await supabase.from("study_group_members").insert({ group_id: inserted.id, user_id: user!.id, role: "admin" });
+          return jsonResponse(inserted);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "community/groups/top-by-streak": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const limit = Math.min(20, Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10)));
+        const todayUtc = new Date().toISOString().slice(0, 10);
+        const { data: groups } = await supabase.from("study_groups").select("id, name").limit(100);
+        const { data: allMembers } = await supabase.from("study_group_members").select("group_id, user_id");
+        const groupMembers = new Map<string, string[]>();
+        for (const m of allMembers ?? []) {
+          const gid = (m as { group_id: string }).group_id;
+          const uid = (m as { user_id: string }).user_id;
+          if (!groupMembers.has(gid)) groupMembers.set(gid, []);
+          groupMembers.get(gid)!.push(uid);
+        }
+        const allUserIds = [...new Set((allMembers ?? []).map((m: { user_id: string }) => m.user_id))];
+        const daysBack = 60;
+        const startDate = new Date(todayUtc + "T12:00:00Z");
+        startDate.setUTCDate(startDate.getUTCDate() - daysBack);
+        const startStr = startDate.toISOString().slice(0, 10);
+        const { data: activityRows } = allUserIds.length
+          ? await supabase.from("study_activity").select("user_id, activity_date").in("user_id", allUserIds).gte("activity_date", startStr).lte("activity_date", todayUtc)
+          : { data: [] };
+        const userDates = new Map<string, Set<string>>();
+        for (const r of activityRows ?? []) {
+          const uid = (r as { user_id: string }).user_id;
+          const d = (r as { activity_date: string }).activity_date;
+          if (!userDates.has(uid)) userDates.set(uid, new Set());
+          userDates.get(uid)!.add(d);
+        }
+        const results: { id: string; name: string; member_count: number; group_streak: number }[] = [];
+        for (const g of groups ?? []) {
+          const memberIds = groupMembers.get((g as { id: string }).id) ?? [];
+          if (memberIds.length === 0) continue;
+          let streak = 0;
+          let d = todayUtc;
+          for (let i = 0; i < daysBack; i++) {
+            const studied = memberIds.every((uid) => userDates.get(uid)?.has(d));
+            if (!studied) break;
+            streak++;
+            d = prevDay(d);
+          }
+          results.push({
+            id: (g as { id: string }).id,
+            name: (g as { name: string }).name,
+            member_count: memberIds.length,
+            group_streak: streak,
+          });
+        }
+        results.sort((a, b) => b.group_streak - a.group_streak);
+        return jsonResponse(results.slice(0, limit));
+      }
+
+      case "community/groups/id": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const groupId = pathSegments[2];
+        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: group, error } = await supabase.from("study_groups").select("*").eq("id", groupId).single();
+        if (error || !group) return jsonResponse({ error: "Group not found" }, 404);
+        const { data: members } = await supabase.from("study_group_members").select("user_id, role, joined_at").eq("group_id", groupId);
+        const userIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
+        const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
+        const profileMap = new Map((profs ?? []).map((p: { user_id: string; display_name?: string; avatar_url?: string }) => [p.user_id, p]));
+        const membersWithProfiles = (members ?? []).map((m: { user_id: string; role: string; joined_at: string }) => ({
+          user_id: m.user_id,
+          role: m.role,
+          joined_at: m.joined_at,
+          display_name: profileMap.get(m.user_id)?.display_name ?? null,
+          avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
+        }));
+        return jsonResponse({ ...group, members: membersWithProfiles });
+      }
+
+      case "community/groups/join": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const groupId = pathSegments[2];
+        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        const { error } = await supabase.from("study_group_members").upsert({ group_id: groupId, user_id: user!.id, role: "member" }, { onConflict: "group_id,user_id" });
+        if (error) throw error;
+        await awardBadge(supabase, user!.id, "group_member");
+        return jsonResponse({ success: true });
+      }
+
+      case "community/groups/leave": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const groupId = pathSegments[2];
+        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        await supabase.from("study_group_members").delete().eq("group_id", groupId).eq("user_id", user!.id);
+        return jsonResponse({ success: true });
+      }
+
+      case "community/groups/members": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        const groupId = pathSegments[2];
+        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        const { data: members } = await supabase.from("study_group_members").select("user_id, role, joined_at").eq("group_id", groupId);
+        const userIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
+        const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
+        const profileMap = new Map((profs ?? []).map((p: { user_id: string; display_name?: string; avatar_url?: string }) => [p.user_id, p]));
+        const list = (members ?? []).map((m: { user_id: string; role: string; joined_at: string }) => ({
+          user_id: m.user_id,
+          role: m.role,
+          joined_at: m.joined_at,
+          display_name: profileMap.get(m.user_id)?.display_name ?? null,
+          avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
+        }));
+        return jsonResponse(list);
+      }
+
+      case "community/chat/room": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Chat is for Premium subscribers." }, 402);
+        const studyGroupId = pathSegments[3];
+        if (!studyGroupId) return jsonResponse({ error: "Study group ID required" }, 400);
+        const { data: member } = await supabase.from("study_group_members").select("user_id").eq("group_id", studyGroupId).eq("user_id", user!.id).single();
+        if (!member) return jsonResponse({ error: "You must be a member of this group to access chat" }, 403);
+        let { data: room } = await supabase.from("chat_rooms").select("id").eq("study_group_id", studyGroupId).single();
+        if (!room) {
+          const { data: inserted, error } = await supabase.from("chat_rooms").insert({ study_group_id: studyGroupId }).select("id").single();
+          if (error) throw error;
+          room = inserted;
+        }
+        return jsonResponse({ room_id: (room as { id: string }).id });
+      }
+
+      case "community/chat/messages": {
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Chat is for Premium subscribers." }, 402);
+        const roomId = pathSegments[3];
+        if (!roomId) return jsonResponse({ error: "Room ID required" }, 400);
+        const { data: room } = await supabase.from("chat_rooms").select("study_group_id").eq("id", roomId).single();
+        if (!room?.study_group_id) return jsonResponse({ error: "Room not found" }, 404);
+        const { data: member } = await supabase.from("study_group_members").select("user_id").eq("group_id", room.study_group_id).eq("user_id", user!.id).single();
+        if (!member) return jsonResponse({ error: "You must be a member of this group to access chat" }, 403);
+        if (req.method === "GET") {
+          const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
+          const { data: messages, error } = await supabase.from("chat_messages").select("id, room_id, user_id, body, created_at").eq("room_id", roomId).order("created_at", { ascending: true }).limit(limit);
+          if (error) throw error;
+          const userIds = [...new Set((messages ?? []).map((m: { user_id: string }) => m.user_id))];
+          const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
+          const profileMap = new Map((profs ?? []).map((p: { user_id: string; display_name?: string; avatar_url?: string }) => [p.user_id, p]));
+          const list = (messages ?? []).map((m: { id: string; room_id: string; user_id: string; body: string; created_at: string }) => ({
+            id: m.id,
+            room_id: m.room_id,
+            user_id: m.user_id,
+            body: m.body,
+            created_at: m.created_at,
+            display_name: profileMap.get(m.user_id)?.display_name ?? null,
+            avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
+          }));
+          return jsonResponse(list);
+        }
+        if (req.method === "POST") {
+          const bodyText = typeof (body as { body?: string }).body === "string" ? String((body as { body: string }).body).trim().slice(0, 4000) : "";
+          if (!bodyText) return jsonResponse({ error: "Message body required" }, 400);
+          const modEnabled = Deno.env.get("COMMUNITY_MODERATION_ENABLED") !== "false";
+          if (modEnabled) {
+            const mod = await moderateContent(bodyText);
+            if (!mod.allowed) {
+              return jsonResponse({
+                error: "Message not allowed",
+                reason: mod.reason ?? "Content violates community guidelines.",
+              }, 400);
+            }
+          }
+          const { data: inserted, error } = await supabase.from("chat_messages").insert({ room_id: roomId, user_id: user!.id, body: bodyText }).select("id, room_id, user_id, body, created_at").single();
+          if (error) throw error;
+          return jsonResponse(inserted);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "community/badges": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: badges, error } = await supabase.from("badges").select("id, name, description, criteria").order("id");
+        if (error) throw error;
+        return jsonResponse(badges ?? []);
+      }
+
+      case "community/me/badges": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { data: rows, error } = await supabase.from("user_badges").select("badge_id, earned_at").eq("user_id", user!.id);
+        if (error) throw error;
+        const badgeIds = (rows ?? []).map((r: { badge_id: string }) => r.badge_id);
+        const { data: badgeDetails } = badgeIds.length ? await supabase.from("badges").select("id, name, description").in("id", badgeIds) : { data: [] };
+        const detailMap = new Map((badgeDetails ?? []).map((b: { id: string; name: string; description?: string }) => [b.id, b]));
+        const list = (rows ?? []).map((r: { badge_id: string; earned_at: string }) => ({
+          badge_id: r.badge_id,
+          earned_at: r.earned_at,
+          name: detailMap.get(r.badge_id)?.name ?? r.badge_id,
+          description: detailMap.get(r.badge_id)?.description ?? null,
+        }));
+        return jsonResponse(list);
+      }
+
+      case "contact": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const ip = getClientIp(req);
+        if (!checkPublicRateLimit(`contact:${ip}`, CONTACT_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        const name = typeof body.name === "string" ? body.name.trim() : "";
+        const email = typeof body.email === "string" ? body.email.trim() : "";
+        const phone = typeof body.phone === "string" ? body.phone.trim() : null;
+        const company = typeof body.company === "string" ? body.company.trim() : null;
+        const topicRaw = typeof body.topic === "string" ? body.topic.trim().toLowerCase() : "";
+        const allowedTopics = ["general", "sales", "support", "partnership", "feedback", "other"];
+        const topic = allowedTopics.includes(topicRaw) ? topicRaw : "general";
+        const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+        const message = typeof body.message === "string" ? body.message.trim() : "";
+        if (!name || name.length > 100) return jsonResponse({ error: "Name is required (max 100 characters)" }, 400);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return jsonResponse({ error: "Valid email required (max 255 characters)" }, 400);
+        if (phone !== null && phone.length > 30) return jsonResponse({ error: "Phone max 30 characters" }, 400);
+        if (company !== null && company.length > 150) return jsonResponse({ error: "Company max 150 characters" }, 400);
+        if (!subject || subject.length > 200) return jsonResponse({ error: "Subject is required (max 200 characters)" }, 400);
+        if (message.length < 10 || message.length > 2000) return jsonResponse({ error: "Message must be 10–2000 characters" }, 400);
+        const { error: insertErr } = await supabase.from("contact_requests").insert({
+          name,
+          email,
+          phone: phone || null,
+          company: company || null,
+          topic,
+          subject,
+          message,
+        });
+        if (insertErr) {
+          logError("api", "contact: insert contact_requests failed", insertErr);
+          return jsonResponse({ error: "Failed to submit. Please try again." }, 500);
+        }
+        const CONTACT_TO_EMAIL = Deno.env.get("CONTACT_TO_EMAIL") ?? "support@shyftcut.com";
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
+        const phoneLine = phone ? `<p><strong>Phone:</strong> ${phone}</p>` : "";
+        const companyLine = company ? `<p><strong>Company:</strong> ${company}</p>` : "";
+        const topicLabel = topic.charAt(0).toUpperCase() + topic.slice(1);
+        if (RESEND_API_KEY) {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+            body: JSON.stringify({
+              from: FROM_EMAIL,
+              to: CONTACT_TO_EMAIL,
+              reply_to: email,
+              subject: `[Contact · ${topicLabel}] ${subject}`,
+              html: `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p>${phoneLine}${companyLine}<p><strong>Topic:</strong> ${topicLabel}</p><p><strong>Subject:</strong> ${subject}</p><hr /><p>${message.replace(/\n/g, "<br />")}</p>`,
+            }),
+          });
+          if (!res.ok) return jsonResponse({ error: "Failed to send message. Please try again." }, 500);
+        }
+        return jsonResponse({ ok: true });
+      }
+
+      case "support": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (!checkPublicRateLimit(`support:${user!.id}`, SUPPORT_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        const subject = typeof body.subject === "string" ? body.subject.trim() : "";
+        const message = typeof body.message === "string" ? body.message.trim() : "";
+        if (!subject || subject.length > 200) return jsonResponse({ error: "Subject is required (max 200 characters)" }, 400);
+        if (message.length < 10 || message.length > 2000) return jsonResponse({ error: "Message must be 10–2000 characters" }, 400);
+        const email = (user!.email ?? "").trim() || "";
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: "Valid account email required" }, 400);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        const priority = isPaidTier(tier) ? "premium" : "free";
+        const { error: insertErr } = await supabase.from("support_requests").insert({
+          user_id: user!.id,
+          email,
+          subject,
+          message,
+          priority,
+          status: "open",
+        });
+        if (insertErr) return jsonResponse({ error: "Failed to submit support request. Please try again." }, 500);
+        const CONTACT_TO_EMAIL = Deno.env.get("CONTACT_TO_EMAIL") ?? "support@shyftcut.com";
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
+        if (RESEND_API_KEY) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+            body: JSON.stringify({
+              from: FROM_EMAIL,
+              to: CONTACT_TO_EMAIL,
+              reply_to: email,
+              subject: `[Support${priority === "premium" ? " · Priority" : ""}] ${subject}`,
+              html: `<p><strong>From:</strong> ${email} (${priority})</p><p><strong>Subject:</strong> ${subject}</p><hr /><p>${message.replace(/\n/g, "<br />")}</p>`,
+            }),
+          });
+        }
+        return jsonResponse({ ok: true });
+      }
+
+      case "newsletter": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const ip = getClientIp(req);
+        if (!checkPublicRateLimit(`newsletter:${ip}`, NEWSLETTER_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return jsonResponse({ error: "Valid email required" }, 400);
+        const { error: insertErr } = await supabase.from("newsletter_subscribers").insert({ email });
+        if (insertErr) {
+          if (insertErr.code === "23505") return jsonResponse({ error: "Already subscribed" }, 400);
+          throw insertErr;
+        }
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
+        if (RESEND_API_KEY) {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+            body: JSON.stringify({
+              from: FROM_EMAIL,
+              to: email,
+              subject: "You're subscribed – Shyftcut",
+              html: "<p>Thanks for subscribing! You'll get career tips and Shyftcut updates.</p><p>— The Shyftcut team</p>",
+            }),
+          });
+        }
+        return jsonResponse({ ok: true });
+      }
+
+      case "checkout/create": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const polarAccessToken = Deno.env.get("POLAR_ACCESS_TOKEN");
+        if (!polarAccessToken) {
+          logError("api", "checkout/create: POLAR_ACCESS_TOKEN not set", undefined);
+          return jsonResponse({ error: "Payment system not configured. Please try again later." }, 503);
+        }
+        try {
+        await ensureProfileAndSubscription(supabase, user!.id, user!.email, user!.user_metadata?.display_name as string | undefined);
+        const { planId, productId, successUrl, returnUrl, metadata: bodyMetadata } = body as { planId?: string; productId?: string; priceId?: string; successUrl?: string; returnUrl?: string; cancelUrl?: string; metadata?: Record<string, string> };
+        const productIdStr = typeof productId === "string" && productId.trim() ? productId.trim() : null;
+        if (!productIdStr) return jsonResponse({ error: "productId is required" }, 400);
+        const origin = req.headers.get("origin") || req.headers.get("referer") || "";
+        const baseUrl = origin ? new URL(origin).origin : "https://shyftcut.com";
+        const isSameOrigin = (urlStr: string): boolean => {
+          try {
+            const u = new URL(urlStr);
+            const base = new URL(baseUrl);
+            return u.origin === base.origin;
+          } catch {
+            return false;
+          }
+        };
+        let successUrlStr = typeof successUrl === "string" && successUrl.trim() ? successUrl.trim() : undefined;
+        let returnUrlStr = typeof returnUrl === "string" && returnUrl.trim() ? returnUrl.trim() : undefined;
+        if (successUrlStr && !isSameOrigin(successUrlStr)) {
+          successUrlStr = undefined;
+        }
+        if (returnUrlStr && !isSameOrigin(returnUrlStr)) {
+          returnUrlStr = undefined;
+        }
+        const { data: sub, error: subSelectErr } = await supabase.from("subscriptions").select("polar_customer_id").eq("user_id", user!.id).single();
+        if (subSelectErr && subSelectErr.code !== "PGRST116") {
+          logError("api", "checkout/create: subscriptions select failed", new Error(subSelectErr.message));
+          return jsonResponse({ error: "Unable to load subscription. Please try again." }, 500);
+        }
+        let polarCustomerId = sub?.polar_customer_id ?? null;
+        const userEmail = user!.email?.trim() || undefined;
+        if (!polarCustomerId && userEmail) {
+          const customerRes = await fetch("https://api.polar.sh/v1/customers", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${polarAccessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ email: userEmail, external_id: user!.id, metadata: { user_id: user!.id } }),
+          });
+          const customerText = await customerRes.text();
+          if (customerRes.ok) {
+            try {
+              const customer = (customerText ? JSON.parse(customerText) : {}) as { id?: string };
+              if (customer?.id) {
+                polarCustomerId = customer.id;
+                const { error: updateErr } = await supabase.from("subscriptions").update({ polar_customer_id: polarCustomerId }).eq("user_id", user!.id);
+                if (updateErr) logError("api", "checkout/create: subscriptions update polar_customer_id failed", new Error(updateErr.message));
+              }
+            } catch {
+              logError("api", "checkout/create: customer parse error", new Error(customerText?.slice(0, 200)));
+            }
+          } else {
+            logError("api", "checkout/create: Polar customers API error", new Error(`${customerRes.status} ${customerText?.slice(0, 300)}`));
+          }
+        }
+        if (!polarCustomerId && !userEmail) {
+          return jsonResponse({ error: "Email required for checkout. Add an email to your account." }, 400);
+        }
+        const checkoutMetadata: Record<string, unknown> = { user_id: user!.id, plan_id: planId ?? undefined };
+        if (bodyMetadata?.from) checkoutMetadata.from = bodyMetadata.from;
+        if (bodyMetadata?.career_dna_result_id) checkoutMetadata.career_dna_result_id = bodyMetadata.career_dna_result_id;
+        const checkoutPayload: Record<string, unknown> = {
+          products: [productIdStr],
+          success_url: successUrlStr ?? `${baseUrl}/checkout/success`,
+          return_url: returnUrlStr ?? `${baseUrl}/upgrade`,
+          metadata: checkoutMetadata,
+        };
+        const careerDnaDiscountId = Deno.env.get("CAREER_DNA_DISCOUNT_ID");
+        if (bodyMetadata?.from === "careerdna" && careerDnaDiscountId) {
+          checkoutPayload.discount_id = careerDnaDiscountId;
+        }
+        if (polarCustomerId) checkoutPayload.customer_id = polarCustomerId;
+        else checkoutPayload.customer_email = userEmail;
+        const checkoutRes = await fetch("https://api.polar.sh/v1/checkouts", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${polarAccessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(checkoutPayload),
+        });
+        const responseText = await checkoutRes.text();
+        if (!checkoutRes.ok) {
+          let errMessage = "Failed to create checkout session";
+          try {
+            const errJson = responseText ? (JSON.parse(responseText) as { detail?: string | unknown[]; message?: string }) : {};
+            if (typeof errJson.message === "string" && errJson.message) errMessage = errJson.message;
+            else if (typeof errJson.detail === "string") errMessage = errJson.detail;
+            else if (Array.isArray(errJson.detail) && errJson.detail.length > 0) {
+              const first = errJson.detail[0];
+              errMessage = typeof first === "object" && first !== null && "msg" in first ? String((first as { msg?: string }).msg) : String(first);
+            }
+          } catch {
+            /* use default */
+          }
+          logError("api", "checkout/create: Polar checkouts API error", new Error(`${checkoutRes.status} ${errMessage} | ${responseText?.slice(0, 200)}`));
+          const status = checkoutRes.status >= 500 ? 502 : checkoutRes.status >= 400 ? checkoutRes.status : 500;
+          return jsonResponse({ error: errMessage }, status);
+        }
+        let checkout: { url?: string; checkout?: { url?: string } };
+        try {
+          checkout = responseText ? (JSON.parse(responseText) as { url?: string; checkout?: { url?: string } }) : {};
+        } catch (e) {
+          logError("api", "checkout/create: invalid checkout response JSON", e);
+          return jsonResponse({ error: "Invalid response from payment provider" }, 502);
+        }
+        const checkoutUrl = checkout?.url ?? checkout?.checkout?.url ?? null;
+        if (!checkoutUrl) {
+          logError("api", "checkout/create: Polar response missing url", new Error(responseText?.slice(0, 200)));
+          return jsonResponse({ error: "Checkout URL not returned. Please try again." }, 502);
+        }
+        return jsonResponse({ checkoutUrl });
+        } catch (e) {
+          logError("api", "checkout/create: unhandled error", e);
+          return jsonResponse({ error: "Failed to create checkout. Please try again." }, 502);
+        }
+      }
+
+      case "checkout/portal": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const polarAccessToken = Deno.env.get("POLAR_ACCESS_TOKEN");
+        if (!polarAccessToken) return jsonResponse({ error: "Payment system not configured" }, 500);
+        const returnUrl = url.searchParams.get("returnUrl") ?? req.headers.get("referer") ?? "/profile";
+        const { data: sub } = await supabase.from("subscriptions").select("polar_customer_id").eq("user_id", user!.id).single();
+        const polarCustomerId = sub?.polar_customer_id;
+        if (!polarCustomerId) return jsonResponse({ error: "No subscription found. Subscribe first to manage your plan." }, 404);
+        const sessionRes = await fetch("https://api.polar.sh/v1/customer-sessions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${polarAccessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ customer_id: polarCustomerId, return_url: returnUrl }),
+        });
+        if (!sessionRes.ok) return jsonResponse({ error: "Failed to create customer portal session" }, 500);
+        const session = (await sessionRes.json()) as { customer_portal_url?: string };
+        return jsonResponse({ url: session.customer_portal_url });
+      }
+
+      case "courses/id": {
+        if (req.method !== "PATCH") return jsonResponse({ error: "Method not allowed" }, 405);
+        const id = pathSegments[1] ?? url.searchParams.get("id") ?? (body.id as string);
+        if (!id) return jsonResponse({ error: "id required" }, 400);
+        const { is_saved, is_completed } = body as { is_saved?: boolean; is_completed?: boolean };
+        const updates: Record<string, unknown> = {};
+        if (is_saved !== undefined) updates.is_saved = is_saved;
+        if (is_completed !== undefined) updates.is_completed = is_completed;
+        if (Object.keys(updates).length > 0) {
+          const { error } = await supabase.from("course_recommendations").update(updates).eq("id", id).eq("user_id", user!.id);
+          if (error) throw error;
+        }
+        return jsonResponse({ success: true });
+      }
+
+      case "notes": {
+        if (req.method === "GET") {
+          const roadmapWeekId = url.searchParams.get("roadmap_week_id") ?? undefined;
+          let q = supabase.from("notes").select("*").eq("user_id", user!.id).order("updated_at", { ascending: false });
+          if (roadmapWeekId) q = q.eq("roadmap_week_id", roadmapWeekId);
+          const { data, error } = await q;
+          if (error) throw error;
+          return jsonResponse(data ?? []);
+        }
+        if (req.method === "POST") {
+          const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+          const tier = (sub?.tier ?? "free") as string;
+          if (!isPaidTier(tier)) {
+            const { count: notesCount } = await supabase.from("notes").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
+            if ((notesCount ?? 0) >= NOTES_LIMIT_FREE) {
+              return jsonResponse({ error: "Notes limit reached. Upgrade for unlimited notes.", limit_code: "notes_limit" }, 402);
+            }
+          }
+          const { roadmap_week_id, course_recommendation_id, title, content } = body as { roadmap_week_id?: string; course_recommendation_id?: string; title?: string; content?: string };
+          const titleStr = trimStr(title ?? "", 500);
+          const { data, error } = await supabase
+            .from("notes")
+            .insert({
+              user_id: user!.id,
+              roadmap_week_id: roadmap_week_id || null,
+              course_recommendation_id: course_recommendation_id || null,
+              title: titleStr,
+              content: trimStr(content ?? "", 50000),
+            })
+            .select()
+            .single();
+          if (error) throw error;
+          return jsonResponse(data);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "notes/id": {
+        const noteId = pathSegments[1];
+        if (!noteId) return jsonResponse({ error: "Note id required" }, 400);
+        if (req.method === "PATCH") {
+          const { title, content, roadmap_week_id, course_recommendation_id } = body as { title?: string; content?: string; roadmap_week_id?: string; course_recommendation_id?: string };
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          if (title !== undefined) updates.title = trimStr(title, 500);
+          if (content !== undefined) updates.content = trimStr(content, 50000);
+          if (roadmap_week_id !== undefined) updates.roadmap_week_id = roadmap_week_id || null;
+          if (course_recommendation_id !== undefined) updates.course_recommendation_id = course_recommendation_id || null;
+          const { data, error } = await supabase.from("notes").update(updates).eq("id", noteId).eq("user_id", user!.id).select().single();
+          if (error) throw error;
+          return jsonResponse(data);
+        }
+        if (req.method === "DELETE") {
+          const { error } = await supabase.from("notes").delete().eq("id", noteId).eq("user_id", user!.id);
+          if (error) throw error;
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "tasks": {
+        if (req.method === "GET") {
+          const roadmapWeekId = url.searchParams.get("roadmap_week_id") ?? undefined;
+          let q = supabase.from("tasks").select("*").eq("user_id", user!.id).order("created_at", { ascending: true });
+          if (roadmapWeekId) q = q.eq("roadmap_week_id", roadmapWeekId);
+          const { data, error } = await q;
+          if (error) throw error;
+          return jsonResponse(data ?? []);
+        }
+        if (req.method === "POST") {
+          const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+          const tier = (sub?.tier ?? "free") as string;
+          if (!isPaidTier(tier)) {
+            const { count: tasksCount } = await supabase.from("tasks").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
+            if ((tasksCount ?? 0) >= TASKS_LIMIT_FREE) {
+              return jsonResponse({ error: "Tasks limit reached. Upgrade for unlimited tasks.", limit_code: "tasks_limit" }, 402);
+            }
+          }
+          const { roadmap_week_id, course_recommendation_id, title, notes, due_date, source } = body as { roadmap_week_id?: string; course_recommendation_id?: string; title?: string; notes?: string; due_date?: string; source?: "user" | "ai" };
+          const titleStr = trimStr(title ?? "", 500);
+          if (!titleStr) return jsonResponse({ error: "title required" }, 400);
+          const taskSource = source === "ai" ? "ai" : "user";
+          const { data, error } = await supabase
+            .from("tasks")
+            .insert({
+              user_id: user!.id,
+              roadmap_week_id: roadmap_week_id || null,
+              course_recommendation_id: course_recommendation_id || null,
+              title: titleStr,
+              notes: trimStr(notes ?? "", 5000),
+              due_date: due_date || null,
+              source: taskSource,
+            })
+            .select()
+            .single();
+          if (error) throw error;
+          return jsonResponse(data);
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "tasks/id": {
+        const taskId = pathSegments[1];
+        if (!taskId) return jsonResponse({ error: "Task id required" }, 400);
+        if (req.method === "PATCH") {
+          const { title, notes, due_date, completed, roadmap_week_id, course_recommendation_id } = body as { title?: string; notes?: string; due_date?: string | null; completed?: boolean; roadmap_week_id?: string; course_recommendation_id?: string };
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          if (title !== undefined) updates.title = trimStr(title, 500);
+          if (notes !== undefined) updates.notes = trimStr(notes, 5000);
+          if (due_date !== undefined) updates.due_date = due_date || null;
+          if (completed !== undefined) {
+            updates.completed = completed;
+            updates.completed_at = completed ? new Date().toISOString() : null;
+          }
+          if (roadmap_week_id !== undefined) updates.roadmap_week_id = roadmap_week_id || null;
+          if (course_recommendation_id !== undefined) updates.course_recommendation_id = course_recommendation_id || null;
+          const { data, error } = await supabase.from("tasks").update(updates).eq("id", taskId).eq("user_id", user!.id).select().single();
+          if (error) throw error;
+          return jsonResponse(data);
+        }
+        if (req.method === "DELETE") {
+          const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("user_id", user!.id);
+          if (error) throw error;
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "tasks/suggest": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { roadmap_week_id } = body as { roadmap_week_id?: string };
+        if (!roadmap_week_id || typeof roadmap_week_id !== "string") return jsonResponse({ error: "roadmap_week_id required" }, 400);
+        const weekIdSanitized = roadmap_week_id.trim().slice(0, 36);
+        if (!UUID_REGEX.test(weekIdSanitized)) return jsonResponse({ error: "Invalid roadmap_week_id" }, 400);
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          const startOfToday = new Date();
+          startOfToday.setHours(0, 0, 0, 0);
+          const todayIso = startOfToday.toISOString();
+          const { count: aiSuggestionsToday } = await supabase
+            .from("ai_suggest_calls")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user!.id)
+            .gte("created_at", todayIso);
+          if ((aiSuggestionsToday ?? 0) >= AI_SUGGEST_PER_DAY_FREE) {
+            return jsonResponse({ error: "Daily AI suggestions limit reached. Upgrade for unlimited.", limit_code: "ai_suggestions_limit" }, 402);
+          }
+        }
+        const { data: week, error: weekError } = await supabase
+          .from("roadmap_weeks")
+          .select("id, title, description, skills_to_learn, deliverables")
+          .eq("id", weekIdSanitized)
+          .eq("user_id", user!.id)
+          .single();
+        if (weekError || !week) return jsonResponse({ error: "Week not found" }, 404);
+        const { data: courses } = await supabase
+          .from("course_recommendations")
+          .select("title")
+          .eq("roadmap_week_id", weekIdSanitized)
+          .eq("user_id", user!.id);
+        const courseTitles = (courses ?? []).map((c: { title: string }) => c.title);
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const systemPrompt = `You are a study coach. Given a learning week from a career roadmap, suggest 3 to 5 concrete, actionable tasks the learner can do this week. Be specific and tie tasks to the week's skills, deliverables, and courses.`;
+        const userPrompt = `<context>
+Week: ${(week as { title: string }).title}
+Description: ${(week as { description?: string }).description ?? ""}
+Skills to learn: ${((week as { skills_to_learn?: string[] }).skills_to_learn ?? []).join(", ")}
+Deliverables: ${((week as { deliverables?: string[] }).deliverables ?? []).join(", ")}
+Courses: ${courseTitles.join(", ")}
+</context>
+
+Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1 of [Course X]", "Draft outline for [deliverable]"). Return only the list of tasks.`;
+        const suggestParams = {
+          type: "object",
+          properties: {
+            tasks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { title: { type: "string" }, description: { type: "string" } },
+                required: ["title"],
+              },
+            },
+          },
+          required: ["tasks"],
+        };
+        const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            tools: [{ functionDeclarations: [openAiFunctionToGeminiDeclaration("suggest_tasks", "Suggest study tasks for this week", suggestParams)] }],
+            toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["suggest_tasks"] } },
+            generationConfig: { thinkingConfig: { thinkingLevel: "low" }, temperature: 1.0, maxOutputTokens: 1024 },
+          }),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Try again later." }, 429);
+        if (!aiRes.ok) {
+          console.error("tasks/suggest AI error:", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "Failed to suggest tasks" }, 500);
+        }
+        const aiJson = (await aiRes.json()) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ functionCall?: { name?: string; args?: string } }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        const taskCands = aiJson.candidates ?? [];
+        const taskFinishCheck = checkGeminiFinishReason(taskCands, taskCands[0]?.finishReason);
+        if (!taskFinishCheck.ok) {
+          console.error("tasks/suggest: blocked finish reason", taskFinishCheck.finishReason);
+          return jsonResponse({ error: taskFinishCheck.userMessage ?? "Task suggestion was blocked. Please try again." }, 400);
+        }
+        if (!isOkFinishReasonForFunctionCall(taskCands[0]?.finishReason)) {
+          return jsonResponse({ error: "Invalid AI response format" }, 500);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "tasks/suggest");
+        const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+        const fnPart = parts.find((p: { functionCall?: { name?: string } }) => p.functionCall?.name === "suggest_tasks");
+        const argsStr = fnPart?.functionCall?.args;
+        if (!argsStr) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        const argsStrEnc = typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr);
+        if (new TextEncoder().encode(argsStrEnc).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        const parsed = JSON.parse(typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr)) as { tasks?: Array<{ title?: string; description?: string }> };
+        const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+        const suggestions = rawTasks
+          .filter((t) => t && typeof t.title === "string" && (t.title as string).trim())
+          .map((t) => ({ title: trimStr((t.title as string).trim(), 500), description: trimStr((t.description as string) ?? "", 1000) }));
+        await supabase.from("ai_suggest_calls").insert({ user_id: user!.id });
+        return jsonResponse({ suggestions });
+      }
+
+      case "chat/history": {
+        if (req.method !== "GET" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method === "DELETE") {
+          await supabase.from("chat_history").delete().eq("user_id", user!.id);
+          return jsonResponse({ success: true });
+        }
+        const { data: list } = await supabase
+          .from("chat_history")
+          .select("id, role, content, metadata, created_at")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: true })
+          .limit(50);
+        return jsonResponse(list ?? []);
+      }
+
+      case "chat/messages": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { role, content, metadata } = body as { role?: string; content?: string; metadata?: { thoughtSignature?: string } };
+        if (!role || content === undefined) return jsonResponse({ error: "role and content required" }, 400);
+        if (!["user", "assistant", "system"].includes(role)) return jsonResponse({ error: "role must be user, assistant, or system" }, 400);
+        const sanitizedContent = sanitizeUserText(content, MAX_CHAT_HISTORY_MESSAGE_LEN);
+        const row: { user_id: string; role: string; content: string; metadata?: Record<string, unknown> } = { user_id: user!.id, role, content: sanitizedContent };
+        if (metadata && typeof metadata === "object" && metadata.thoughtSignature) {
+          row.metadata = { thoughtSignature: sanitizeUserText(metadata.thoughtSignature, 4096) };
+        }
+        const { error } = await supabase.from("chat_history").insert(row);
+        if (error) throw error;
+        return jsonResponse({ success: true });
+      }
+
+      case "quiz/results": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { roadmap_week_id, score, total_questions, answers, feedback } = body as { roadmap_week_id?: string; score?: number; total_questions?: number; answers?: unknown; feedback?: string };
+        if (!roadmap_week_id || score === undefined || total_questions === undefined) return jsonResponse({ error: "roadmap_week_id, score, total_questions required" }, 400);
+        const { error } = await supabase.from("quiz_results").insert({
+          user_id: user!.id,
+          roadmap_week_id,
+          score,
+          total_questions,
+          answers: answers ?? {},
+          feedback: feedback ?? null,
+        });
+        if (error) throw error;
+        return jsonResponse({ success: true });
+      }
+
+      case "roadmap/generate": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
+        if (!profileData?.targetCareer) return jsonResponse({ error: "profileData is required" }, 400);
+        const targetCareer = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
+        if (!targetCareer) return jsonResponse({ error: "targetCareer is required" }, 400);
+        const safeProfile = {
+          ...profileData,
+          targetCareer,
+          jobTitle: sanitizeUserText(profileData.jobTitle, MAX_PROFILE_FIELD_LEN) || undefined,
+          industry: sanitizeUserText(profileData.industry, MAX_PROFILE_FIELD_LEN) || undefined,
+          experienceLevel: sanitizeUserText(profileData.experienceLevel, MAX_PROFILE_FIELD_LEN) || undefined,
+          skills: Array.isArray(profileData.skills) ? profileData.skills.slice(0, MAX_PROFILE_ARRAY_ITEMS).map((s) => sanitizeUserText(s, MAX_PROFILE_ARRAY_ITEM_LEN)).filter(Boolean) : [],
+          learningStyle: sanitizeUserText(profileData.learningStyle, MAX_PROFILE_FIELD_LEN) || undefined,
+          preferredPlatforms: Array.isArray(profileData.preferredPlatforms) ? profileData.preferredPlatforms.slice(0, MAX_PROFILE_ARRAY_ITEMS).map((s) => sanitizeUserText(s, MAX_PROFILE_ARRAY_ITEM_LEN)).filter(Boolean) : [],
+          weeklyHours: typeof profileData.weeklyHours === "number" && profileData.weeklyHours >= 1 && profileData.weeklyHours <= 168 ? profileData.weeklyHours : 10,
+          budget: sanitizeUserText(profileData.budget, MAX_PROFILE_FIELD_LEN) || undefined,
+          timeline: sanitizeUserText(profileData.timeline, 20) || undefined,
+          careerReason: sanitizeUserText(profileData.careerReason, MAX_DESCRIPTION_LEN) || undefined,
+        };
+        await ensureProfileAndSubscription(supabase, user!.id, user!.email, user!.user_metadata?.display_name as string | undefined);
+        const { data: profileRow } = await supabase.from("profiles").select("preferred_language").eq("user_id", user!.id).single();
+        const preferredLang = ((profileRow as { preferred_language?: string } | null)?.preferred_language ?? profileData?.preferredLanguage ?? "en").trim().toLowerCase();
+        const roadmapLang = preferredLang === "ar" ? "ar" : "en";
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          const { count: roadmapsCreated } = await supabase.from("roadmaps").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
+          if ((roadmapsCreated ?? 0) >= 1) return jsonResponse({ error: "Roadmap limit reached. Upgrade for unlimited roadmaps." }, 402);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const roadmapThinkingLevel = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
+        const useGrounding = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
+        const careerReasonLine = safeProfile.careerReason && String(safeProfile.careerReason).trim() ? `\nUser's motivation: ${String(safeProfile.careerReason).trim()}` : "";
+        const languageInstruction = roadmapLang === "ar"
+          ? "\n<language>Output the entire roadmap in Arabic (العربية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic.</language>"
+          : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
+        const groundingTaskLine = useGrounding
+          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
+          : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
+        const systemPrompt = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
+<context>
+The user is transitioning from "${safeProfile.jobTitle ?? ""}" in "${safeProfile.industry ?? ""}" to "${safeProfile.targetCareer}".
+Experience Level: ${safeProfile.experienceLevel ?? ""}
+Current Skills: ${(safeProfile.skills ?? []).join(", ")}
+Learning Style: ${safeProfile.learningStyle ?? ""}
+Preferred Platforms: ${(safeProfile.preferredPlatforms ?? []).join(", ")}
+Weekly Hours Available: ${safeProfile.weeklyHours ?? 10}
+Budget: ${safeProfile.budget ?? "Not specified"}
+Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
+</context>
+<task>Based on the information above, create a structured 12-week roadmap. ${groundingTaskLine}</task>${languageInstruction}`;
+        const roadmapBody: Record<string, unknown> = {
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: useGrounding ? "Generate my personalized 12-week career roadmap with course recommendations. Use search to find real course links." : "Generate my personalized 12-week career roadmap with course recommendations." }] }],
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: roadmapThinkingLevel },
+            temperature: 1.0,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+            responseJsonSchema: ROADMAP_RESPONSE_JSON_SCHEMA,
+          },
+        };
+        if (useGrounding) roadmapBody.tools = [{ google_search: {} }];
+        const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify(roadmapBody),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+        if (!aiRes.ok) {
+          console.error("AI gateway error:", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+        }
+        let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        try {
+          aiJson = (await aiRes.json()) as typeof aiJson;
+        } catch {
+          console.error("AI response was not valid JSON");
+          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+        }
+        const cands = aiJson.candidates ?? [];
+        const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+        if (!finishCheck.ok) {
+          console.error("roadmap generate: blocked finish reason", finishCheck.finishReason);
+          return jsonResponse({ error: finishCheck.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "roadmap/generate");
+        const groundingAuth = extractGroundingFromCandidate(cands[0]);
+        if (groundingAuth) {
+          console.log(`[roadmap/generate] grounding: ${groundingAuth.queries.length} queries, ${groundingAuth.citations.length} citations`);
+        }
+        const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+        const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+        if (!jsonText.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (new TextEncoder().encode(jsonText).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        let roadmapData: Record<string, unknown>;
+        try {
+          roadmapData = JSON.parse(jsonText) as Record<string, unknown>;
+        } catch {
+          return jsonResponse({ error: "Invalid AI response format" }, 500);
+        }
+        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        const weeksArr = Array.isArray(roadmapData.weeks) ? roadmapData.weeks : [];
+        if (weeksArr.length < 1) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        for (const w of weeksArr) {
+          const week = w as Record<string, unknown>;
+          if (typeof week?.week_number !== "number" || typeof week?.title !== "string" || !Array.isArray(week?.skills_to_learn) || !Array.isArray(week?.deliverables) || typeof week?.estimated_hours !== "number" || !Array.isArray(week?.courses)) {
+            return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+          }
+          if (!isPaidTier(tier)) (week as Record<string, unknown>).courses = (Array.isArray(week.courses) ? week.courses : []).slice(0, 1);
+        }
+        cleanRoadmapOutput(roadmapData);
+        if (!roadmapData.title) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+        await fillMissingCourseUrls(roadmapData, roadmapLang, supabaseUrl, anonKey, 15);
+        await supabase.from("profiles").upsert({
+          user_id: user!.id,
+          display_name: (user!.email?.split("@")[0] ?? "User").trim().slice(0, 500),
+          job_title: safeProfile.jobTitle ?? null,
+          industry: safeProfile.industry ?? null,
+          experience_level: safeProfile.experienceLevel ?? null,
+          target_career: safeProfile.targetCareer ?? null,
+          skills: safeProfile.skills ?? [],
+          learning_style: safeProfile.learningStyle ?? null,
+          weekly_hours: safeProfile.weeklyHours ?? 10,
+          budget: safeProfile.budget ?? null,
+        }, { onConflict: "user_id" });
+        const { data: roadmapRow, error: roadmapErr } = await supabase.from("roadmaps").insert({
+          user_id: user!.id,
+          title: roadmapData.title,
+          description: (roadmapData.description ?? null) as string | null,
+          target_role: safeProfile.targetCareer,
+          duration_weeks: 12,
+          difficulty_level: (roadmapData.difficulty_level ?? "intermediate") as string,
+          status: "active",
+          progress_percentage: 0,
+        }).select("id, title").single();
+        if (roadmapErr || !roadmapRow?.id) return jsonResponse({ error: "Failed to save roadmap" }, 500);
+        await supabase.from("roadmaps").update({ status: "inactive" }).eq("user_id", user!.id).neq("id", roadmapRow.id);
+        const weeks = weeksArr as Array<Record<string, unknown>>;
+        for (const week of weeks) {
+          const { data: weekRow, error: weekErr } = await supabase.from("roadmap_weeks").insert({
+            roadmap_id: roadmapRow.id,
+            user_id: user!.id,
+            week_number: week.week_number,
+            title: week.title,
+            description: (week.description ?? null) as string | null,
+            skills_to_learn: (week.skills_to_learn ?? []) as string[],
+            deliverables: (week.deliverables ?? []) as string[],
+            estimated_hours: (week.estimated_hours ?? 10) as number,
+            is_completed: false,
+          }).select("id").single();
+          if (weekErr || !weekRow?.id) continue;
+          const courses = Array.isArray(week.courses) ? week.courses : [];
+          for (let i = 0; i < courses.length; i++) {
+            const c = courses[i] as Record<string, unknown>;
+            await supabase.from("course_recommendations").insert({
+              roadmap_week_id: weekRow.id,
+              user_id: user!.id,
+              title: c.title ?? "",
+              platform: trimStr(c.platform, MAX_STRING_ITEM_LEN),
+              url: (typeof c.url === "string" && c.url) ? c.url : null,
+              instructor: (c.instructor ?? null) as string | null,
+              duration: (c.duration ?? null) as string | null,
+              difficulty_level: (c.difficulty_level ?? null) as string | null,
+              price: (c.price ?? 0) as number,
+              rating: (c.rating ?? null) as number | null,
+              relevance_score: 100 - i * 10,
+              is_saved: false,
+              is_completed: false,
+            });
+          }
+        }
+        const responsePayload: { success: true; roadmapId: string; title: string; grounding?: { queries: string[]; citations: Array<{ uri: string; title?: string }> } } = { success: true, roadmapId: roadmapRow.id, title: roadmapRow.title };
+        if (groundingAuth) responsePayload.grounding = groundingAuth;
+        return jsonResponse(responsePayload);
+      }
+
+      case "roadmap/generate-guest": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const ip = getClientIp(req);
+        if (!checkGuestRateLimit(ip)) return jsonResponse({ error: "Too many previews. Try again in an hour." }, 429);
+        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
+        if (!profileData?.targetCareer) return jsonResponse({ error: "profileData is required" }, 400);
+        const targetCareerGuest = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
+        if (!targetCareerGuest) return jsonResponse({ error: "targetCareer is required" }, 400);
+        const preferredLangGuest = (profileData?.preferredLanguage ?? "en").trim().toLowerCase();
+        const roadmapLangGuest = preferredLangGuest === "ar" ? "ar" : "en";
+        const safeProfileGuest = {
+          ...profileData,
+          targetCareer: targetCareerGuest,
+          jobTitle: sanitizeUserText(profileData.jobTitle, MAX_PROFILE_FIELD_LEN) || undefined,
+          industry: sanitizeUserText(profileData.industry, MAX_PROFILE_FIELD_LEN) || undefined,
+          experienceLevel: sanitizeUserText(profileData.experienceLevel, MAX_PROFILE_FIELD_LEN) || undefined,
+          skills: Array.isArray(profileData.skills) ? profileData.skills.slice(0, MAX_PROFILE_ARRAY_ITEMS).map((s) => sanitizeUserText(s, MAX_PROFILE_ARRAY_ITEM_LEN)).filter(Boolean) : [],
+          learningStyle: sanitizeUserText(profileData.learningStyle, MAX_PROFILE_FIELD_LEN) || undefined,
+          preferredPlatforms: Array.isArray(profileData.preferredPlatforms) ? profileData.preferredPlatforms.slice(0, MAX_PROFILE_ARRAY_ITEMS).map((s) => sanitizeUserText(s, MAX_PROFILE_ARRAY_ITEM_LEN)).filter(Boolean) : [],
+          weeklyHours: typeof profileData.weeklyHours === "number" && profileData.weeklyHours >= 1 && profileData.weeklyHours <= 168 ? profileData.weeklyHours : 10,
+          budget: sanitizeUserText(profileData.budget, MAX_PROFILE_FIELD_LEN) || undefined,
+          timeline: sanitizeUserText(profileData.timeline, 20) || undefined,
+          careerReason: sanitizeUserText(profileData.careerReason, MAX_DESCRIPTION_LEN) || undefined,
+        };
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const roadmapThinkingLevelGuest = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
+        const useGroundingGuest = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
+        const careerReasonLineGuest = safeProfileGuest.careerReason && String(safeProfileGuest.careerReason).trim() ? `\nUser's motivation: ${String(safeProfileGuest.careerReason).trim()}` : "";
+        const languageInstructionGuest = roadmapLangGuest === "ar"
+          ? "\n<language>Output the entire roadmap in Arabic (العربية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic.</language>"
+          : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
+        const groundingTaskLineGuest = useGroundingGuest
+          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
+          : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
+        const systemPromptGuest = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
+<context>
+The user is transitioning from "${safeProfileGuest.jobTitle ?? ""}" in "${safeProfileGuest.industry ?? ""}" to "${safeProfileGuest.targetCareer}".
+Experience Level: ${safeProfileGuest.experienceLevel ?? ""}
+Current Skills: ${(safeProfileGuest.skills ?? []).join(", ")}
+Learning Style: ${safeProfileGuest.learningStyle ?? ""}
+Preferred Platforms: ${(safeProfileGuest.preferredPlatforms ?? []).join(", ")}
+Weekly Hours Available: ${safeProfileGuest.weeklyHours ?? 10}
+Budget: ${safeProfileGuest.budget ?? "Not specified"}
+Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
+</context>
+<task>Based on the information above, create a structured 12-week roadmap. ${groundingTaskLineGuest}</task>${languageInstructionGuest}`;
+        const roadmapBodyGuest: Record<string, unknown> = {
+          systemInstruction: { parts: [{ text: systemPromptGuest }] },
+          contents: [{ role: "user", parts: [{ text: useGroundingGuest ? "Generate my personalized 12-week career roadmap with course recommendations. Use search to find real course links." : "Generate my personalized 12-week career roadmap with course recommendations." }] }],
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: roadmapThinkingLevelGuest },
+            temperature: 1.0,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+            responseJsonSchema: ROADMAP_RESPONSE_JSON_SCHEMA,
+          },
+        };
+        if (useGroundingGuest) roadmapBodyGuest.tools = [{ google_search: {} }];
+        const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify(roadmapBodyGuest),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+        if (!aiRes.ok) {
+          console.error("AI gateway error (guest):", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+        }
+        let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        try {
+          aiJson = (await aiRes.json()) as typeof aiJson;
+        } catch {
+          console.error("AI response (guest) was not valid JSON");
+          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+        }
+        const candsGuest = aiJson.candidates ?? [];
+        const finishCheckGuest = checkGeminiFinishReason(candsGuest, candsGuest[0]?.finishReason);
+        if (!finishCheckGuest.ok) {
+          console.error("roadmap generate-guest: blocked finish reason", finishCheckGuest.finishReason);
+          return jsonResponse({ error: finishCheckGuest.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "roadmap/generate-guest");
+        const groundingGuest = extractGroundingFromCandidate(candsGuest[0]);
+        if (groundingGuest) {
+          console.log(`[roadmap/generate-guest] grounding: ${groundingGuest.queries.length} queries, ${groundingGuest.citations.length} citations`);
+        }
+        const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+        const jsonTextGuest = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+        if (!jsonTextGuest.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (new TextEncoder().encode(jsonTextGuest).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        let roadmapData: Record<string, unknown>;
+        try {
+          roadmapData = JSON.parse(jsonTextGuest) as Record<string, unknown>;
+        } catch {
+          return jsonResponse({ error: "Invalid AI response format" }, 500);
+        }
+        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        const weeksArr = Array.isArray(roadmapData.weeks) ? roadmapData.weeks : [];
+        if (weeksArr.length < 1) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        cleanRoadmapOutput(roadmapData);
+        const supabaseUrlGuest = Deno.env.get("SUPABASE_URL") ?? "";
+        const anonKeyGuest = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+        await fillMissingCourseUrls(roadmapData, roadmapLangGuest, supabaseUrlGuest, anonKeyGuest, 4);
+        const weeks = weeksArr.slice(0, 2).map((w: Record<string, unknown>) => ({
+          title: w.title ?? "",
+          description: w.description ?? "",
+          skills_to_learn: (Array.isArray(w.skills_to_learn) ? w.skills_to_learn : []).slice(0, 2),
+          deliverables: (Array.isArray(w.deliverables) ? w.deliverables : []).slice(0, 2),
+          courses: (Array.isArray(w.courses) ? w.courses : []).slice(0, 1).map((c: Record<string, unknown>) => ({
+            title: c.title ?? "",
+            platform: c.platform ?? "",
+            url: (typeof (c as { url?: string }).url === "string" && (c as { url?: string }).url) ? (c as { url: string }).url : null,
+          })),
+        }));
+        const guestPayload: { title: string; description: string | null; weeks: unknown[]; grounding?: { queries: string[]; citations: Array<{ uri: string; title?: string }> } } = {
+          title: roadmapData.title,
+          description: (roadmapData.description ?? null) as string | null,
+          weeks,
+        };
+        if (groundingGuest) guestPayload.grounding = groundingGuest;
+        return jsonResponse(guestPayload);
+      }
+
+      case "career-dna/analyze": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const ip = getClientIp(req);
+        if (!checkCareerDnaRateLimit(ip)) return jsonResponse({ error: "Too many quiz attempts. Try again in an hour." }, 429);
+        const { answers, currentField, isStudent, language, sessionId, squadSlug } = body as {
+          answers?: Record<string, string | number>;
+          currentField?: string;
+          isStudent?: boolean;
+          language?: string;
+          sessionId?: string;
+          squadSlug?: string;
+        };
+        if (!answers || typeof answers !== "object" || !currentField || typeof currentField !== "string" || !currentField.trim()) {
+          return jsonResponse({ error: "answers and currentField are required" }, 400);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const lang = (language ?? "en").toString().trim().toLowerCase() === "ar" ? "ar" : "en";
+        const allowedCareers = [
+          "Software Engineer", "Data Scientist", "Product Manager", "UX Designer",
+          "DevOps Engineer", "Cloud Architect", "Machine Learning Engineer",
+          "Frontend Developer", "Backend Developer", "Full Stack Developer",
+          "Cybersecurity Analyst", "Business Analyst", "Project Manager",
+          "Marketing Manager", "Sales Manager", "HR Manager", "Other",
+        ];
+        const careersList = allowedCareers.join(", ");
+        const langInstr = lang === "ar"
+          ? "\n<language>Output all user-facing string fields in natural, native Arabic (العربية). Use warm, encouraging tone. Avoid stiff or bureaucratic phrasing. Write as a native Arabic speaker would, not as a translation.</language>"
+          : "\n<language>Output all string fields in English.</language>";
+        const systemPrompt = `<role>You are a career psychologist AI. Analyze the user's quiz answers to determine how well their personality fits their declared field, and suggest better-fit careers.</role>
+<task>
+1. Map the answers to work-style dimensions (analytical, creative, collaborative, independent, structured, adaptive).
+2. Compute a match score (0-100) between their personality and their current field.
+3. Assign exactly one score tier by score: visionaries (90-100), naturals (75-89), explorers (60-74), shifters (45-59), awakeners (30-44), misfits (0-29).
+4. Pick one persona character ID for that tier (best fits their answers): visionaries→v1|v2|v3|v4, naturals→n1|n2|n3|n4, explorers→e1|e2|e3|e4, shifters→s1|s2|s3|s4, awakeners→a1|a2|a3|a4, misfits→m1|m2|m3|m4.
+5. Give a personality archetype (e.g. "Strategic Empath", "Ambitious Realist") and brief description.
+6. Identify one superpower (strongest trait) with a rarity stat (e.g. "only 17% of people have this trait").
+7. Identify one hidden talent and which career it suits.
+8. Suggest exactly 3 alternative careers from this list only: ${careersList}. For each: career name, matchPercent (0-100), short reason.
+9. Write a shareable quote for social: "I'm a {score}% match for my {field}. What's yours?" in the output language.
+Be encouraging, never shaming. Focus on potential and fit.
+</task>${langInstr}`;
+        const answersStr = JSON.stringify(answers, null, 2);
+        const userPrompt = `Current field: ${sanitizeUserText(currentField, 100)}
+Is student: ${isStudent === true ? "yes" : "no"}
+Quiz answers:
+${answersStr}
+
+Analyze and return the structured response.`;
+        const aiBody = {
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "minimal" : "low" },
+            temperature: 0.8,
+            maxOutputTokens: 2048,
+            responseMimeType: "application/json",
+            responseJsonSchema: CAREER_DNA_RESPONSE_JSON_SCHEMA,
+          },
+        };
+        const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify(aiBody),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return jsonResponse({ error: "Payment required." }, 402);
+        if (!aiRes.ok) {
+          console.error("career-dna analyze AI error:", aiRes.status, await aiRes.text());
+          return jsonResponse({ error: "Failed to analyze. Please try again." }, 500);
+        }
+        let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number } };
+        try {
+          aiJson = (await aiRes.json()) as typeof aiJson;
+        } catch {
+          return jsonResponse({ error: "Invalid AI response" }, 500);
+        }
+        const cands = aiJson.candidates ?? [];
+        const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+        if (!finishCheck.ok) return jsonResponse({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
+        logGeminiUsage(aiJson.usageMetadata, "career-dna/analyze");
+        const parts = cands[0]?.content?.parts ?? [];
+        const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
+        if (!jsonText.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        let data: Record<string, unknown>;
+        try {
+          data = JSON.parse(jsonText) as Record<string, unknown>;
+        } catch {
+          return jsonResponse({ error: "Invalid AI response format" }, 500);
+        }
+        const matchScore = typeof data.matchScore === "number" ? Math.round(Math.max(0, Math.min(100, data.matchScore))) : 50;
+        const validTiers = ["visionaries", "naturals", "explorers", "shifters", "awakeners", "misfits"];
+        const scoreTier = typeof data.scoreTier === "string" && validTiers.includes(data.scoreTier) ? data.scoreTier : (matchScore >= 90 ? "visionaries" : matchScore >= 75 ? "naturals" : matchScore >= 60 ? "explorers" : matchScore >= 45 ? "shifters" : matchScore >= 30 ? "awakeners" : "misfits");
+        const tierToChars: Record<string, string[]> = { visionaries: ["v1","v2","v3","v4"], naturals: ["n1","n2","n3","n4"], explorers: ["e1","e2","e3","e4"], shifters: ["s1","s2","s3","s4"], awakeners: ["a1","a2","a3","a4"], misfits: ["m1","m2","m3","m4"] };
+        const allowedChars = tierToChars[scoreTier] ?? ["v1"];
+        const rawChar = typeof data.personaCharacterId === "string" ? data.personaCharacterId.trim().toLowerCase() : "";
+        const personaCharacterId = allowedChars.includes(rawChar) ? rawChar : allowedChars[0];
+        const suggestedCareers = Array.isArray(data.suggestedCareers) ? data.suggestedCareers.slice(0, 3) : [];
+        let squadId: string | null = null;
+        if (squadSlug && typeof squadSlug === "string" && squadSlug.trim()) {
+          const { data: squad } = await supabase.from("career_dna_squads").select("id").eq("slug", squadSlug.trim()).single();
+          if (squad) squadId = (squad as { id: string }).id;
+        }
+        const ipHash = await hashIp(ip);
+        const { data: inserted, error: insertErr } = await supabase
+          .from("career_dna_results")
+          .insert({
+            session_id: typeof sessionId === "string" && sessionId.trim() ? sessionId.trim().slice(0, 128) : null,
+            ip_hash: ipHash,
+            current_field: sanitizeUserText(currentField, 200),
+            is_student: isStudent === true,
+            match_score: matchScore,
+            personality_archetype: typeof data.personalityArchetype === "string" ? data.personalityArchetype.slice(0, 200) : null,
+            archetype_description: typeof data.archetypeDescription === "string" ? data.archetypeDescription.slice(0, 500) : null,
+            superpower: typeof data.superpower === "string" ? data.superpower.slice(0, 200) : null,
+            superpower_rarity: typeof data.superpowerRarity === "string" ? data.superpowerRarity.slice(0, 200) : null,
+            hidden_talent: typeof data.hiddenTalent === "string" ? data.hiddenTalent.slice(0, 200) : null,
+            hidden_talent_career_hint: typeof data.hiddenTalentCareerHint === "string" ? data.hiddenTalentCareerHint.slice(0, 200) : null,
+            shareable_quote: typeof data.shareableQuote === "string" ? data.shareableQuote.slice(0, 300) : null,
+            score_tier: scoreTier,
+            persona_character_id: personaCharacterId,
+            suggested_careers: suggestedCareers,
+            raw_answers: answers,
+            language: lang,
+            squad_id: squadId,
+          })
+          .select("id")
+          .single();
+        if (insertErr || !inserted) {
+          console.error("career-dna insert error:", insertErr);
+          return jsonResponse({ error: "Failed to save result" }, 500);
+        }
+        const resultId = (inserted as { id: string }).id;
+        if (squadId) {
+          await supabase.from("career_dna_squad_members").upsert({ squad_id: squadId, result_id: resultId }, { onConflict: "squad_id,result_id" });
+        }
+        return jsonResponse({
+          resultId,
+          matchScore,
+          scoreTier,
+          personaCharacterId,
+          personalityArchetype: data.personalityArchetype ?? null,
+          archetypeDescription: data.archetypeDescription ?? null,
+          superpower: data.superpower ?? null,
+          superpowerRarity: data.superpowerRarity ?? null,
+          hiddenTalent: data.hiddenTalent ?? null,
+          hiddenTalentCareerHint: data.hiddenTalentCareerHint ?? null,
+          suggestedCareers,
+          shareableQuote: data.shareableQuote ?? null,
+          scoreTier,
+          personaCharacterId,
+        });
+      }
+
+      case "career-dna/result": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const resultId = pathSegments[2];
+        if (!resultId) return jsonResponse({ error: "Result ID required" }, 400);
+        const { data: row, error } = await supabase
+          .from("career_dna_results")
+          .select("*")
+          .eq("id", resultId)
+          .single();
+        if (error || !row) return jsonResponse({ error: "Result not found" }, 404);
+        const r = row as Record<string, unknown>;
+        return jsonResponse({
+          resultId: r.id,
+          matchScore: r.match_score,
+          personalityArchetype: r.personality_archetype,
+          archetypeDescription: r.archetype_description,
+          superpower: r.superpower,
+          superpowerRarity: r.superpower_rarity,
+          hiddenTalent: r.hidden_talent,
+          hiddenTalentCareerHint: r.hidden_talent_career_hint,
+          suggestedCareers: r.suggested_careers ?? [],
+          shareableQuote: r.shareable_quote,
+          scoreTier: r.score_tier,
+          personaCharacterId: r.persona_character_id,
+          currentField: r.current_field,
+          isStudent: r.is_student,
+        });
+      }
+
+      case "career-dna/squad/create": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { resultId } = body as { resultId?: string };
+        if (!resultId || typeof resultId !== "string") return jsonResponse({ error: "resultId is required" }, 400);
+        const { data: existing } = await supabase.from("career_dna_results").select("id, squad_id").eq("id", resultId).single();
+        if (!existing) return jsonResponse({ error: "Result not found" }, 404);
+        if ((existing as { squad_id?: string }).squad_id) return jsonResponse({ error: "Result already in a squad" }, 400);
+        const slug = crypto.randomUUID().slice(0, 8).replace(/-/g, "");
+        const { data: squad, error: squadErr } = await supabase.from("career_dna_squads").insert({ slug }).select("id").single();
+        if (squadErr || !squad) return jsonResponse({ error: "Failed to create squad" }, 500);
+        const sid = (squad as { id: string }).id;
+        await supabase.from("career_dna_results").update({ squad_id: sid }).eq("id", resultId);
+        await supabase.from("career_dna_squad_members").insert({ squad_id: sid, result_id: resultId });
+        const baseUrl = (Deno.env.get("SITE_URL") ?? Deno.env.get("VITE_APP_ORIGIN") ?? "https://shyftcut.com").replace(/\/$/, "");
+        return jsonResponse({ slug, squadId: sid, url: `${baseUrl}/career-dna/squad/${slug}` });
+      }
+
+      case "career-dna/squad/get": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        const slug = pathSegments[2];
+        if (!slug) return jsonResponse({ error: "Squad slug required" }, 400);
+        const { data: squad, error: squadErr } = await supabase.from("career_dna_squads").select("id").eq("slug", slug).single();
+        if (squadErr || !squad) return jsonResponse({ error: "Squad not found" }, 404);
+        const sid = (squad as { id: string }).id;
+        const { data: members } = await supabase.from("career_dna_squad_members").select("result_id").eq("squad_id", sid);
+        const resultIds = ((members ?? []) as Array<{ result_id: string }>).map((m) => m.result_id);
+        if (resultIds.length === 0) return jsonResponse({ slug, results: [] });
+        const { data: results } = await supabase.from("career_dna_results").select("*").in("id", resultIds).order("created_at", { ascending: true });
+        const formatted = (results ?? []).map((r: Record<string, unknown>) => ({
+          resultId: r.id,
+          matchScore: r.match_score,
+          personalityArchetype: r.personality_archetype,
+          archetypeDescription: r.archetype_description,
+          superpower: r.superpower,
+          superpowerRarity: r.superpower_rarity,
+          hiddenTalent: r.hidden_talent,
+          hiddenTalentCareerHint: r.hidden_talent_career_hint,
+          suggestedCareers: r.suggested_careers ?? [],
+          shareableQuote: r.shareable_quote,
+          scoreTier: r.score_tier,
+          personaCharacterId: r.persona_character_id,
+          currentField: r.current_field,
+          isStudent: r.is_student,
+        }));
+        return jsonResponse({ slug, results: formatted });
+      }
+
+      case "chat": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { messages, useSearch } = body as { messages?: { role: string; content: string; metadata?: { thoughtSignature?: string } }[]; useSearch?: boolean };
+        const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (subscription?.data?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          const startOfMonth = new Date();
+          startOfMonth.setDate(1);
+          startOfMonth.setHours(0, 0, 0, 0);
+          const { count: chatMessagesThisMonth } = await supabase.from("chat_history").select("*", { count: "exact", head: true }).eq("user_id", user!.id).eq("role", "user").gte("created_at", startOfMonth.toISOString());
+          if ((chatMessagesThisMonth ?? 0) >= 10) return jsonResponse({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
+        }
+        const config = getGeminiConfig();
+        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", user!.id).single();
+        const { data: roadmap } = await supabase.from("roadmaps").select("*").eq("user_id", user!.id).eq("status", "active").order("created_at", { ascending: false }).limit(1).single();
+        let currentWeekTitle = "No roadmap";
+        if (roadmap) {
+          const { data: weeks } = await supabase.from("roadmap_weeks").select("title, is_completed").eq("roadmap_id", roadmap.id).order("week_number");
+          const firstIncomplete = (weeks ?? []).find((w: { is_completed?: boolean }) => !w?.is_completed) as { title?: string } | undefined;
+          currentWeekTitle = firstIncomplete?.title ?? "All weeks completed!";
+        }
+        const systemPromptBase =
+          `<role>You are Shyftcut AI, a friendly career coach. Help with career transition, skills, interviews, resume, salary negotiation. Be encouraging and practical. Keep responses concise.</role>
+<context>
+${profile ? `User: ${(profile as { job_title?: string }).job_title ?? "Not specified"} → ${(profile as { target_career?: string }).target_career ?? "Not specified"}, ${(profile as { experience_level?: string }).experience_level ?? ""}. Skills: ${((profile as { skills?: string[] }).skills ?? []).join(", ") || "Not specified"}` : "No profile."}
+${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roadmap as { progress_percentage?: number }).progress_percentage}%, Current week: ${currentWeekTitle}` : ""}
+</context>`;
+        const preferredLang = (profile as { preferred_language?: string })?.preferred_language;
+        const languageInstruction = preferredLang === "ar" ? "\n<language>Respond in natural, conversational Arabic (العربية) unless the user writes in another language. Be warm and encouraging. Write like a native speaker, not a translator.</language>" : "";
+        const systemPrompt = systemPromptBase + languageInstruction;
+        const rawList = Array.isArray(messages) ? messages.slice(-MAX_CHAT_MESSAGES) : [];
+        let totalChars = 0;
+        const trimmedMessages = rawList.map((m) => {
+          const content = sanitizeUserText(m?.content, MAX_CHAT_MESSAGE_LEN);
+          const meta = (m as { metadata?: { thoughtSignature?: string } }).metadata;
+          const thoughtSig = meta?.thoughtSignature ? sanitizeUserText(meta.thoughtSignature, 4096) : undefined;
+          return {
+            ...m,
+            content,
+            metadata: thoughtSig !== undefined ? { thoughtSignature: thoughtSig } : undefined,
+          } as { role: string; content: string; metadata?: { thoughtSignature?: string } };
+        });
+        for (const m of trimmedMessages) {
+          totalChars += m.content.length;
+          if (totalChars > MAX_CHAT_TOTAL_CHARS) {
+            return jsonResponse({ error: "Conversation is too long. Please start a new chat or shorten messages." }, 400);
+          }
+        }
+        const hasThoughtSigs = trimmedMessages.some((m) => (m as { metadata?: { thoughtSignature?: string } }).metadata?.thoughtSignature);
+        const contents = hasThoughtSigs ? contentsFromChatMessages(trimmedMessages as { role: string; content: string; metadata?: { thoughtSignature?: string } }[]) : messagesToGeminiContents(trimmedMessages);
+        if (contents.length === 0) return jsonResponse({ error: "At least one message required" }, 400);
+        const bodyPayload: Record<string, unknown> = {
+          contents,
+          generationConfig: { thinkingConfig: { thinkingLevel: "low" }, temperature: 1.0, maxOutputTokens: 2048 },
+        };
+        if (systemPrompt.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+          const cachedName = await createCachedContent(config.apiKey, config.model, systemPrompt, "shyftcut-chat", 3600);
+          if (cachedName) bodyPayload.cachedContent = cachedName;
+        }
+        if (!bodyPayload.cachedContent) bodyPayload.systemInstruction = { parts: [{ text: systemPrompt }] };
+        if (useSearch === true) bodyPayload.tools = [{ google_search: {} }];
+        const aiRes = await geminiFetchWithRetry(getGeminiStreamUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify(bodyPayload),
+        });
+        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return jsonResponse({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
+        if (!aiRes.ok) {
+          const errBody = await aiRes.text();
+          console.error("chat AI error:", aiRes.status, errBody);
+          let userMsg = "Failed to get AI response. Please try again.";
+          try {
+            const errJson = errBody.trim() ? (JSON.parse(errBody) as { error?: { message?: string; code?: number; status?: string } }) : {};
+            const geminiMsg = errJson?.error?.message ?? "";
+            if (aiRes.status === 401) userMsg = "Invalid AI configuration. Please contact support.";
+            else if (aiRes.status === 400 && geminiMsg) userMsg = geminiMsg.slice(0, 200);
+            else if (aiRes.status >= 500) userMsg = "AI service is temporarily unavailable. Please try again in a moment.";
+            else if (geminiMsg) userMsg = geminiMsg.slice(0, 200);
+          } catch {
+            /* use default */
+          }
+          return jsonResponse({ error: userMsg }, 500);
+        }
+        const stream = aiRes.body;
+        if (!stream) return jsonResponse({ error: "No response body" }, 500);
+        let sseBuffer = "";
+        let streamBlocked = false;
+        let lastThoughtSignature: string | null = null;
+        let groundingCitations: Array<{ uri: string; title?: string }> = [];
+        const corsH = corsHeaders as Record<string, string>;
+        return new Response(
+          stream.pipeThrough(new TextDecoderStream()).pipeThrough(
+            new TransformStream({
+              transform(chunk, controller) {
+                sseBuffer += chunk;
+                const lines = sseBuffer.split("\n");
+                sseBuffer = lines.pop() ?? "";
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (!trimmed.startsWith("data:")) continue;
+                  const payload = trimmed.slice(5).trim();
+                  if (payload === "[DONE]") continue;
+                  try {
+                    const data = JSON.parse(payload) as {
+                      candidates?: Array<{
+                        finishReason?: string;
+                        content?: { parts?: Array<{ text?: string; thoughtSignature?: string }> };
+                        groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> };
+                      }>;
+                      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
+                    };
+                    if (data.usageMetadata) logGeminiUsage(data.usageMetadata, "chat");
+                    const cand0 = data.candidates?.[0];
+                    const gm = (cand0 as { groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> } })?.groundingMetadata;
+                    if (gm?.groundingChunks?.length) {
+                      groundingCitations = gm.groundingChunks
+                        .map((c) => c.web)
+                        .filter((w): w is { uri?: string; title?: string } => !!w && !!w.uri)
+                        .map((w) => ({ uri: w.uri!, title: w.title }));
+                    }
+                    const parts = data.candidates?.[0]?.content?.parts ?? [];
+                    for (const p of parts) {
+                      const sig = (p as { thoughtSignature?: string }).thoughtSignature;
+                      if (sig) lastThoughtSignature = sig;
+                    }
+                    const cands = data.candidates ?? [];
+                    const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+                    if (!finishCheck.ok) {
+                      streamBlocked = true;
+                      const msg = finishCheck.userMessage ?? CHAT_BLOCKED_MESSAGE;
+                      controller.enqueue("data: " + JSON.stringify({ choices: [{ delta: { content: msg } }] }) + "\n");
+                      continue;
+                    }
+                    if (!streamBlocked) {
+                      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                      if (text) controller.enqueue("data: " + JSON.stringify({ choices: [{ delta: { content: text } }] }) + "\n");
+                    }
+                  } catch {
+                    /* skip */
+                  }
+                }
+              },
+              flush(controller) {
+                if (!streamBlocked && sseBuffer.trim().startsWith("data:")) {
+                  const payload = sseBuffer.trim().slice(5).trim();
+                  if (payload !== "[DONE]") {
+                    try {
+                      const data = JSON.parse(payload) as {
+                        candidates?: Array<{
+                          finishReason?: string;
+                          content?: { parts?: Array<{ text?: string; thoughtSignature?: string }> };
+                          groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> };
+                        }>;
+                        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
+                      };
+                      const cand0Flush = data.candidates?.[0];
+                      const gmFlush = (cand0Flush as { groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> } })?.groundingMetadata;
+                      if (gmFlush?.groundingChunks?.length) {
+                        groundingCitations = gmFlush.groundingChunks
+                          .map((c) => c.web)
+                          .filter((w): w is { uri?: string; title?: string } => !!w && !!w.uri)
+                          .map((w) => ({ uri: w.uri!, title: w.title }));
+                      }
+                      const parts = data.candidates?.[0]?.content?.parts ?? [];
+                      for (const p of parts) {
+                        const sig = (p as { thoughtSignature?: string }).thoughtSignature;
+                        if (sig) lastThoughtSignature = sig;
+                      }
+                      const cands = data.candidates ?? [];
+                      const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
+                      if (!finishCheck.ok) {
+                        const msg = finishCheck.userMessage ?? CHAT_BLOCKED_MESSAGE;
+                        controller.enqueue("data: " + JSON.stringify({ choices: [{ delta: { content: msg } }] }) + "\n");
+                      } else {
+                        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (text) controller.enqueue("data: " + JSON.stringify({ choices: [{ delta: { content: text } }] }) + "\n");
+                      }
+                      logGeminiUsage(data.usageMetadata, "chat");
+                    } catch {
+                      /* skip */
+                    }
+                  }
+                }
+                if (lastThoughtSignature) {
+                  controller.enqueue("data: " + JSON.stringify({ thoughtSignature: lastThoughtSignature }) + "\n");
+                }
+                if (groundingCitations.length > 0) {
+                  controller.enqueue("data: " + JSON.stringify({ citations: groundingCitations }) + "\n");
+                }
+                controller.enqueue("data: [DONE]\n");
+              },
+            })
+          ).pipeThrough(new TextEncoderStream()),
+          {
+            status: 200,
+            headers: {
+              ...corsH,
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+            },
+          }
+        );
+      }
+
+      case "quiz/generate": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        try {
+          const { weekId, skills, weekTitle } = body as { weekId?: string; skills?: string[]; weekTitle?: string };
+          const safeWeekTitle = sanitizeUserText(weekTitle, MAX_QUIZ_WEEK_TITLE_LEN) || "General";
+          const skillList = Array.isArray(skills) ? skills.slice(0, MAX_QUIZ_SKILLS_ITEMS).map((s) => sanitizeUserText(s, MAX_QUIZ_SKILL_LEN)).filter(Boolean) : [];
+          const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+          const tier = (subscription?.data?.tier ?? "free") as string;
+          if (!isPaidTier(tier)) {
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+            const { count: quizzesThisMonth } = await supabase.from("quiz_results").select("*", { count: "exact", head: true }).eq("user_id", user!.id).gte("completed_at", startOfMonth.toISOString());
+            if ((quizzesThisMonth ?? 0) >= 3) return jsonResponse({ error: "Quiz limit reached. Upgrade for unlimited quizzes." }, 402);
+          }
+          const config = getGeminiConfig();
+          if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+          const systemPrompt = `<role>You are a career education expert. Create a quiz from the provided context.</role>
+<context>
+Week Topic: ${safeWeekTitle}
+Skills: ${skillList.join(", ")}
+</context>
+<task>Based on the information above, create 5 multiple-choice questions, 4 options each, one correct. Include brief explanation for the correct answer.</task>`;
+          const createQuizParams = {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { question: { type: "string" }, options: { type: "array", items: { type: "string" } }, correct_index: { type: "number" }, explanation: { type: "string" } },
+                  required: ["question", "options", "correct_index", "explanation"],
+                },
+              },
+            },
+            required: ["questions"],
+          };
+          const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+            method: "POST",
+            headers: getGeminiHeaders(config.apiKey),
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ role: "user", parts: [{ text: "Generate a 5-question quiz for this week's learning." }] }],
+              tools: [{ functionDeclarations: [openAiFunctionToGeminiDeclaration("create_quiz", "Create a multiple choice quiz", createQuizParams)] }],
+              toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["create_quiz"] } },
+              generationConfig: { thinkingConfig: { thinkingLevel: "high" }, temperature: 1.0, maxOutputTokens: 4096 },
+            }),
+          });
+          if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+          if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+          if (!aiRes.ok) {
+            console.error("quiz generate AI error:", aiRes.status, await aiRes.text());
+            return jsonResponse({ error: "Failed to generate quiz" }, 500);
+          }
+          const aiJson = (await aiRes.json()) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ functionCall?: { name?: string; args?: string } }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+          const quizCands = aiJson.candidates ?? [];
+          const quizFinishCheck = checkGeminiFinishReason(quizCands, quizCands[0]?.finishReason);
+          if (!quizFinishCheck.ok) {
+            console.error("quiz/generate: blocked finish reason", quizFinishCheck.finishReason);
+            return jsonResponse({ error: quizFinishCheck.userMessage ?? "Quiz generation was blocked. Please try again." }, 400);
+          }
+          if (!isOkFinishReasonForFunctionCall(quizCands[0]?.finishReason)) {
+            return jsonResponse({ error: "Invalid AI response format" }, 500);
+          }
+          logGeminiUsage(aiJson.usageMetadata, "quiz/generate");
+          const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+          const fnPart = parts.find((p: { functionCall?: { name?: string } }) => p.functionCall?.name === "create_quiz");
+          const argsStr = fnPart?.functionCall?.args;
+          if (!argsStr) return jsonResponse({ error: "Invalid AI response format" }, 500);
+          const quizArgsEnc = typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr);
+          if (new TextEncoder().encode(quizArgsEnc).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+          const rawQuizData = JSON.parse(typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr)) as Record<string, unknown>;
+          const { questions: cleanedQuestions } = cleanQuizOutput(rawQuizData);
+          if (cleanedQuestions.length === 0) return jsonResponse({ error: "Invalid quiz structure from AI" }, 500);
+          return jsonResponse({ success: true, weekId: weekId ?? null, questions: cleanedQuestions });
+        } catch (err) {
+          logError("quiz/generate", "unexpected error", err);
+          return jsonResponse({ error: "Quiz generation failed. Please try again." }, 500);
+        }
+      }
+
+      case "auth/sync": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { displayName } = body as { displayName?: string };
+        const name = (displayName ?? user!.user_metadata?.display_name ?? user!.email?.split("@")[0] ?? "User") as string;
+        await ensureProfileAndSubscription(supabase, user!.id, user!.email, typeof name === "string" ? name : undefined);
+        return jsonResponse({ success: true });
+      }
+
+      case "auth/account": {
+        if (req.method === "GET") {
+          const { data: authUserData } = await supabase.auth.admin.getUserById(user!.id);
+          const identities = authUserData?.user?.identities ?? [];
+          const has_password = identities.some((i: { provider?: string }) => i.provider === "email");
+          const has_google = identities.some((i: { provider?: string }) => i.provider === "google");
+          return jsonResponse({ has_password, has_google });
+        }
+        if (req.method === "DELETE") {
+          const { password, confirm } = body as { password?: string; confirm?: string };
+          const { data: authUserData } = await supabase.auth.admin.getUserById(user!.id);
+          const identities = authUserData?.user?.identities ?? [];
+          const hasPassword = identities.some((i: { provider?: string }) => i.provider === "email");
+          if (hasPassword) {
+            if (!password) return jsonResponse({ error: "Password required to delete account" }, 400);
+            const { data: profileRow } = await supabase.from("profiles").select("email").eq("user_id", user!.id).single();
+            const email = (profileRow?.email ?? user!.email) ?? "";
+            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+            const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+            if (!email || !(await verifyPassword(supabaseUrl, anonKey, email, password))) return jsonResponse({ error: "Invalid password" }, 401);
+          } else {
+            if (confirm !== "DELETE") return jsonResponse({ error: "Type DELETE to confirm account deletion" }, 400);
+          }
+          await supabase.from("chat_history").delete().eq("user_id", user!.id);
+          const { data: weekRows } = await supabase.from("roadmap_weeks").select("id").eq("user_id", user!.id);
+          for (const w of weekRows ?? []) {
+            await supabase.from("quiz_results").delete().eq("roadmap_week_id", (w as { id: string }).id);
+            await supabase.from("course_recommendations").delete().eq("roadmap_week_id", (w as { id: string }).id);
+          }
+          await supabase.from("roadmap_weeks").delete().eq("user_id", user!.id);
+          await supabase.from("roadmaps").delete().eq("user_id", user!.id);
+          await supabase.from("subscriptions").delete().eq("user_id", user!.id);
+          await supabase.from("profiles").delete().eq("user_id", user!.id);
+          await supabase.auth.admin.deleteUser(user!.id);
+          return jsonResponse({ success: true });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "auth/set-password": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { newPassword } = body as { newPassword?: string };
+        const pwdValidation = validatePasswordStrong(newPassword ?? "");
+        if (!pwdValidation.valid) return jsonResponse({ error: pwdValidation.error }, 400);
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(user!.id, { password: newPassword });
+        if (updateErr) return jsonResponse({ error: updateErr.message }, 400);
+        return jsonResponse({ success: true });
+      }
+
+      case "auth/change-password": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        const { currentPassword, newPassword } = body as { currentPassword?: string; newPassword?: string };
+        if (!currentPassword || !newPassword) return jsonResponse({ error: "Current password and new password required" }, 400);
+        const pwdValidation = validatePasswordStrong(newPassword);
+        if (!pwdValidation.valid) return jsonResponse({ error: pwdValidation.error }, 400);
+        const { data: profileRow } = await supabase.from("profiles").select("email").eq("user_id", user!.id).single();
+        const email = (profileRow?.email ?? user!.email) ?? "";
+        if (!email) return jsonResponse({ error: "User email not found" }, 400);
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+        const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+        if (!(await verifyPassword(supabaseUrl, anonKey, email, currentPassword))) return jsonResponse({ error: "Invalid current password" }, 401);
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(user!.id, { password: newPassword });
+        if (updateErr) return jsonResponse({ error: updateErr.message }, 400);
+        return jsonResponse({ success: true });
+      }
+
+      case "admin/batch": {
+        if (!checkAdminSecret()) return jsonResponse({ error: "Unauthorized", code: "admin_required" }, 401);
+        const batchId = pathSegments[2];
+        if (req.method === "GET" && batchId) {
+          const config = getGeminiConfig();
+          if (!config) return jsonResponse({ error: "AI not configured" }, 500);
+          const name = batchId.startsWith("batches/") ? batchId : `batches/${batchId}`;
+          const status = await getBatchStatus(config.apiKey, name);
+          if (!status) return jsonResponse({ error: "Batch not found or failed to fetch" }, 404);
+          return jsonResponse({ name, ...status });
+        }
+        if (req.method === "POST") {
+          const config = getGeminiConfig();
+          if (!config) return jsonResponse({ error: "AI not configured. Set GEMINI_API_KEY." }, 500);
+          const { items } = body as { items?: Array<{ weekTitle?: string; skills?: string[] }> };
+          const list = Array.isArray(items) ? items.slice(0, 50) : [];
+          if (list.length === 0) return jsonResponse({ error: "body.items required (array of { weekTitle, skills })" }, 400);
+          const createQuizParams = {
+            type: "object",
+            properties: {
+              questions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: { question: { type: "string" }, options: { type: "array", items: { type: "string" } }, correct_index: { type: "number" }, explanation: { type: "string" } },
+                  required: ["question", "options", "correct_index", "explanation"],
+                },
+              },
+            },
+            required: ["questions"],
+          };
+          const requests = list.map((item) => {
+            const weekTitle = sanitizeUserText(item.weekTitle, MAX_QUIZ_WEEK_TITLE_LEN) || "General";
+            const skillList = Array.isArray(item.skills) ? item.skills.slice(0, MAX_QUIZ_SKILLS_ITEMS).map((s) => sanitizeUserText(s, MAX_QUIZ_SKILL_LEN)).filter(Boolean) : [];
+            const systemPrompt = `<role>You are a career education expert. Create a quiz from the provided context.</role>
+<context>
+Week Topic: ${weekTitle}
+Skills: ${skillList.join(", ")}
+</context>
+<task>Based on the information above, create 5 multiple-choice questions, 4 options each, one correct. Include brief explanation for the correct answer.</task>`;
+            return {
+              contents: [{ role: "user", parts: [{ text: "Generate a 5-question quiz for this week's learning." }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              tools: [{ functionDeclarations: [openAiFunctionToGeminiDeclaration("create_quiz", "Create a multiple choice quiz", createQuizParams)] }],
+              toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["create_quiz"] } },
+              generationConfig: { thinkingConfig: { thinkingLevel: "high" }, temperature: 1.0, maxOutputTokens: 4096 },
+            };
+          });
+          const batchName = await submitBatchGenerateContent(config.apiKey, config.model, requests, "shyftcut-quiz-batch");
+          if (!batchName) return jsonResponse({ error: "Failed to submit batch" }, 500);
+          return jsonResponse({ batchName, message: "Poll GET /api/admin/batch/" + batchName.replace(/^batches\//, "") + " for status." });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      default:
+        return jsonResponse({ error: "Not implemented" }, 501);
+    }
+  } catch (err) {
+    logError("api", `route ${routeKey} failed`, err);
+    const message = safeErrorMessage(err);
+    return jsonResponse({ error: message }, 500);
+  }
+});

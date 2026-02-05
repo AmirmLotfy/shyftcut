@@ -1,0 +1,39 @@
+# Dependencies and build
+node_modules
+dist
+bun.lockb
+.vercel
+*.tsbuildinfo
+
+# Environment (never commit secrets)
+.env
+.env.local
+.env.vercel
+.env.development
+.env.production
+.env.*.local
+.env.vapid
+*.pem
+*.key
+*.p12
+*.pfx
+# Supabase
+supabase/.temp
+supabase/functions/.env
+supabase/functions/.env.local
+
+# Playwright
+e2e/.auth/
+playwright-report/
+playwright/.cache/
+test-results/
+
+# Archives and temp
+*.zip
+*.tar.gz
+
+# Editor and OS
+.DS_Store
+*.log
+Thumbs.db
+.cursor/
