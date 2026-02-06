@@ -1,0 +1,26 @@
+diff --git a/node_modules/@radix-ui/react-slot/dist/index.mjs b/node_modules/@radix-ui/react-slot/dist/index.mjs
+index d7ea374..8b47473 100644
+--- a/node_modules/@radix-ui/react-slot/dist/index.mjs
++++ b/node_modules/@radix-ui/react-slot/dist/index.mjs
+@@ -79,14 +79,16 @@ function mergeProps(slotProps, childProps) {
+     const childPropValue = childProps[propName];
+     const isHandler = /^on[A-Z]/.test(propName);
+     if (isHandler) {
+-      if (slotPropValue && childPropValue) {
++      const slotFn = typeof slotPropValue === "function" ? slotPropValue : null;
++      const childFn = typeof childPropValue === "function" ? childPropValue : null;
++      if (slotFn && childFn) {
+         overrideProps[propName] = (...args) => {
+-          const result = childPropValue(...args);
+-          slotPropValue(...args);
++          const result = childFn(...args);
++          slotFn(...args);
+           return result;
+         };
+-      } else if (slotPropValue) {
+-        overrideProps[propName] = slotPropValue;
++      } else if (slotFn) {
++        overrideProps[propName] = slotFn;
+       }
+     } else if (propName === "style") {
+       overrideProps[propName] = { ...slotPropValue, ...childPropValue };
