@@ -54,6 +54,16 @@ const Earn = lazy(() => import("./pages/Earn"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const Users = lazy(() => import("./pages/admin/Users").then(m => ({ default: m.Users })));
+const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
+const Analytics = lazy(() => import("./pages/admin/Analytics"));
+const Traffic = lazy(() => import("./pages/admin/Traffic"));
+const Conversions = lazy(() => import("./pages/admin/Conversions"));
+const UserJourney = lazy(() => import("./pages/admin/UserJourney"));
+const Themes = lazy(() => import("./pages/admin/Themes"));
+const Content = lazy(() => import("./pages/admin/Content"));
+const Settings = lazy(() => import("./pages/admin/Settings"));
+const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,7 +123,19 @@ const RoutesContent = () => (
           <Route path="affiliate" element={<Affiliate />} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/*" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>}>
+          <Route index element={<Navigate to="/admin/users" replace />} />
+          <Route path="users" element={<Users />} />
+          <Route path="subscriptions" element={<Subscriptions />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="traffic" element={<Traffic />} />
+          <Route path="conversions" element={<Conversions />} />
+          <Route path="user-journey" element={<UserJourney />} />
+          <Route path="themes" element={<Themes />} />
+          <Route path="content" element={<Content />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="audit-log" element={<AuditLog />} />
+        </Route>
         <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
+import { Outlet, useLocation, Link } from 'react-router-dom';
 import { Users, CreditCard, BarChart3, FileText, Settings, Shield, LogOut, Menu, TrendingUp, Route as RouteIcon, Palette } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -7,16 +7,6 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { Users as UsersPage } from './Users';
-import { Subscriptions } from './Subscriptions';
-import { Analytics } from './Analytics';
-import { Traffic } from './Traffic';
-import { Conversions } from './Conversions';
-import { UserJourney } from './UserJourney';
-import { Themes } from './Themes';
-import { Content } from './Content';
-import { Settings as SettingsPage } from './Settings';
-import { AuditLog } from './AuditLog';
 
 const adminNavItems = [
   { href: '/admin/users', label: { en: 'Users', ar: 'المستخدمون' }, icon: Users },
@@ -109,19 +99,7 @@ export default function AdminDashboard() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-background">
-          <Routes>
-            <Route index element={<Navigate to="/admin/users" replace />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="subscriptions" element={<Subscriptions />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="traffic" element={<Traffic />} />
-            <Route path="conversions" element={<Conversions />} />
-            <Route path="user-journey" element={<UserJourney />} />
-            <Route path="themes" element={<Themes />} />
-            <Route path="content" element={<Content />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="audit-log" element={<AuditLog />} />
-          </Routes>
+          <Outlet />
         </main>
       </div>
     );
@@ -136,19 +114,7 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-background">
-        <Routes>
-          <Route index element={<Navigate to="/admin/users" replace />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="subscriptions" element={<Subscriptions />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="traffic" element={<Traffic />} />
-          <Route path="conversions" element={<Conversions />} />
-          <Route path="user-journey" element={<UserJourney />} />
-          <Route path="themes" element={<Themes />} />
-          <Route path="content" element={<Content />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="audit-log" element={<AuditLog />} />
-        </Routes>
+        <Outlet />
       </main>
     </div>
   );
