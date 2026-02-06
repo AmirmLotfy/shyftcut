@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, MoreVertical, Edit, Trash2, User, Ban } from 'lucide-react';
+import { Search, Filter, MoreVertical, Edit, Trash2, User, Ban, Eye, Download } from 'lucide-react';
 import { useAdminUsers, useAdminUserStats, useDeleteAdminUser, useUpdateAdminUser, AdminUser } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Checkbox as UICheckbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { UserDetailModal } from '@/components/admin/UserDetailModal';
+import { BulkActions } from '@/components/admin/BulkActions';
 
 export function Users() {
   const { language } = useLanguage();
   const { toast } = useToast();
+  const { getAccessToken } = useAuth();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [tierFilter, setTierFilter] = useState('');
@@ -22,6 +27,8 @@ export function Users() {
   const [page, setPage] = useState(1);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error } = useAdminUsers({ search, role: roleFilter || undefined, tier: tierFilter || undefined, status: statusFilter || undefined, page, limit: 50 });
   const { data: stats, isError: statsError } = useAdminUserStats();
@@ -77,8 +84,9 @@ export function Users() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center">
+      {/* Actions Bar */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center flex-1">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -90,38 +98,90 @@ export function Users() {
             />
           </div>
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
+        <Select value={roleFilter || '_all'} onValueChange={(v) => setRoleFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder={language === 'ar' ? 'الدور' : 'Role'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="user">User</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="superadmin">Superadmin</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={tierFilter} onValueChange={setTierFilter}>
+        <Select value={tierFilter || '_all'} onValueChange={(v) => setTierFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder={language === 'ar' ? 'الخطة' : 'Tier'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="free">Free</SelectItem>
             <SelectItem value="premium">Premium</SelectItem>
             <SelectItem value="pro">Pro</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter || '_all'} onValueChange={(v) => setStatusFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder={language === 'ar' ? 'الحالة' : 'Status'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="canceled">Canceled</SelectItem>
           </SelectContent>
         </Select>
+        </div>
+        <div className="flex gap-2">
+          <BulkActions
+            selectedUserIds={selectedUserIds}
+            onComplete={() => {
+              setSelectedUserIds([]);
+              setPage(1);
+            }}
+          />
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const token = await getAccessToken();
+                const params = new URLSearchParams();
+                if (tierFilter) params.set('tier', tierFilter);
+                if (statusFilter) params.set('status', statusFilter);
+                params.set('format', 'csv');
+                
+                const { apiPath, apiHeaders } = await import('@/lib/api');
+                const response = await fetch(apiPath(`/api/admin/users/export?${params.toString()}`), {
+                  headers: apiHeaders('/api/admin/users/export', token),
+                });
+                
+                if (response.ok) {
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  document.body.removeChild(a);
+                  toast({
+                    title: language === 'ar' ? 'تم التصدير' : 'Exported',
+                    description: language === 'ar' ? 'تم تصدير البيانات بنجاح' : 'Data exported successfully',
+                  });
+                }
+              } catch (error) {
+                toast({
+                  title: language === 'ar' ? 'خطأ' : 'Error',
+                  description: (error as Error).message,
+                  variant: 'destructive',
+                });
+              }
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {language === 'ar' ? 'تصدير' : 'Export'}
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -129,6 +189,18 @@ export function Users() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <UICheckbox
+                  checked={selectedUserIds.length === data?.users.length && data.users.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedUserIds(data?.users.map(u => u.user_id) || []);
+                    } else {
+                      setSelectedUserIds([]);
+                    }
+                  }}
+                />
+              </TableHead>
               <TableHead>{language === 'ar' ? 'الاسم' : 'Name'}</TableHead>
               <TableHead>{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</TableHead>
               <TableHead>{language === 'ar' ? 'الدور' : 'Role'}</TableHead>
@@ -160,6 +232,18 @@ export function Users() {
             ) : (
               data?.users.map((user: AdminUser) => (
                 <TableRow key={user.id}>
+                  <TableCell>
+                    <UICheckbox
+                      checked={selectedUserIds.includes(user.user_id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedUserIds([...selectedUserIds, user.user_id]);
+                        } else {
+                          setSelectedUserIds(selectedUserIds.filter(id => id !== user.user_id));
+                        }
+                      }}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{user.display_name || '-'}</TableCell>
                   <TableCell>{user.email || '-'}</TableCell>
                   <TableCell>
@@ -182,6 +266,10 @@ export function Users() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setDetailUserId(user.user_id)} className="min-h-[44px]">
+                          <Eye className="h-4 w-4 mr-2" />
+                          {language === 'ar' ? 'عرض التفاصيل' : 'View Details'}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setDeleteUserId(user.user_id)} className="min-h-[44px]">
                           <Trash2 className="h-4 w-4 mr-2" />
                           {language === 'ar' ? 'حذف' : 'Delete'}
@@ -232,6 +320,13 @@ export function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* User Detail Modal */}
+      <UserDetailModal
+        userId={detailUserId}
+        open={!!detailUserId}
+        onOpenChange={(open) => !open && setDetailUserId(null)}
+      />
     </div>
   );
 }

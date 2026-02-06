@@ -100,6 +100,7 @@ export function useRoadmap(roadmapId?: string) {
       queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
       queryClient.invalidateQueries({ queryKey: ['activeRoadmap'] });
       queryClient.invalidateQueries({ queryKey: ['roadmap', rid] });
+      queryClient.invalidateQueries({ queryKey: ['usage-limits'] });
       if (roadmapId === rid) queryClient.invalidateQueries({ queryKey: ['roadmap', roadmapId] });
     },
     onError: (error) => {

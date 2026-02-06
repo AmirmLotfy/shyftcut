@@ -37,7 +37,7 @@ Single source of truth for deploying Shyftcut. Covers Vercel (frontend), Supabas
 | Variable | Purpose |
 |----------|---------|
 | **VITE_SUPABASE_URL** | Supabase project URL |
-| **VITE_SUPABASE_ANON_KEY** | Supabase anon key |
+| **VITE_SUPABASE_ANON_KEY** | Supabase anon key; **required** for Edge Functions gateway (auth, checkout, all API calls when using VITE_API_URL) |
 | **VITE_API_URL** | `https://<project-ref>.supabase.co/functions/v1` |
 
 ### Optional
@@ -239,7 +239,7 @@ The `/api/usage` response includes `notesCount`, `tasksCount`, and `aiSuggestion
 | Variable | Purpose |
 |----------|---------|
 | VITE_SUPABASE_URL | Supabase project URL |
-| VITE_SUPABASE_ANON_KEY | Supabase anon key |
+| VITE_SUPABASE_ANON_KEY | Supabase anon key (required for Edge gateway; missing = 401 on checkout/API) |
 | VITE_API_URL | `https://<project-ref>.supabase.co/functions/v1` |
 
 **Optional:** `VITE_APP_ORIGIN`, `VITE_SENTRY_DSN`.

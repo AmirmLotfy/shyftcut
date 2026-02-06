@@ -4,14 +4,16 @@ import { LayoutDashboard, Map, Clock, MessageSquare, User, MoreHorizontal } from
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { prefetchRoute } from '@/lib/route-prefetch';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { AppMoreSheet } from './AppMoreSheet';
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, labelKey: { en: 'Dashboard', ar: 'لوحة التحكم' } },
-  { href: '/roadmap', icon: Map, labelKey: { en: 'Roadmap', ar: 'خريطة الطريق' } },
-  { href: '/study', icon: Clock, labelKey: { en: 'Focus', ar: 'تركيز' } },
-  { href: '/chat', icon: MessageSquare, labelKey: { en: 'AI Coach', ar: 'المدرب' } },
-  { href: '/profile', icon: User, labelKey: { en: 'Profile', ar: 'الملف' } },
+  { href: dashboardPaths.index, icon: LayoutDashboard, labelKey: { en: 'Dashboard', ar: 'لوحة التحكم' } },
+  { href: dashboardPaths.roadmap, icon: Map, labelKey: { en: 'Roadmap', ar: 'خريطة الطريق' } },
+  { href: dashboardPaths.study, icon: Clock, labelKey: { en: 'Focus', ar: 'تركيز' } },
+  { href: dashboardPaths.chat, icon: MessageSquare, labelKey: { en: 'AI Coach', ar: 'المدرب' } },
+  { href: dashboardPaths.profile, icon: User, labelKey: { en: 'Profile', ar: 'الملف' } },
 ];
 
 export function BottomNav() {
@@ -21,7 +23,7 @@ export function BottomNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') return location.pathname === '/dashboard';
+    if (href === dashboardPaths.index) return location.pathname === dashboardPaths.index;
     return location.pathname.startsWith(href);
   };
 
@@ -40,6 +42,8 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 to={user ? item.href : '/signup'}
+                onMouseEnter={() => user && prefetchRoute(item.href)}
+                onFocus={() => user && prefetchRoute(item.href)}
                 className={cn(
                   'min-touch flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 transition-colors active:scale-[0.97] sm:min-h-0',
                   active

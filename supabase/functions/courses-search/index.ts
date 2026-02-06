@@ -4,6 +4,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { getGeminiConfig, getGeminiGenerateContentUrl, getGeminiHeaders, geminiFetchWithRetry, checkGeminiFinishReason, isGemini3Flash } from "../_shared/gemini.ts";
 import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
+import { verifyCourseUrl } from "../_shared/verify-course-url.ts";
 
 const MAX_QUERY_LEN = 300;
 const MAX_PLATFORM_LEN = 100;
@@ -142,7 +143,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const rawUrl = typeof parsed.url === "string" ? parsed.url.trim().slice(0, 2048) : "";
-  const validUrl = isValidCourseUrl(rawUrl) && isAllowedCourseHost(rawUrl) ? rawUrl : null;
+  let validUrl: string | null = isValidCourseUrl(rawUrl) && isAllowedCourseHost(rawUrl) ? rawUrl : null;
+  if (validUrl && !(await verifyCourseUrl(validUrl))) {
+    validUrl = null;
+  }
   const title = typeof parsed.title === "string" ? parsed.title.trim().slice(0, 500) : undefined;
 
   return new Response(

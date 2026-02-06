@@ -8,14 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useUserBadges } from '@/hooks/useUserBadges';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api';
-import { getUpgradePath } from '@/lib/upgrade-link';
+import { PremiumGateCard } from '@/components/common/PremiumGateCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -86,6 +85,7 @@ export default function Community() {
   const { user, getAccessToken } = useAuth();
   const { toast } = useToast();
   const { isPremium } = useSubscription();
+  const { badges: userBadges } = useUserBadges();
   const queryClient = useQueryClient();
   const [targetCareer, setTargetCareer] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('');
@@ -233,10 +233,8 @@ export default function Community() {
       return apiFetch(`/api/community/chat/room/${chatRoom!.room_id}/messages?limit=100`, { token });
     },
     enabled: !!user && !!chatRoom?.room_id,
-    refetchInterval: !!chatGroupId ? 3000 : false,
+    refetchInterval: chatGroupId ? 3000 : false,
   });
-
-  const { badges: userBadges } = useUserBadges();
 
   const { data: groupMembers = [], isLoading: groupMembersLoading } = useQuery({
     queryKey: ['community-group-members', membersGroupId, user?.id],
@@ -271,33 +269,25 @@ export default function Community() {
 
   if (!isPremium) {
     return (
-      <Layout>
-        <div className="container mx-auto max-w-app-content px-4 py-12">
-          <Card className="public-glass-card mx-auto max-w-md rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-primary" />
-                {language === 'ar' ? 'المجتمع لمشتركي بريميوم' : 'Community is for Premium'}
-              </CardTitle>
-              <CardDescription>
-                {language === 'ar'
-                  ? 'انضم إلى أقرانك، شاهد لوحة المتصدرين، وابقَ متحفزاً. قم بالترقية للوصول.'
-                  : 'Connect with peers, see the leaderboard, and stay motivated. Upgrade to access.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full gap-2">
-                <Link to={getUpgradePath(user)}>{t('dashboard.upgrade')}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </Layout>
+      <PremiumGateCard
+        variant="full"
+        title={language === 'ar' ? 'المجتمع لمشتركي بريميوم' : 'Community is for Premium'}
+        description={
+          language === 'ar'
+            ? 'انضم إلى أقرانك، شاهد لوحة المتصدرين، وابقَ متحفزاً. قم بالترقية للوصول.'
+            : 'Connect with peers, see the leaderboard, and stay motivated. Upgrade to access.'
+        }
+        benefits={
+          language === 'ar'
+            ? ['لوحة المتصدرين', 'مجموعات الدراسة', 'الدردشة مع الأقران', 'الشارات والإنجازات']
+            : ['Leaderboard & streaks', 'Study groups', 'Peer chat', 'Badges & achievements']
+        }
+      />
     );
   }
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-2xl font-bold sm:text-3xl">{t('nav.community')}</h1>
@@ -392,7 +382,7 @@ export default function Community() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All careers'}</SelectItem>
-                  {targetCareers.map((c) => (
+                  {targetCareers.filter(Boolean).map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
                 </SelectContent>
@@ -403,7 +393,7 @@ export default function Community() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All levels'}</SelectItem>
-                  {experienceLevels.map((l) => (
+                  {experienceLevels.filter(Boolean).map((l) => (
                     <SelectItem key={l} value={l}>
                       {l === 'entry' ? (language === 'ar' ? 'مبتدئ' : 'Entry') : l === 'junior' ? (language === 'ar' ? 'مبتدئ+' : 'Junior') : l === 'mid' ? (language === 'ar' ? 'متوسط' : 'Mid') : l === 'senior' ? (language === 'ar' ? 'أقدم' : 'Senior') : (language === 'ar' ? 'تنفيذي' : 'Executive')}
                     </SelectItem>
@@ -777,6 +767,6 @@ export default function Community() {
         </Sheet>
         </motion.section>
       </div>
-    </Layout>
+    </>
   );
 }

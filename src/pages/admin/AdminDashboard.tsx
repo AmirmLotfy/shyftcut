@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
-import { Users, CreditCard, BarChart3, FileText, Settings, Shield, LogOut, Menu } from 'lucide-react';
+import { Users, CreditCard, BarChart3, FileText, Settings, Shield, LogOut, Menu, TrendingUp, Route as RouteIcon, Palette } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -10,6 +10,10 @@ import { cn } from '@/lib/utils';
 import { Users as UsersPage } from './Users';
 import { Subscriptions } from './Subscriptions';
 import { Analytics } from './Analytics';
+import { Traffic } from './Traffic';
+import { Conversions } from './Conversions';
+import { UserJourney } from './UserJourney';
+import { Themes } from './Themes';
 import { Content } from './Content';
 import { Settings as SettingsPage } from './Settings';
 import { AuditLog } from './AuditLog';
@@ -18,6 +22,10 @@ const adminNavItems = [
   { href: '/admin/users', label: { en: 'Users', ar: 'المستخدمون' }, icon: Users },
   { href: '/admin/subscriptions', label: { en: 'Subscriptions', ar: 'الاشتراكات' }, icon: CreditCard },
   { href: '/admin/analytics', label: { en: 'Analytics', ar: 'التحليلات' }, icon: BarChart3 },
+  { href: '/admin/traffic', label: { en: 'Traffic', ar: 'حركة المرور' }, icon: TrendingUp },
+  { href: '/admin/conversions', label: { en: 'Conversions', ar: 'التحويلات' }, icon: BarChart3 },
+  { href: '/admin/user-journey', label: { en: 'User Journeys', ar: 'رحلات المستخدم' }, icon: RouteIcon },
+  { href: '/admin/themes', label: { en: 'Themes', ar: 'السمات' }, icon: Palette },
   { href: '/admin/content', label: { en: 'Content', ar: 'المحتوى' }, icon: FileText },
   { href: '/admin/settings', label: { en: 'Settings', ar: 'الإعدادات' }, icon: Settings },
   { href: '/admin/audit-log', label: { en: 'Audit Log', ar: 'سجل التدقيق' }, icon: Shield },
@@ -106,6 +114,10 @@ export default function AdminDashboard() {
             <Route path="users" element={<UsersPage />} />
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="analytics" element={<Analytics />} />
+            <Route path="traffic" element={<Traffic />} />
+            <Route path="conversions" element={<Conversions />} />
+            <Route path="user-journey" element={<UserJourney />} />
+            <Route path="themes" element={<Themes />} />
             <Route path="content" element={<Content />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="audit-log" element={<AuditLog />} />
@@ -129,6 +141,10 @@ export default function AdminDashboard() {
           <Route path="users" element={<UsersPage />} />
           <Route path="subscriptions" element={<Subscriptions />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="traffic" element={<Traffic />} />
+          <Route path="conversions" element={<Conversions />} />
+          <Route path="user-journey" element={<UserJourney />} />
+          <Route path="themes" element={<Themes />} />
           <Route path="content" element={<Content />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="audit-log" element={<AuditLog />} />

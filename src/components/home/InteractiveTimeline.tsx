@@ -36,7 +36,7 @@ export function InteractiveTimeline() {
   const { language } = useLanguage();
 
   return (
-    <section id="how-it-works" className="scroll-mt-16 bg-muted/30 py-10 sm:py-12 md:py-20">
+    <section className="scroll-mt-16 bg-muted/30 py-10 sm:py-12 md:py-20">
       <div className="container mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

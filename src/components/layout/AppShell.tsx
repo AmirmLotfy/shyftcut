@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useStudyReminderBrowserNotification } from '@/hooks/useStudyReminderBrowserNotification';
 import { cn } from '@/lib/utils';
 import { LOGO_PATH } from '@/lib/seo';
+import { dashboardPaths, isDashboardPath } from '@/lib/dashboard-routes';
 
 interface AppShellProps {
   children: ReactNode;
@@ -28,7 +29,7 @@ export function AppShell({ children, hideFooter = false }: AppShellProps) {
   const showCreateFAB =
     !isMobile &&
     !!user &&
-    (pathname === '/dashboard' || pathname === '/roadmap' || pathname.startsWith('/roadmap/'));
+    (pathname === dashboardPaths.index || pathname === dashboardPaths.roadmap || pathname.startsWith(`${dashboardPaths.roadmap}/`));
 
   // Mobile: no sidebar, logo-only top bar, bottom nav with More sheet
   if (isMobile) {
@@ -40,7 +41,7 @@ export function AppShell({ children, hideFooter = false }: AppShellProps) {
           className="flex min-h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur-xl"
           style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}
         >
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link to={dashboardPaths.index} className="flex items-center gap-2">
             <img
               src={LOGO_PATH}
               alt="Shyftcut"
@@ -64,28 +65,14 @@ export function AppShell({ children, hideFooter = false }: AppShellProps) {
     );
   }
 
-  // Desktop: sidebar + top bar with trigger
+  // Desktop: sidebar (has logo) + minimal top bar (trigger only, no duplicate branding)
   return (
     <SidebarProvider>
       {user && <ProfileLanguageSync />}
       <AppSidebar />
       <SidebarInset>
-        <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/95 px-4 backdrop-blur-xl">
-          <div className="flex items-center gap-3 min-w-0">
-            <SidebarTrigger aria-label="Toggle sidebar" className="h-8 w-8 shrink-0" />
-            <Link to="/dashboard" className="flex items-center gap-2 min-w-0">
-              <img
-                src={LOGO_PATH}
-                alt="Shyftcut"
-                width={32}
-                height={32}
-                className="h-8 w-8 shrink-0 object-contain"
-                decoding="async"
-                fetchPriority="high"
-              />
-              <span className="text-base font-bold gradient-text truncate">Shyftcut</span>
-            </Link>
-          </div>
+        <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/40 bg-background/80 px-4 backdrop-blur-xl">
+          <SidebarTrigger aria-label="Toggle sidebar" className="h-9 w-9 shrink-0 rounded-lg hover:bg-muted/80" />
           <ThemeToggle />
         </div>
         <div className="relative flex min-w-0 flex-1 flex-col overflow-x-hidden">

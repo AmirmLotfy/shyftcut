@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Moon, Sun } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import {
   Tooltip,
@@ -27,7 +28,7 @@ const productLinks = [
   { to: '/roadmap', labelKey: { en: 'Roadmap', ar: 'خارطة الطريق' } },
   { to: '/courses', labelKey: { en: 'Courses', ar: 'الدورات' } },
   { to: '/chat', labelKey: { en: 'AI Coach', ar: 'المدرب الذكي' } },
-  { to: '/affiliate', labelKey: { en: 'Earn', ar: 'اكسب' } },
+  { to: '/earn', labelKey: { en: 'Earn', ar: 'اكسب' } },
 ];
 
 const companyLinks = [
@@ -143,21 +144,18 @@ export function Footer() {
               {socialLinks.map(({ href, label, Icon }) => (
                 <Tooltip key={label}>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="rounded-full h-10 w-10"
-                      asChild
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={label}
+                      className={cn(
+                        buttonVariants({ variant: 'outline', size: 'icon' }),
+                        'rounded-full h-10 w-10'
+                      )}
                     >
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={label}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </a>
-                    </Button>
+                      <Icon className="h-4 w-4" />
+                    </a>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>

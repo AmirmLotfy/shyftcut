@@ -98,7 +98,10 @@ export default function Error({ error, resetError }: ErrorPageProps) {
         >
           <Button 
             variant="outline" 
-            onClick={() => window.history.back()} 
+            onClick={() => {
+              window.history.back();
+              resetError?.();
+            }} 
             className="w-full gap-2 sm:w-auto"
           >
             <ArrowLeft className="h-4 w-4" />

@@ -119,7 +119,6 @@ Comprehensive audit of API endpoints, auth flows, and identified gaps/issues.
 ## 4. Potential Gaps & Issues
 
 ### Auth
-1. **hCaptcha + E2E:** If `VITE_HCAPTCHA_SITE_KEY` is set, signup/login submit is disabled until captcha is solved. E2E tests do not solve captcha. Consider using a test key or disabling captcha in test env.
 2. **Magic link E2E:** No automated test for magic link. Add manual test or E2E with email testing service.
 3. **Google OAuth E2E:** No automated test for Google sign-in (requires real Google account and consent).
 
@@ -167,6 +166,5 @@ node scripts/test-api-endpoints.mjs
 - [ ] Email confirmation: Custom SMTP configured (Resend)
 - [ ] Magic link: Email template configured in Supabase
 - [ ] Redirect URLs: Include production + localhost for dev
-- [ ] hCaptcha: Site key in Vercel env; enabled in Supabase
 - [ ] Secrets: GEMINI_API_KEY, POLAR_*, RESEND_API_KEY set in Supabase
 - [ ] Rate limits: Guest roadmap, contact, newsletter reviewed

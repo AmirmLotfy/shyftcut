@@ -22,8 +22,13 @@ export type GetAuthUserResult = { user: AuthUser } | { user: null; reason: strin
 
 /** Verify JWT and return user or null with reason. Uses service role client. Logs failures. */
 export async function getAuthUser(authHeader: string | null): Promise<GetAuthUserResult> {
+  // #region agent log
+  const hasHeader = !!authHeader;
+  const hasBearer = !!authHeader?.startsWith("Bearer ");
+  const tokenLen = authHeader?.replace(/^Bearer\s+/i, "").trim().length ?? 0;
+  // #endregion
   if (!authHeader?.startsWith("Bearer ")) {
-    console.warn("[auth] No Bearer header");
+    console.warn("[auth] No Bearer header hasHeader=" + hasHeader + " hasBearer=" + hasBearer + " tokenLen=" + tokenLen);
     return { user: null, reason: "missing_auth_header" };
   }
   const token = authHeader.replace("Bearer ", "").trim();

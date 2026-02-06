@@ -81,7 +81,7 @@ function main() {
       name: '${escape(plans.free.name)}',
       price: 0,
       description: '${escape(plans.free.description)}',
-      icon: IconSparkle,
+      icon: IconCheckCircle,
       features: [
 ${freeFeat}
       ],

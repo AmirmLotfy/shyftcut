@@ -4,7 +4,8 @@ export const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": ALLOW_ORIGIN,
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
-    "authorization, content-type, x-client-info, apikey, x-path",
+    "authorization, content-type, x-client-info, apikey, x-path, x-user-token",
+  "Access-Control-Expose-Headers": "X-Auth-Failure-Code",
 };
 
 export function jsonResponse(

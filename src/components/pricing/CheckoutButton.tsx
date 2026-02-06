@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { apiFetch } from '@/lib/api';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { debugError } from '@/lib/debug';
 import { captureException } from '@/lib/error-tracking';
 import { useToast } from '@/hooks/use-toast';
@@ -33,58 +34,72 @@ export function CheckoutButton({
   children 
 }: CheckoutButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const { user, getAccessToken } = useAuth();
+  const { user, getAccessTokenFresh } = useAuth();
   const { language, t } = useLanguage();
   const { toast } = useToast();
 
   const handleCheckout = async () => {
     if (!user) {
-      const returnTo = metadata?.from === 'careerdna' ? '/upgrade?from=careerdna' : undefined;
-      const url = returnTo
-        ? `/signup?returnTo=${encodeURIComponent(returnTo)}`
+      const guestReturnTo = metadata?.from === 'careerdna' ? `${dashboardPaths.upgrade}?from=careerdna` : undefined;
+      const url = guestReturnTo
+        ? `/signup?returnTo=${encodeURIComponent(guestReturnTo)}`
         : '/signup';
       window.location.href = url;
       return;
     }
-    const token = await getAccessToken();
+    const origin = window.location.origin;
+    const checkoutBody = {
+      planId,
+      productId,
+      successUrl: returnTo
+        ? `${origin}${dashboardPaths.checkoutSuccess}?returnTo=${encodeURIComponent(returnTo)}`
+        : `${origin}${dashboardPaths.checkoutSuccess}`,
+      returnUrl: returnTo ? `${origin}${returnTo}` : `${origin}${dashboardPaths.upgrade}`,
+      metadata: { ...metadata, ...(typeof window !== 'undefined' && (window as unknown as { affonso_referral?: string }).affonso_referral ? { affonso_referral: (window as unknown as { affonso_referral: string }).affonso_referral } : {}) },
+    };
+
+    const doCheckout = async (accessToken: string): Promise<{ checkoutUrl?: string }> =>
+      apiFetch<{ checkoutUrl?: string }>('/api/checkout/create', {
+        method: 'POST',
+        token: accessToken,
+        skipUnauthorizedLogout: true,
+        body: JSON.stringify(checkoutBody),
+      });
+
+    let token = await getAccessTokenFresh();
     if (!token) {
       toast({ title: t('common.errorTitle'), description: t('auth.sessionExpired'), variant: 'destructive' });
       return;
     }
-    const origin = window.location.origin;
-    const successUrl = returnTo
-      ? `${origin}/checkout/success?returnTo=${encodeURIComponent(returnTo)}`
-      : `${origin}/checkout/success`;
-    const returnUrl = returnTo ? `${origin}${returnTo}` : `${origin}/upgrade`;
-    const referralId = typeof window !== 'undefined' && (window as unknown as { affonso_referral?: string }).affonso_referral;
-    const metadataWithReferral = { ...metadata };
-    if (referralId) metadataWithReferral.affonso_referral = referralId;
     setIsLoading(true);
     try {
-      const data = await apiFetch<{ checkoutUrl?: string }>('/api/checkout/create', {
-        method: 'POST',
-        token,
-        skipUnauthorizedLogout: true,
-        body: JSON.stringify({
-          planId,
-          productId,
-          successUrl,
-          returnUrl,
-          metadata: metadataWithReferral,
-        }),
-      });
-
+      let data: { checkoutUrl?: string } | null = null;
+      try {
+        data = await doCheckout(token);
+      } catch (firstErr) {
+        const err = firstErr as Error & { code?: string; status?: number };
+        const is401 = err?.status === 401 || (typeof err?.message === 'string' && err.message.toLowerCase().includes('unauthorized'));
+        debugError('CheckoutButton', 'checkout create failed (first attempt)', firstErr, err?.code);
+        if (is401) {
+          token = await getAccessTokenFresh() ?? undefined;
+          if (token) data = await doCheckout(token).catch(() => null) ?? null;
+        }
+        if (!data?.checkoutUrl) throw firstErr;
+      }
       if (data?.checkoutUrl) {
         window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
       } else {
         throw new Error('No checkout URL returned');
       }
     } catch (error) {
-      debugError('CheckoutButton', 'checkout create failed', error);
+      const err = error as Error & { code?: string };
+      debugError('CheckoutButton', 'checkout create failed', error, err?.code);
+      if (err?.code) console.error('[CheckoutButton] 401 auth code:', err.code);
       captureException(error);
       let desc = error instanceof Error ? error.message : (language === 'ar' ? 'حدث خطأ أثناء إنشاء جلسة الدفع' : 'Failed to create checkout session');
       if (desc.toLowerCase().includes('unauthorized') || desc.toLowerCase().includes('session')) {
         desc = t('auth.sessionExpired');
+        if (err?.code) desc += ` (${err.code})`;
       }
       toast({
         title: t('common.errorTitle'),

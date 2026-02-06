@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 
 export function AppFooter() {
   const { language } = useLanguage();
@@ -9,7 +10,7 @@ export function AppFooter() {
   return (
     <footer className="border-t border-border/60 bg-muted/20 py-4 md:py-5" role="contentinfo">
       <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-4 text-center sm:flex-row sm:gap-4 sm:text-start">
-        <Link to="/dashboard" className="text-sm font-semibold gradient-text hover:opacity-90">
+        <Link to={dashboardPaths.index} className="text-sm font-semibold gradient-text hover:opacity-90">
           Shyftcut
         </Link>
         <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground" aria-label={isAr ? 'روابط' : 'Links'}>

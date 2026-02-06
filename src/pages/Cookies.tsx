@@ -1,11 +1,10 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, Cookie, Calendar, Settings, BarChart3, Shield, Mail, Globe } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { Cookie, Settings, BarChart3, Shield, Mail, Globe } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { LegalSection } from '@/components/legal/LegalSection';
+import { LegalPageHero } from '@/components/legal/LegalPageHero';
 import { TableOfContents } from '@/components/legal/TableOfContents';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -75,39 +74,12 @@ export default function Cookies() {
         path="/cookies"
       />
       <div className="min-h-screen bg-background">
-        {/* Hero */}
-        <section className="relative overflow-hidden border-b border-border bg-muted/30 py-16">
-          <div className="absolute inset-0 mesh-gradient opacity-20" />
-          <div className="container relative mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mx-auto max-w-3xl text-center"
-            >
-              <Button variant="ghost" asChild className="mb-6">
-                <Link to="/" className="gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  {language === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
-                </Link>
-              </Button>
-              
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
-                <Cookie className="h-8 w-8 text-accent" />
-              </div>
-              
-              <h1 className="mb-4 text-4xl font-bold">
-                {language === 'ar' ? 'سياسة ملفات تعريف الارتباط' : 'Cookie Policy'}
-              </h1>
-              
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>
-                  {language === 'ar' ? `آخر تحديث: ${lastUpdatedAr}` : `Last Updated: ${lastUpdated}`}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-        </section>
+        <LegalPageHero
+          title={language === 'ar' ? 'سياسة ملفات تعريف الارتباط' : 'Cookie Policy'}
+          icon={Cookie}
+          lastUpdatedEn={lastUpdated}
+          lastUpdatedAr={lastUpdatedAr}
+        />
 
         {/* Content */}
         <section className="py-12">

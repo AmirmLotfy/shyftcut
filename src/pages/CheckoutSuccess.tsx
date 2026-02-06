@@ -5,8 +5,8 @@ import { motion } from 'framer-motion';
 import { CheckCircle, CreditCard, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { Confetti } from '@/components/common/Confetti';
 
 /** Valid return path: starts with / and contains no protocol (avoid open redirect). */
@@ -25,7 +25,7 @@ export default function CheckoutSuccess() {
 
   const returnTo = useMemo(() => {
     const raw = searchParams.get('returnTo');
-    return isValidReturnTo(raw) ? raw.trim() : '/dashboard';
+    return isValidReturnTo(raw) ? raw.trim() : dashboardPaths.index;
   }, [searchParams]);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function CheckoutSuccess() {
   }, [navigate, returnTo]);
 
   return (
-    <Layout>
+    <>
       <Confetti isActive={showConfetti} />
       <div className="container mx-auto flex min-h-[80vh] items-center justify-center px-4 py-20">
         <motion.div
@@ -92,7 +92,7 @@ export default function CheckoutSuccess() {
                 onClick={() => navigate(returnTo)}
                 className="w-full btn-glow"
               >
-                {returnTo === '/dashboard'
+                {returnTo === dashboardPaths.index
                   ? t('checkout.success.goToDashboard')
                   : language === 'ar'
                     ? 'العودة'
@@ -100,7 +100,7 @@ export default function CheckoutSuccess() {
               </Button>
 
               <Button asChild variant="outline" className="w-full gap-2">
-                <Link to="/profile">
+                <Link to={dashboardPaths.profile}>
                   <CreditCard className="h-4 w-4" />
                   {t('checkout.success.manageBilling')}
                 </Link>
@@ -113,6 +113,6 @@ export default function CheckoutSuccess() {
           </Card>
         </motion.div>
       </div>
-    </Layout>
+    </>
   );
 }

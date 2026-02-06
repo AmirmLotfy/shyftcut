@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, Brain, Trash2, User, Bot, Globe, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, apiPath, apiHeaders } from '@/lib/api';
@@ -184,6 +184,7 @@ export default function Chat() {
   };
   const speechSupported = !!getSpeechRecognition();
   const { user, session, getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { 
     canSendChatMessage, 
@@ -493,6 +494,7 @@ export default function Chat() {
     try {
       await apiFetch('/api/chat/history', { method: 'DELETE', token });
       setMessages([]);
+      queryClient.invalidateQueries({ queryKey: ['usage-limits'] });
       toast({
         title: t('chat.cleared'),
         description: t('chat.historyCleared'),
@@ -506,7 +508,7 @@ export default function Chat() {
   };
 
   return (
-    <Layout hideFooter>
+    <>
       <div className={cn(
         'flex min-h-0 flex-col',
         isMobile ? 'flex-1 min-h-0' : 'h-[calc(100dvh-3.5rem)]'
@@ -780,6 +782,6 @@ export default function Chat() {
           </>
         )}
       </div>
-    </Layout>
+    </>
   );
 }

@@ -262,15 +262,16 @@
     box-shadow: 0 4px 24px -8px hsl(var(--primary) / 0.08);
   }
 
-  /* Dashboard card wrapper — use with shadcn Card (no extra padding) */
+  /* Dashboard card wrapper — 2026 refined glass cards */
   .dashboard-card {
-    @apply rounded-2xl border border-border/60 bg-card/60 backdrop-blur-xl;
+    @apply rounded-2xl border border-border/50 bg-card/70 backdrop-blur-xl;
     transition: border-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 3px -1px hsl(var(--foreground) / 0.04);
   }
 
   .dashboard-card:hover {
-    @apply border-border/80;
-    box-shadow: 0 4px 24px -8px hsl(var(--primary) / 0.08);
+    @apply border-border/70;
+    box-shadow: 0 8px 30px -12px hsl(var(--primary) / 0.12), 0 1px 3px -1px hsl(var(--foreground) / 0.04);
   }
 
   /* Public glass card — landing/homepage sections (2025/2026 glass best practices) */

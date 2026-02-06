@@ -1,11 +1,11 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -14,6 +14,9 @@ import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { PageLoader } from "@/components/common/PageLoader";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
 import { PWAManifestLink } from "@/components/common/PWAManifestLink";
+import { PageViewTracker } from "@/components/common/PageViewTracker";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { trackPageView } from "@/lib/event-tracking";
 
 const Landing = lazy(() => import("./pages/Landing"));
 const Login = lazy(() => import("./pages/Login"));
@@ -47,6 +50,7 @@ const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const CareerDNA = lazy(() => import("./pages/CareerDNA"));
 const CareerDNAResult = lazy(() => import("./pages/CareerDNAResult"));
 const CareerDNASquad = lazy(() => import("./pages/CareerDNASquad"));
+const Earn = lazy(() => import("./pages/Earn"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
@@ -68,6 +72,7 @@ const RoutesContent = () => (
       <BrowserRouter>
       <ScrollToTop />
       <PWAManifestLink />
+      <PageViewTracker />
       <Suspense fallback={<PageLoader />}>
         <Routes>
         <Route path="/" element={<Landing />} />
@@ -76,7 +81,6 @@ const RoutesContent = () => (
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/pricing" element={<Pricing />} />
-        <Route path="/upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/cookies" element={<Cookies />} />
@@ -84,7 +88,6 @@ const RoutesContent = () => (
         <Route path="/about" element={<About />} />
         <Route path="/careers" element={<Navigate to="/about" replace />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
         <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
@@ -92,18 +95,23 @@ const RoutesContent = () => (
         <Route path="/career-dna/result/:id" element={<CareerDNAResult />} />
         <Route path="/career-dna/squad/:slug" element={<CareerDNASquad />} />
         <Route path="/wizard" element={<Wizard />} />
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
-        <Route path="/roadmap/:id" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
-        <Route path="/courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
-        <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
-        <Route path="/study" element={<ProtectedRoute><Study /></ProtectedRoute>} />
-        <Route path="/career-tools" element={<ProtectedRoute><CareerTools /></ProtectedRoute>} />
-        <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
-        <Route path="/affiliate" element={<Affiliate />} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
-        <Route path="/checkout/cancel" element={<ProtectedRoute><CheckoutCancel /></ProtectedRoute>} />
+        <Route path="/earn" element={<Earn />} />
+        <Route path="/dashboard" element={<AppLayout />}>
+          <Route index element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="roadmap" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="roadmap/:id" element={<ProtectedRoute><Roadmap /></ProtectedRoute>} />
+          <Route path="study" element={<ProtectedRoute><Study /></ProtectedRoute>} />
+          <Route path="courses" element={<ProtectedRoute><Courses /></ProtectedRoute>} />
+          <Route path="chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+          <Route path="career-tools" element={<ProtectedRoute><CareerTools /></ProtectedRoute>} />
+          <Route path="community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+          <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
+          <Route path="support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+          <Route path="checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
+          <Route path="checkout/cancel" element={<CheckoutCancel />} />
+          <Route path="affiliate" element={<Affiliate />} />
+        </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/*" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />

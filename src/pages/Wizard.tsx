@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Brain, BookOpen, Clock, Lightbulb, CheckCircle2, Globe } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Lightbulb, BookOpen, Clock, CheckCircle2, Globe, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -114,7 +114,7 @@ export default function Wizard() {
     t('wizard.stepLabel5'),
   ];
 
-  const stepIcons = [Globe, Briefcase, Target, Brain, BookOpen, Clock];
+  const stepIcons = [Globe, Briefcase, Target, Lightbulb, BookOpen, Clock];
 
   const GENERATING_STATEMENT_KEYS = [
     'wizard.generating.statement1',
@@ -323,6 +323,15 @@ export default function Wizard() {
         return;
       }
 
+      if (!canCreateRoadmap()) {
+        toast({
+          title: t('common.errorTitle'),
+          description: t('wizard.roadmapLimit'),
+          variant: 'destructive',
+        });
+        setIsGenerating(false);
+        return;
+      }
       const token = await getAccessToken();
       if (!token) {
         setIsGenerating(false);
@@ -476,7 +485,7 @@ export default function Wizard() {
               className="public-glass-card flex flex-col items-center justify-center rounded-2xl px-6 py-8 shadow-sm sm:px-10 sm:py-10"
             >
               <div className="flex items-center gap-3 mb-3">
-                <Brain className="h-7 w-7 animate-pulse text-primary sm:h-8 sm:w-8" />
+                <Loader2 className="h-7 w-7 animate-spin text-primary sm:h-8 sm:w-8" />
                 <p className="text-lg font-medium text-foreground sm:text-xl">
                   {t(GENERATING_STATEMENT_KEYS[generatingStatementIndex])}
                 </p>
@@ -918,7 +927,7 @@ export default function Wizard() {
                         </>
                       ) : (
                         <>
-                          <Brain className="h-4 w-4" />
+                          <Wand2 className="h-4 w-4" />
                           {t('wizard.generate')}
                         </>
                       )}

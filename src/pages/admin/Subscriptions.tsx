@@ -5,15 +5,27 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { SubscriptionDetailModal } from '@/components/admin/SubscriptionDetailModal';
+import { ChurnAnalysis } from '@/components/admin/ChurnAnalysis';
 
 export function Subscriptions() {
   const { language } = useLanguage();
-  const [tierFilter, setTierFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [tierFilter, setTierFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
   const [page, setPage] = useState(1);
+  const [detailSubscription, setDetailSubscription] = useState<AdminSubscription | null>(null);
+  const [churnStartDate, setChurnStartDate] = useState('');
+  const [churnEndDate, setChurnEndDate] = useState('');
 
-  const { data, isLoading, isError, error } = useAdminSubscriptions({ tier: tierFilter || undefined, status: statusFilter || undefined, page, limit: 50 });
+  const { data, isLoading, isError, error } = useAdminSubscriptions({ 
+    tier: tierFilter && tierFilter !== '_all' && tierFilter !== '_paid' ? tierFilter : undefined, 
+    status: statusFilter && statusFilter !== '_all' ? statusFilter : undefined, 
+    includeAll: tierFilter === '_all',
+    page, 
+    limit: 50 
+  });
   const { data: revenue, isError: revenueError } = useAdminRevenue();
 
   return (
@@ -50,25 +62,33 @@ export function Subscriptions() {
         </div>
       )}
 
+      <Tabs defaultValue="subscriptions" className="w-full">
+        <TabsList>
+          <TabsTrigger value="subscriptions">{language === 'ar' ? 'الاشتراكات' : 'Subscriptions'}</TabsTrigger>
+          <TabsTrigger value="churn">{language === 'ar' ? 'تحليل التسرب' : 'Churn Analysis'}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="subscriptions" className="space-y-4 sm:space-y-6 mt-6">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <Select value={tierFilter} onValueChange={setTierFilter}>
+        <Select value={tierFilter || '_paid'} onValueChange={(v) => setTierFilter(v === '_paid' ? '' : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder={language === 'ar' ? 'الخطة' : 'Tier'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_paid">{language === 'ar' ? 'المدفوع فقط' : 'Paid Only'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل (بما في ذلك مجاني)' : 'All (Including Free)'}</SelectItem>
             <SelectItem value="free">Free</SelectItem>
             <SelectItem value="premium">Premium</SelectItem>
             <SelectItem value="pro">Pro</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter || '_all'} onValueChange={(v) => setStatusFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder={language === 'ar' ? 'الحالة' : 'Status'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="canceled">Canceled</SelectItem>
           </SelectContent>
@@ -106,7 +126,11 @@ export function Subscriptions() {
               </TableRow>
             ) : (
               data?.subscriptions.map((sub: AdminSubscription) => (
-                <TableRow key={sub.id}>
+                <TableRow
+                  key={sub.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setDetailSubscription(sub)}
+                >
                   <TableCell className="font-medium">
                     {(sub.profiles as { display_name?: string; email?: string })?.display_name || (sub.profiles as { email?: string })?.email || '-'}
                   </TableCell>
@@ -139,6 +163,40 @@ export function Subscriptions() {
           </div>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="churn" className="mt-6">
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <input
+                type="date"
+                value={churnStartDate}
+                onChange={(e) => setChurnStartDate(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+                placeholder={language === 'ar' ? 'تاريخ البدء' : 'Start Date'}
+              />
+              <input
+                type="date"
+                value={churnEndDate}
+                onChange={(e) => setChurnEndDate(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+                placeholder={language === 'ar' ? 'تاريخ الانتهاء' : 'End Date'}
+              />
+            </div>
+            <ChurnAnalysis
+              startDate={churnStartDate || undefined}
+              endDate={churnEndDate || undefined}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Subscription Detail Modal */}
+      <SubscriptionDetailModal
+        subscription={detailSubscription}
+        open={!!detailSubscription}
+        onOpenChange={(open) => !open && setDetailSubscription(null)}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 -- Add role enum and column to profiles table
 CREATE TYPE public.user_role AS ENUM ('user', 'admin', 'superadmin');
 
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role public.user_role DEFAULT 'user' NOT NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS "role" public.user_role DEFAULT 'user'::public.user_role NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 
 -- Create admin audit log table

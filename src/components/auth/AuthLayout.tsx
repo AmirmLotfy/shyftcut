@@ -52,20 +52,20 @@ export function AuthLayout({
   return (
     <div
       className={cn(
-        "h-[100dvh] flex flex-col md:flex-row w-[100dvw] font-sans",
+        "min-h-[100dvh] h-[100dvh] flex flex-col md:flex-row w-[100dvw] font-sans overflow-hidden",
         className
       )}
     >
-      {/* Left column: form */}
+      {/* Left column: form - fixed height, no scroll, tighter layout on desktop */}
       <section
-        className="flex-1 flex items-center justify-center overflow-y-auto px-6 pb-6 md:px-8 md:pb-8"
-        style={{ paddingTop: 'max(2rem, calc(2rem + env(safe-area-inset-top)))' }}
+        className="flex-1 flex items-center justify-center overflow-y-auto overflow-x-hidden py-4 px-4 sm:px-6 md:py-6 md:px-8 min-h-0"
+        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}
       >
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md flex flex-col gap-4 md:gap-5">
           {logoSlot ?? (
             <Link
               to="/"
-              className="mb-8 flex items-center justify-center gap-2"
+              className="mb-2 md:mb-4 flex items-center justify-center gap-2 shrink-0"
               aria-label="Shyftcut Home"
             >
               <img

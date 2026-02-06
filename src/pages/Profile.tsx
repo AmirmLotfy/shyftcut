@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { validatePassword } from '@/lib/password-validation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +19,7 @@ import { useUserBadges } from '@/hooks/useUserBadges';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch, apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { getUpgradePath } from '@/lib/upgrade-link';
 import { debugError } from '@/lib/debug';
 import { captureException } from '@/lib/error-tracking';
@@ -47,12 +47,12 @@ import {
   budgetOptions,
   experienceLevels,
 } from '@/lib/profile-options';
-import { COUNTRY_CODES, parsePhone, buildPhone } from '@/lib/country-codes';
+import { COUNTRY_CODES, parsePhone, buildPhone, validatePhone } from '@/lib/country-codes';
 
 export default function Profile() {
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
-  const { user, session, signOut, getAccessToken } = useAuth();
+  const { user, session, signOut, getAccessToken, updateUserDisplayName } = useAuth();
   const queryClient = useQueryClient();
   const { profile, isLoading, error: profileError, updateProfile, isUpdating } = useProfile();
   const { tier, isPremium, periodEnd } = useSubscription();
@@ -203,6 +203,18 @@ export default function Profile() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneValue = buildPhone(formData.phone_country_code, formData.phone_national) || null;
+    if (phoneValue) {
+      const phoneValidation = validatePhone(phoneValue);
+      if (!phoneValidation.valid) {
+        toast({
+          title: t('common.errorTitle'),
+          description: phoneValidation.error || t('profile.phonePlaceholder'),
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
     const payload = {
       ...formData,
       display_name: formData.display_name.trim() || formData.display_name,
@@ -215,10 +227,12 @@ export default function Profile() {
       linkedin_url: formData.linkedin_url?.trim() || null,
       twitter_url: formData.twitter_url?.trim() || null,
       github_url: formData.github_url?.trim() || null,
-      phone: buildPhone(formData.phone_country_code, formData.phone_national) || null,
+      phone: phoneValue,
     };
     updateProfile(payload, {
       onSuccess: () => {
+        const name = (payload.display_name as string)?.trim();
+        if (name) updateUserDisplayName(name);
         toast({
           title: t('common.saved'),
           description: t('profile.profileUpdated'),
@@ -426,7 +440,7 @@ export default function Profile() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <>
         <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
           <Skeleton className="mb-6 h-9 w-48" />
           <Skeleton className="mb-8 h-5 w-64" />
@@ -438,13 +452,13 @@ export default function Profile() {
             <Skeleton className="h-64 rounded-xl" />
           </div>
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (profileError) {
     return (
-      <Layout>
+      <>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -461,16 +475,16 @@ export default function Profile() {
               {(profileError as Error)?.message || t('profile.couldNotLoad')}
             </p>
             <Button asChild>
-              <Link to="/dashboard">{t('profile.backToDashboard')}</Link>
+              <Link to={dashboardPaths.index}>{t('profile.backToDashboard')}</Link>
             </Button>
           </motion.div>
         </div>
-      </Layout>
+      </>
     );
   }
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -1181,7 +1195,7 @@ export default function Profile() {
                 )}
                 <div className="flex flex-col gap-2">
                   <Button asChild variant="outline" className="w-full">
-                    <Link to="/upgrade?returnTo=/profile" state={{ returnTo: '/profile' }}>
+                    <Link to={`${dashboardPaths.upgrade}?returnTo=${encodeURIComponent(dashboardPaths.profile)}`} state={{ returnTo: dashboardPaths.profile }}>
                       {t('profile.viewPlans')}
                     </Link>
                   </Button>
@@ -1237,7 +1251,7 @@ export default function Profile() {
               </CardHeader>
               <CardContent>
                 <Button asChild variant="outline" className="w-full gap-2">
-                  <Link to="/affiliate">
+                  <Link to={dashboardPaths.affiliate}>
                     {t('affiliate.cta')}
                     <Link2 className="h-4 w-4" />
                   </Link>
@@ -1316,6 +1330,6 @@ export default function Profile() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+    </>
   );
 }

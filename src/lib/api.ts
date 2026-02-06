@@ -8,6 +8,9 @@ const base = typeof import.meta.env.VITE_API_URL === "string"
 const isSupabaseFunctions =
   typeof base === "string" && base.includes("supabase.co/functions");
 
+/** Supabase anon key; required by the Edge Functions gateway when calling from the client. */
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? "").trim();
+
 export function getApiUrl(): string {
   return base || "";
 }
@@ -18,12 +21,15 @@ export function apiPath(path: string): string {
   return base ? `${base}${p}` : p;
 }
 
-/** Headers for API requests (includes X-Path when using Supabase Edge). */
+/** Headers for API requests (includes X-Path and apikey when using Supabase Edge). */
 export function apiHeaders(path: string, token?: string | null): Record<string, string> {
   const normalized = path.startsWith("/api") ? path : `/api/${path.replace(/^\//, "")}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (isSupabaseFunctions) headers["X-Path"] = normalized;
+  if (isSupabaseFunctions) {
+    headers["X-Path"] = normalized;
+    if (supabaseAnonKey) headers["apikey"] = supabaseAnonKey;
+  }
   return headers;
 }
 
@@ -75,8 +81,18 @@ export async function apiFetch<T = unknown>(
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (isSupabaseFunctions) headers["X-Path"] = pathOnly;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+    if (isSupabaseFunctions && pathOnly.includes("checkout")) headers["X-User-Token"] = token;
+  }
+  if (isSupabaseFunctions) {
+    headers["X-Path"] = pathOnly;
+    if (supabaseAnonKey) {
+      headers["apikey"] = supabaseAnonKey;
+    } else if (import.meta.env?.DEV) {
+      console.warn("[api] VITE_SUPABASE_ANON_KEY is missing; Edge Functions gateway may return 401. Set it in .env and in Vercel for production.");
+    }
+  }
 
   let res: Response;
   try {
@@ -103,8 +119,13 @@ export async function apiFetch<T = unknown>(
       err = { error: text || res.statusText };
     }
     const message = extractApiErrorMessage(err, res.statusText);
-    debugLog("api", "error response", pathOnly, res.status, message);
-    throw new Error(message);
+    const authCodeFromBody = res.status === 401 && typeof err.code === "string" ? err.code : undefined;
+    const authCode = authCodeFromBody ?? (res.status === 401 ? (res.headers.get("X-Auth-Failure-Code") ?? "unknown_401") : undefined);
+    debugLog("api", "error response", pathOnly, res.status, message, authCode ?? "");
+    const e = new Error(message) as Error & { code?: string; status?: number };
+    if (authCode) e.code = authCode;
+    if (res.status) e.status = res.status;
+    throw e;
   }
 
   const contentType = res.headers.get("content-type") ?? "";

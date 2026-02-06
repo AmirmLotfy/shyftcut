@@ -105,13 +105,13 @@ export function UpgradePrompt({ feature, remaining, limit }: UpgradePromptProps)
       animate={{ opacity: 1, scale: 1 }}
       className="w-full max-w-md mx-auto"
     >
-      <Card className="border-primary/20 bg-gradient-to-b from-primary/5 to-background">
+      <Card className="dashboard-card border-primary/20 bg-gradient-to-b from-primary/5 via-primary/[0.02] to-transparent">
         <CardHeader className="text-center">
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent"
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25"
           >
             <Icon className="h-8 w-8 text-white" />
           </motion.div>

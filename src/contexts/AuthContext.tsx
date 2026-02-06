@@ -34,11 +34,15 @@ interface AuthContextType {
   isLoading: boolean;
   /** Returns current access token from Supabase (refreshed if needed). Use this for API calls so token is never stale. */
   getAccessToken: () => Promise<string | null>;
-  signUp: (email: string, password: string, displayName?: string, captchaToken?: string) => Promise<void>;
-  signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
-  signInWithMagicLink: (email: string, captchaToken?: string) => Promise<void>;
+  /** Like getAccessToken but forces a session refresh first. Use for checkout/payment flows where 401 is common. */
+  getAccessTokenFresh: () => Promise<string | null>;
+  /** Update display name in auth user state (e.g. after profile save). */
+  updateUserDisplayName: (displayName: string) => void;
+  signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signInWithMagicLink: (email: string) => Promise<void>;
   signInWithGoogle: () => void;
-  resetPasswordForEmail: (email: string, captchaToken?: string) => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
   signOut: () => void;
 }
 
@@ -121,7 +125,36 @@ function useAuthState() {
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (!hasSupabase || !supabase) return null;
     const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-    return supabaseSession?.access_token ?? null;
+    if (supabaseSession?.access_token) return supabaseSession.access_token;
+    const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+    return refreshed?.access_token ?? null;
+  }, []);
+
+  const getAccessTokenFresh = useCallback(async (): Promise<string | null> => {
+    if (!hasSupabase || !supabase) return null;
+    const valid = (t: string | undefined | null) => (t && String(t).trim()) || null;
+    try {
+      const { data: { session }, error } = await supabase.auth.refreshSession();
+      if (error) {
+        debugError("AuthContext", "getAccessTokenFresh refresh error", error);
+        return null;
+      }
+      const t = valid(session?.access_token);
+      if (t) return t;
+      // Do NOT fall back to getSession(): it returns cached session which may have
+      // an expired access_token. Returning that would cause 401 on API calls.
+      return null;
+    } catch (err) {
+      debugError("AuthContext", "getAccessTokenFresh refresh failed", err);
+      return null;
+    }
+  }, [hasSupabase, supabase]);
+
+  const updateUserDisplayName = useCallback((displayName: string) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      return { ...prev, user_metadata: { ...prev.user_metadata, display_name: displayName } };
+    });
   }, []);
 
   useEffect(() => {
@@ -191,7 +224,7 @@ function useAuthState() {
     return () => setOnUnauthorized(null);
   }, [clearSession]);
 
-  const signUp = async (email: string, password: string, displayName?: string, captchaToken?: string) => {
+  const signUp = async (email: string, password: string, displayName?: string) => {
     if (!supabase) {
       toast({
         title: "Auth not configured",
@@ -206,7 +239,6 @@ function useAuthState() {
       options: {
         data: { display_name: displayName?.trim() },
         emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
-        captchaToken,
       },
     });
     if (error) {
@@ -221,12 +253,9 @@ function useAuthState() {
         /already registered|user already exists|email already in use|already in use/i.test(
           error.message
         );
-      const isCaptchaFailed = code === "captcha_failed";
       toast({
         title: "Sign up failed",
-        description: isCaptchaFailed
-          ? (t("auth.captchaFailed") ?? "CAPTCHA verification failed. Please try again.")
-          : isPasswordError
+        description: isPasswordError
             ? t("auth.passwordWeak")
             : isAlreadyRegistered
               ? t("auth.emailAlreadyRegistered")
@@ -262,7 +291,7 @@ function useAuthState() {
     }
   };
 
-  const signIn = async (email: string, password: string, captchaToken?: string) => {
+  const signIn = async (email: string, password: string) => {
     if (!supabase) {
       toast({
         title: "Auth not configured",
@@ -274,17 +303,13 @@ function useAuthState() {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
-      options: { captchaToken },
     });
     if (error) {
       debugLog("AuthContext", "signIn error", error.message);
       captureException(error);
-      const isCaptchaFailed = (error as { code?: string }).code === "captcha_failed";
       toast({
         title: "Sign in failed",
-        description: isCaptchaFailed
-          ? (t("auth.captchaFailed") ?? "CAPTCHA verification failed. Please try again.")
-          : error.message,
+        description: error.message,
         variant: "destructive",
       });
       throw new Error(error.message);
@@ -299,7 +324,7 @@ function useAuthState() {
   };
 
   const signInWithMagicLink = useCallback(
-    async (email: string, captchaToken?: string) => {
+    async (email: string) => {
       if (!supabase) {
         toast({
           title: "Auth not configured",
@@ -314,19 +339,14 @@ function useAuthState() {
         email: email.trim(),
         options: {
           emailRedirectTo: redirectTo,
-          captchaToken,
         },
       });
       if (error) {
         debugLog("AuthContext", "signInWithMagicLink error", error.message);
         captureException(error);
-        const isCaptchaFailed = (error as { code?: string }).code === "captcha_failed";
-        const description = isCaptchaFailed
-          ? (t("auth.captchaFailed") ?? "CAPTCHA verification failed. Please try again.")
-          : `${error.message} ${t("auth.magicLink.tryGoogle")}`;
         toast({
           title: t("auth.magicLink.failed"),
-          description,
+          description: `${error.message} ${t("auth.magicLink.tryGoogle")}`,
           variant: "destructive",
         });
         throw new Error(error.message);
@@ -355,7 +375,7 @@ function useAuthState() {
   }, [toast]);
 
   const resetPasswordForEmail = useCallback(
-    async (email: string, captchaToken?: string) => {
+    async (email: string) => {
       if (!supabase) {
         toast({
           title: "Auth not configured",
@@ -368,16 +388,12 @@ function useAuthState() {
         typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo,
-        captchaToken,
       });
       if (error) {
         debugLog("AuthContext", "resetPasswordForEmail error", error.message);
-        const isCaptchaFailed = (error as { code?: string }).code === "captcha_failed";
         toast({
           title: "Failed to send reset email",
-          description: isCaptchaFailed
-            ? (t("auth.captchaFailed") ?? "CAPTCHA verification failed. Please try again.")
-            : error.message,
+          description: error.message,
           variant: "destructive",
         });
         throw new Error(error.message);
@@ -426,6 +442,8 @@ function useAuthState() {
     session,
     isLoading,
     getAccessToken,
+    getAccessTokenFresh,
+    updateUserDisplayName,
     signUp,
     signIn,
     signInWithMagicLink,
@@ -444,6 +462,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session: state.session,
         isLoading: state.isLoading,
         getAccessToken: state.getAccessToken,
+        getAccessTokenFresh: state.getAccessTokenFresh,
+        updateUserDisplayName: state.updateUserDisplayName,
         signUp: state.signUp,
         signIn: state.signIn,
         signInWithMagicLink: state.signInWithMagicLink,

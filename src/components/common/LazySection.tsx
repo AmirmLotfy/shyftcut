@@ -9,11 +9,13 @@ export function LazySection({
   className,
   rootMargin = '100px',
   fallback = null,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   rootMargin?: string;
   fallback?: React.ReactNode;
+  id?: string;
 }) {
   const [inView, setInView] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,7 +36,7 @@ export function LazySection({
   }, [rootMargin]);
 
   return (
-    <div ref={ref} className={className}>
+    <div ref={ref} id={id} className={className}>
       {inView ? children : fallback}
     </div>
   );

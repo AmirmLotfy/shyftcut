@@ -6,14 +6,13 @@ import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AuthLayout, GoogleIcon } from '@/components/auth/AuthLayout';
 import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
-import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
-import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AUTH_HERO_IMAGE, getAuthTestimonials } from '@/lib/auth-testimonials';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 
 type LoginMode = 'password' | 'magiclink';
 
@@ -32,8 +31,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<LoginMode>(getStoredLoginMode);
   const [isLoading, setIsLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | undefined>();
-  const captchaRef = useRef<AuthCaptchaRef>(null);
+  const submittingRef = useRef(false);
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { user, signIn, signInWithMagicLink, signInWithGoogle } = useAuth();
@@ -44,7 +42,7 @@ export default function Login() {
   const fromPath = fromLocation ? (fromLocation.pathname || '') + (fromLocation.search || '') : null;
   const fromWizard = searchParams.get('from') === 'wizard';
   const fromGuest = searchParams.get('from') === 'guest';
-  const redirectTo = (fromPath && fromPath.startsWith('/')) ? fromPath : (fromGuest ? '/wizard?from=guest' : fromWizard ? '/dashboard' : null) ?? '/dashboard';
+  const redirectTo = (fromPath && fromPath.startsWith('/')) ? fromPath : (fromGuest ? '/wizard?from=guest' : fromWizard ? dashboardPaths.index : null) ?? dashboardPaths.index;
 
   useEffect(() => {
     if (user) {
@@ -63,22 +61,22 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
     try {
       if (mode === 'magiclink') {
-        await signInWithMagicLink(email, captchaToken);
+        await signInWithMagicLink(email);
       } else {
-        await signIn(email, password, captchaToken);
+        await signIn(email, password);
       }
       // Don't navigate here - let the useEffect (user watcher) do it after auth state commits.
       // Magic link: no session yet; user will click email link and land back on /login with hash.
     } catch {
-      setCaptchaToken(undefined);
-      captchaRef.current?.reset();
       // Error is handled in AuthContext
     } finally {
+      submittingRef.current = false;
       setIsLoading(false);
-      captchaRef.current?.reset();
     }
   };
 
@@ -99,8 +97,8 @@ export default function Login() {
         path="/login"
       />
       <Layout {...layoutProps}>
-        <div className="flex flex-col gap-6">
-          <h1 className={`text-2xl font-semibold leading-tight sm:text-4xl md:text-5xl ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
+        <div className="flex flex-col gap-3 md:gap-4">
+          <h1 className={`text-2xl font-semibold leading-tight sm:text-3xl md:text-4xl lg:text-[2.25rem] ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
             <span className="font-light tracking-tighter">{t('auth.login.title')}</span>
           </h1>
           <p className="animate-element animate-delay-200 text-muted-foreground">
@@ -135,7 +133,7 @@ export default function Login() {
             </p>
           )}
 
-          <form data-testid="login-form" onSubmit={handleSubmit} className="space-y-5">
+          <form data-testid="login-form" onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
             <div className="animate-element animate-delay-300">
               <label htmlFor="email" className="text-sm font-medium text-muted-foreground">
                 {t('auth.email')}
@@ -198,18 +196,10 @@ export default function Login() {
               </div>
             )}
 
-            <div className="animate-element animate-delay-500">
-              <AuthCaptcha
-                ref={captchaRef}
-                onVerify={setCaptchaToken}
-                onExpire={() => setCaptchaToken(undefined)}
-              />
-            </div>
-
             <Button
               type="submit"
               className="animate-element animate-delay-600 w-full rounded-2xl py-4 font-medium btn-glow"
-              disabled={isLoading || (HCAPTCHA_ENABLED && !captchaToken)}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

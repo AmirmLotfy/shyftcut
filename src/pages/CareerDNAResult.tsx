@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
 import { CheckoutButton } from '@/components/pricing/CheckoutButton';
 import { POLAR_PRODUCTS } from '@/lib/polar-config';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { BASE_URL } from '@/lib/seo';
 import { captureShareCard } from '@/lib/share-card';
 import { ShareCard } from '@/components/career-dna/ShareCard';
@@ -587,7 +588,7 @@ export default function CareerDNAResult() {
                 productId={premiumProduct.productId}
                 variant="outline"
                 size="lg"
-                returnTo="/dashboard"
+                returnTo={dashboardPaths.index}
                 metadata={{ from: 'careerdna', career_dna_result_id: data.resultId }}
               >
                 {t('careerDna.result.quizTakersDiscount')}

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function NotFound() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
@@ -25,7 +26,7 @@ export default function NotFound() {
           {t('notfound.description')}
         </p>
         <div className="flex items-center justify-center gap-4">
-          <Button variant="outline" onClick={() => window.history.back()} className="gap-2">
+          <Button variant="outline" onClick={() => navigate(-1)} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             {t('notfound.goBack')}
           </Button>

@@ -1,9 +1,8 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, XCircle, Mail, Calendar, AlertTriangle, HelpCircle, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { XCircle, Mail, AlertTriangle, HelpCircle, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Layout } from '@/components/layout/Layout';
+import { LegalPageHero } from '@/components/legal/LegalPageHero';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -34,36 +33,13 @@ export default function Refund() {
         path="/refund"
       />
       <div className="min-h-screen bg-background">
-        {/* Hero */}
-        <section className="relative overflow-hidden border-b border-border py-12 md:py-16">
-          <div className="absolute inset-0 bg-gradient-to-b from-destructive/5 to-transparent" />
-          <div className="container relative mx-auto px-4">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mx-auto max-w-3xl text-center"
-            >
-              <Button variant="ghost" asChild className="mb-6">
-                <Link to="/" className="gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  {language === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}
-                </Link>
-              </Button>
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-                <XCircle className="h-7 w-7 text-destructive" />
-              </div>
-              <h1 className="mb-3 text-3xl font-bold md:text-4xl">
-                {language === 'ar' ? 'سياسة الاسترداد' : 'Refund Policy'}
-              </h1>
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>
-                  {language === 'ar' ? `آخر تحديث: ${lastUpdatedAr}` : `Last Updated: ${lastUpdated}`}
-                </span>
-              </div>
-            </motion.div>
-          </div>
-        </section>
+        <LegalPageHero
+          title={language === 'ar' ? 'سياسة الاسترداد' : 'Refund Policy'}
+          icon={XCircle}
+          lastUpdatedEn={lastUpdated}
+          lastUpdatedAr={lastUpdatedAr}
+          variant="destructive"
+        />
 
         {/* Single content block — all policy content in one scroll */}
         <section className="py-10 md:py-14">

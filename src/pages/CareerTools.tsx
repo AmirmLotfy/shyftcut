@@ -7,14 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch, extractApiErrorMessage } from '@/lib/api';
-import { getUpgradePath } from '@/lib/upgrade-link';
+import { dashboardPaths } from '@/lib/dashboard-routes';
+import { PremiumGateCard } from '@/components/common/PremiumGateCard';
 import { getCareerToolsBenefits } from '@/lib/premium-features';
 
 type CVAnalysis = {
@@ -124,40 +124,21 @@ export default function CareerTools() {
 
   if (!isPremium) {
     return (
-      <Layout>
-        <div className="container mx-auto max-w-app-content px-4 py-8 pb-24">
-          <Card className="rounded-2xl border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-primary" />
-                {isAr ? 'أدوات المهنة' : 'Career Tools'}
-              </CardTitle>
-              <CardDescription>
-                {isAr
-                  ? 'تحليل السيرة الذاتية واقتراح 10 وظائف أسبوعياً متاحة لمشتركي بريميوم.'
-                  : 'CV analysis and weekly job recommendations are available for Premium subscribers.'}
-              </CardDescription>
-              <ul className="mt-2 list-inside list-disc space-y-0.5 text-sm text-muted-foreground">
-                {getCareerToolsBenefits(isAr ? 'ar' : 'en').map((benefit, i) => (
-                  <li key={i}>{benefit}</li>
-                ))}
-              </ul>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full sm:w-auto">
-                <Link to={getUpgradePath(user)}>
-                  {isAr ? 'ترقية إلى بريميوم' : 'Upgrade to Premium'}
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </Layout>
+      <PremiumGateCard
+        variant="full"
+        title={isAr ? 'أدوات المهنة' : 'Career Tools'}
+        description={
+          isAr
+            ? 'تحليل السيرة الذاتية واقتراح 10 وظائف أسبوعياً متاحة لمشتركي بريميوم.'
+            : 'CV analysis and weekly job recommendations are available for Premium subscribers.'
+        }
+        benefits={getCareerToolsBenefits(isAr ? 'ar' : 'en')}
+      />
     );
   }
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content space-y-8 px-4 py-8 pb-24">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
@@ -264,7 +245,7 @@ export default function CareerTools() {
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {isAr ? 'اضبط الموقع ونوع العمل من' : 'Set your location and work type in'}{' '}
-              <a href="/profile" className="text-primary underline">{isAr ? 'الملف الشخصي' : 'Profile'}</a>.
+              <Link to={dashboardPaths.profile} className="text-primary underline">{isAr ? 'الملف الشخصي' : 'Profile'}</Link>.
             </p>
             <Button onClick={handleFindJobs} disabled={jobsFinding} className="gap-2">
               {jobsFinding ? (
@@ -314,6 +295,6 @@ export default function CareerTools() {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </>
   );
 }

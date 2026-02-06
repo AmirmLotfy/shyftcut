@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -92,7 +91,7 @@ export default function Support() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-8 sm:pt-12">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -174,6 +173,6 @@ export default function Support() {
           {t('support.sentFrom')} {user?.email}
         </p>
       </div>
-    </Layout>
+    </>
   );
 }

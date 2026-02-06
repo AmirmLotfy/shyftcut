@@ -31,27 +31,10 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 
-/** Paths that use the app layout (dashboard, roadmap, etc.). */
-export const APP_PATHS = [
-  '/dashboard',
-  '/affiliate',
-  '/upgrade',
-  '/roadmap',
-  '/study',
-  '/courses',
-  '/chat',
-  '/career-tools',
-  '/profile',
-  '/support',
-  '/wizard',
-  '/checkout/success',
-  '/checkout/cancel',
-];
-
-export function isAppPath(pathname: string): boolean {
-  return APP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
-}
+/** Paths that use the app layout. All app routes live under /dashboard. */
+export { isDashboardPath as isAppPath } from '@/lib/dashboard-routes';
 
 export function AppHeader() {
   const [isOpen, setIsOpen] = useState(false);
@@ -60,10 +43,10 @@ export function AppHeader() {
   const navigate = useNavigate();
 
   const appNavItems = [
-    { label: t('nav.dashboard'), href: '/dashboard', icon: IconMapTrifold },
-    { label: t('nav.roadmap'), href: '/roadmap', icon: IconMapTrifold },
-    { label: t('nav.courses'), href: '/courses', icon: IconBookOpen },
-    { label: t('nav.chat'), href: '/chat', icon: IconMessageSquare },
+    { label: t('nav.dashboard'), href: dashboardPaths.index, icon: IconMapTrifold },
+    { label: t('nav.roadmap'), href: dashboardPaths.roadmap, icon: IconMapTrifold },
+    { label: t('nav.courses'), href: dashboardPaths.courses, icon: IconBookOpen },
+    { label: t('nav.chat'), href: dashboardPaths.chat, icon: IconMessageSquare },
   ];
 
   const handleSignOut = async () => {
@@ -78,7 +61,7 @@ export function AppHeader() {
     <header className="fixed top-0 inset-x-0 z-50 border-b border-border/60 bg-background/95 shadow-sm backdrop-blur-xl dark:shadow-black/10">
       <nav className="container relative mx-auto flex h-14 items-center justify-between gap-4 px-4 md:px-6">
         <Link
-          to="/dashboard"
+          to={dashboardPaths.index}
           className="flex shrink-0 items-center gap-2"
           data-testid="nav-link-home"
         >
@@ -100,7 +83,7 @@ export function AppHeader() {
             <Link
               key={item.href}
               to={item.href}
-              data-testid={item.href === '/dashboard' ? 'nav-link-dashboard' : undefined}
+              data-testid={item.href === dashboardPaths.index ? 'nav-link-dashboard' : undefined}
               className="min-touch rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             >
               {item.label}
@@ -130,14 +113,14 @@ export function AppHeader() {
                 >
                   <IconUser className="h-4 w-4" />
                   <span className="hidden max-w-[100px] truncate sm:inline">
-                    {user.email?.split('@')[0]}
+                    {user.user_metadata?.display_name ?? user.email?.split('@')[0]}
                   </span>
                   <IconCaretDown className="h-3.5 w-3.5 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'}>
                 <DropdownMenuItem asChild>
-                  <Link to="/profile" className="flex items-center gap-2">
+                  <Link to={dashboardPaths.profile} className="flex items-center gap-2">
                     <IconUser className="h-4 w-4" />
                     {t('nav.profile')}
                   </Link>
@@ -202,7 +185,7 @@ export function AppHeader() {
                 <div className="mt-4 border-t border-border pt-4">
                   <div className="grid gap-1">
                     <Link
-                      to="/profile"
+                      to={dashboardPaths.profile}
                       onClick={handleNavClick}
                       className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-base font-medium transition-colors hover:bg-muted active:bg-muted/80"
                     >

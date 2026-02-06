@@ -6,8 +6,6 @@ import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { AuthLayout, GoogleIcon } from '@/components/auth/AuthLayout';
 import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
-import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { getSeo } from '@/data/seo-content';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -15,6 +13,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { validatePassword } from '@/lib/password-validation';
 import { AUTH_HERO_IMAGE, getAuthTestimonials } from '@/lib/auth-testimonials';
+import { dashboardPaths } from '@/lib/dashboard-routes';
+
+/** Valid return path: starts with / and contains no protocol (avoid open redirect). */
+function isValidReturnTo(value: string | null): value is string {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return trimmed.startsWith('/') && !trimmed.includes('://');
+}
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -22,8 +28,7 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | undefined>();
-  const captchaRef = useRef<AuthCaptchaRef>(null);
+  const submittingRef = useRef(false);
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { user, signUp, signInWithGoogle } = useAuth();
@@ -32,17 +37,20 @@ export default function Signup() {
   const [searchParams] = useSearchParams();
   const justSignedUpRef = useRef(false);
   const fromGuest = searchParams.get('from') === 'guest';
-  const returnTo = searchParams.get('returnTo');
+  const rawReturnTo = searchParams.get('returnTo');
+  const safeReturnTo = isValidReturnTo(rawReturnTo) ? rawReturnTo.trim() : null;
+  const defaultTarget = fromGuest ? '/wizard?from=guest' : dashboardPaths.index;
+  const redirectTarget = safeReturnTo ?? defaultTarget;
 
   useEffect(() => {
     if (user && !justSignedUpRef.current) {
-      const target = returnTo || (fromGuest ? '/wizard?from=guest' : '/dashboard');
-      navigate(target.startsWith('/') ? target : `/${target}`, { replace: true });
+      navigate(redirectTarget, { replace: true });
     }
-  }, [user, navigate, fromGuest, returnTo]);
+  }, [user, navigate, redirectTarget]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.valid) {
       toast({
@@ -52,23 +60,21 @@ export default function Signup() {
       });
       return;
     }
+    submittingRef.current = true;
     justSignedUpRef.current = true;
     setIsLoading(true);
     try {
-      await signUp(email, password, name, captchaToken);
+      await signUp(email, password, name);
       if (typeof window !== 'undefined' && (window as unknown as { Affonso?: { signup: (e: string) => void } }).Affonso?.signup) {
         (window as unknown as { Affonso: { signup: (e: string) => void } }).Affonso.signup(email);
       }
-      const target = returnTo || (fromGuest ? '/wizard?from=guest' : '/dashboard');
-      navigate(target.startsWith('/') ? target : `/${target}`, { replace: true });
+      navigate(redirectTarget, { replace: true });
     } catch {
       justSignedUpRef.current = false;
-      setCaptchaToken(undefined);
-      captchaRef.current?.reset();
+      submittingRef.current = false;
       // Error is handled in AuthContext
     } finally {
       setIsLoading(false);
-      captchaRef.current?.reset();
     }
   };
 
@@ -89,15 +95,15 @@ export default function Signup() {
         path="/signup"
       />
       <Layout {...layoutProps}>
-        <div className="flex flex-col gap-6">
-          <h1 className={`text-2xl font-semibold leading-tight sm:text-4xl md:text-5xl ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
+        <div className="flex flex-col gap-3 md:gap-4">
+          <h1 className={`text-2xl font-semibold leading-tight sm:text-3xl md:text-4xl lg:text-[2.25rem] ${!isMobile ? 'animate-element animate-delay-100' : ''}`}>
             <span className="font-light tracking-tighter">{t('auth.signup.title')}</span>
           </h1>
           <p className="animate-element animate-delay-200 text-muted-foreground">
             {t('auth.signup.subtitle')}
           </p>
 
-          <form data-testid="signup-form" onSubmit={handleSubmit} className="space-y-5">
+          <form data-testid="signup-form" onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
             <div className="animate-element animate-delay-300">
               <label htmlFor="name" className="text-sm font-medium text-muted-foreground">
                 {t('auth.name')}
@@ -170,18 +176,10 @@ export default function Signup() {
               </GlassInputWrapper>
             </div>
 
-            <div className="animate-element animate-delay-600">
-              <AuthCaptcha
-                ref={captchaRef}
-                onVerify={setCaptchaToken}
-                onExpire={() => setCaptchaToken(undefined)}
-              />
-            </div>
-
             <Button
               type="submit"
               className="animate-element animate-delay-600 w-full rounded-2xl py-4 font-medium btn-glow"
-              disabled={isLoading || (HCAPTCHA_ENABLED && !captchaToken)}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

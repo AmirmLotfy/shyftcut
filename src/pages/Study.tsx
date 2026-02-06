@@ -15,9 +15,9 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { cn } from '@/lib/utils';
 
 const STORAGE_KEY = 'shyftcut-pomodoro';
@@ -167,7 +167,7 @@ export default function Study() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-8">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -188,7 +188,7 @@ export default function Study() {
               <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
                 <BookOpen className="h-4 w-4 shrink-0" />
                 <span>{isAr ? 'الدراسة لـ: ' : 'Study for: '}</span>
-                <Link to="/roadmap" className="font-medium text-foreground underline-offset-4 hover:underline">
+                <Link to={dashboardPaths.roadmap} className="font-medium text-foreground underline-offset-4 hover:underline">
                   {isAr ? `الأسبوع ${currentWeek.week_number}` : `Week ${currentWeek.week_number}`} — {currentWeek.title || (isAr ? 'هذا الأسبوع' : 'This week')}
                 </Link>
               </p>
@@ -278,7 +278,7 @@ export default function Study() {
           {isAr ? 'اختصار: Ctrl+B أو Cmd+B لإظهار/إخفاء الشريط الجانبي' : 'Tip: Ctrl+B or Cmd+B to toggle the sidebar for a full-width focus.'}
         </p>
       </div>
-    </Layout>
+    </>
   );
 }
 

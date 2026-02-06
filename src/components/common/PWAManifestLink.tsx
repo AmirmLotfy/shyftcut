@@ -1,22 +1,15 @@
 import { useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-
-const APP_ROUTES = [
-  "/dashboard",
-  "/login",
-  "/signup",
-  "/wizard",
-  "/roadmap",
-  "/courses",
-  "/chat",
-  "/profile",
-  "/checkout",
-];
+import { DASHBOARD_BASE } from "@/lib/dashboard-routes";
 
 function isAppRoute(pathname: string): boolean {
   const normalized = pathname.replace(/\/$/, "") || "/";
-  return APP_ROUTES.some(
-    (route) => normalized === route || normalized.startsWith(route + "/")
+  return (
+    normalized === DASHBOARD_BASE ||
+    normalized.startsWith(DASHBOARD_BASE + "/") ||
+    normalized === "/login" ||
+    normalized === "/signup" ||
+    normalized.startsWith("/wizard")
   );
 }
 

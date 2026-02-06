@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
 import { useUsageLimits } from '@/hooks/useUsageLimits';
@@ -15,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api';
+import { dashboardPaths, roadmapPath } from '@/lib/dashboard-routes';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
 import { QuizModal } from '@/components/quiz/QuizModal';
 import { UpgradePrompt } from '@/components/common/UpgradePrompt';
@@ -45,6 +45,15 @@ export default function Roadmap() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const currentRoadmap = id ? roadmap : activeRoadmap;
+  const weeks = currentRoadmap?.roadmap_weeks?.sort((a: any, b: any) => a.week_number - b.week_number) || [];
+
+  useEffect(() => {
+    if (weeks.length === 0 || expandedWeeks.size > 0) return;
+    const firstUnlockedIncomplete = weeks.find((w: any, i: number) => (i === 0 || !!weeks[i - 1]?.is_completed) && !w.is_completed);
+    if (firstUnlockedIncomplete) {
+      setExpandedWeeks(new Set([firstUnlockedIncomplete.id]));
+    }
+  }, [weeks]);
   const nonArchivedRoadmaps = roadmaps.filter((r: { status?: string }) => r.status !== 'archived');
 
   const toggleWeek = (weekId: string) => {
@@ -139,7 +148,7 @@ export default function Roadmap() {
         onSuccess: () => {
           setShowArchiveConfirm(false);
           toast({ title: language === 'ar' ? 'تم الأرشفة' : 'Roadmap archived' });
-          navigate('/dashboard');
+          navigate(dashboardPaths.index);
         },
         onError: () => {
           toast({ title: t('common.errorTitle'), variant: 'destructive' });
@@ -155,7 +164,7 @@ export default function Roadmap() {
         setShowDeleteConfirm(false);
         toast({ title: language === 'ar' ? 'تم الحذف' : 'Roadmap deleted' });
         const other = nonArchivedRoadmaps.find((r: { id: string }) => r.id !== currentRoadmap.id);
-        navigate(other ? `/roadmap/${other.id}` : '/dashboard');
+        navigate(other ? roadmapPath(other.id) : dashboardPaths.index);
       },
       onError: () => {
         toast({ title: t('common.errorTitle'), variant: 'destructive' });
@@ -165,17 +174,17 @@ export default function Roadmap() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <>
         <div className="flex min-h-[60vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (isError) {
     return (
-      <Layout>
+      <>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -192,17 +201,17 @@ export default function Roadmap() {
               {(error as Error)?.message || (language === 'ar' ? 'تعذر تحميل خريطة الطريق.' : 'We couldn\'t load the roadmap. Please try again.')}
             </p>
             <Button asChild>
-              <Link to="/dashboard">{language === 'ar' ? 'العودة للوحة التحكم' : 'Back to Dashboard'}</Link>
+              <Link to={dashboardPaths.index}>{language === 'ar' ? 'العودة للوحة التحكم' : 'Back to Dashboard'}</Link>
             </Button>
           </motion.div>
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (!currentRoadmap) {
     return (
-      <Layout>
+      <>
         <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="mb-4 text-2xl font-bold">
             {language === 'ar' ? 'لا توجد خريطة طريق' : 'No Roadmap Found'}
@@ -218,26 +227,17 @@ export default function Roadmap() {
             </Link>
           </Button>
         </div>
-      </Layout>
+      </>
     );
   }
 
-  const weeks = currentRoadmap.roadmap_weeks?.sort((a: any, b: any) => a.week_number - b.week_number) || [];
   const completedWeeks = weeks.filter((w: any) => w.is_completed).length;
   const progress = Math.round((completedWeeks / weeks.length) * 100);
 
   const isWeekUnlocked = (index: number) => index === 0 || !!weeks[index - 1]?.is_completed;
 
-  useEffect(() => {
-    if (weeks.length === 0 || expandedWeeks.size > 0) return;
-    const firstUnlockedIncomplete = weeks.find((w: any, i: number) => (i === 0 || !!weeks[i - 1]?.is_completed) && !w.is_completed);
-    if (firstUnlockedIncomplete) {
-      setExpandedWeeks(new Set([firstUnlockedIncomplete.id]));
-    }
-  }, [weeks]);
-
   return (
-    <Layout>
+    <>
       <div data-testid="roadmap-list" className="min-h-full bg-gradient-to-b from-background to-muted/20">
         {/* Compact header: sticky on mobile, clean on desktop */}
         <header className="sticky top-0 z-30 border-b border-border/50 bg-background/95 backdrop-blur-xl">
@@ -249,7 +249,7 @@ export default function Roadmap() {
                   {nonArchivedRoadmaps.map((r: { id: string; title?: string; status?: string }) => (
                     <Link
                       key={r.id}
-                      to={`/roadmap/${r.id}`}
+                      to={roadmapPath(r.id)}
                       className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                         currentRoadmap?.id === r.id
                           ? 'bg-primary text-primary-foreground'
@@ -440,9 +440,17 @@ export default function Roadmap() {
                           {/* Courses */}
                           {week.course_recommendations && week.course_recommendations.length > 0 && (
                             <div className="mb-4">
-                              <h4 className="mb-2 text-sm font-medium">
-                                {language === 'ar' ? 'الدورات الموصى بها' : 'Recommended Courses'}
-                              </h4>
+                              <div className="mb-2 flex items-center justify-between">
+                                <h4 className="text-sm font-medium">
+                                  {language === 'ar' ? 'الدورات الموصى بها' : 'Recommended Courses'}
+                                </h4>
+                                <Link
+                                  to={`${dashboardPaths.courses}?week=${week.week_number}`}
+                                  className="text-xs font-medium text-primary hover:underline"
+                                >
+                                  {language === 'ar' ? 'عرض في المكتبة' : 'View in library'}
+                                </Link>
+                              </div>
                               <div className="space-y-2">
                                 {week.course_recommendations.map((course: any) => {
                                   const courseUrl = hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '');
@@ -635,6 +643,6 @@ export default function Roadmap() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    </>
   );
 }

@@ -19,7 +19,7 @@
     </script>
 
     <!-- Affonso affiliate tracking -->
-    <script async defer src="https://affonso.io/js/pixel.min.js"
+    <script async defer src="https://cdn.affonso.io/js/pixel.min.js"
       data-affonso="cml9hj2fk000a36vn1plz8ii3"
       data-cookie_duration="30"></script>
 
@@ -32,8 +32,25 @@
       gtag('config', 'G-ZZVR8TRESZ');
     </script>
 
-    <!-- Logo: preload so header/footer logo appears immediately -->
-    <link rel="preload" href="/Shyftcut-logo.webp" as="image" />
+    <!-- Meta Pixel Code - Initialized via meta-pixel.ts -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+    </script>
+    <script type="module">
+      // Initialize Meta Pixel if ID is configured
+      const pixelId = import.meta.env.VITE_META_PIXEL_ID;
+      if (pixelId && window.fbq) {
+        window.fbq('init', pixelId);
+        window.fbq('track', 'PageView');
+      }
+    </script>
 
     <!-- Fonts: preconnect for faster load; hidden span below forces Cairo to load so Arabic switch has no delay -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -189,6 +206,10 @@
   <body>
     <!-- Force Cairo (Arabic) font to load on first paint so language switch has no delay. Uses visually-hidden pattern (no left:-9999px) to avoid RTL horizontal scroll. -->
     <span aria-hidden="true" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;font-family:'Cairo',sans-serif;font-size:1px">ا</span>
+    <!-- Meta Pixel noscript fallback -->
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=PLACEHOLDER&ev=PageView&noscript=1"
+    /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

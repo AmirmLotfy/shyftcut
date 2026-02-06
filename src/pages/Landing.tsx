@@ -240,7 +240,7 @@ export default function Landing() {
         <AIDemo />
       </LazySection>
 
-      <LazySection className="min-h-[350px]" rootMargin="150px">
+      <LazySection id="how-it-works" className="min-h-[350px] scroll-mt-16" rootMargin="150px">
         <InteractiveTimeline />
       </LazySection>
 

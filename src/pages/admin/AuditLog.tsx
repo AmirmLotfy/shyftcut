@@ -38,12 +38,12 @@ export function AuditLog() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <Select value={actionFilter} onValueChange={setActionFilter}>
+        <Select value={actionFilter || '_all'} onValueChange={(v) => setActionFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder={language === 'ar' ? 'الإجراء' : 'Action'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="list_users">List Users</SelectItem>
             <SelectItem value="update_user">Update User</SelectItem>
             <SelectItem value="delete_user">Delete User</SelectItem>
@@ -53,12 +53,12 @@ export function AuditLog() {
             <SelectItem value="update_setting">Update Setting</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={resourceTypeFilter} onValueChange={setResourceTypeFilter}>
+        <Select value={resourceTypeFilter || '_all'} onValueChange={(v) => setResourceTypeFilter(v === '_all' ? '' : v)}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder={language === 'ar' ? 'نوع المورد' : 'Resource Type'} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+            <SelectItem value="_all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
             <SelectItem value="users">Users</SelectItem>
             <SelectItem value="subscriptions">Subscriptions</SelectItem>
             <SelectItem value="settings">Settings</SelectItem>

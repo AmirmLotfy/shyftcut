@@ -20,7 +20,7 @@ export function Layout({ children, hideFooter = false }: LayoutProps) {
   const { user } = useAuth();
   const isHome = pathname === '/';
   const appPath = isAppPath(pathname);
-  const isOnboarding = appPath && pathname === '/wizard';
+  const isOnboarding = pathname === '/wizard';
 
   // Onboarding: slim header with back + logo, no footer/bottom nav
   if (isOnboarding) {

@@ -191,7 +191,7 @@ export default function CareerDNA() {
                       </Button>
                     </div>
                   </div>
-                  <Button size="lg" className="h-14 w-full max-w-xs gap-2 px-8 text-base sm:h-auto sm:w-auto sm:px-10 lg:w-auto" onClick={handleStart}>
+                  <Button size="lg" className="h-14 w-full max-w-xs gap-2 px-8 text-base sm:h-auto sm:w-auto sm:px-10 lg:h-14 lg:min-w-[200px] lg:px-12 lg:text-lg" onClick={handleStart}>
                     {t('careerDna.start')}
                     <ArrowRight className="h-4 w-4 shrink-0" />
                   </Button>

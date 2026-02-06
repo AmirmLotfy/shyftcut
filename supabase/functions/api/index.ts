@@ -27,6 +27,7 @@ import {
   getBatchStatus,
 } from "../_shared/gemini.ts";
 import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
+import { isYouTubeUrl } from "../_shared/verify-course-url.ts";
 
 const CHAT_BLOCKED_MESSAGE = "This response was blocked by content filters. Please rephrase and try again.";
 
@@ -222,8 +223,9 @@ function extractGroundingFromCandidate(candidate: unknown): { queries: string[];
 /** Strip null bytes and control characters, then trim and cap length. Do not log full content in production. */
 function sanitizeUserText(s: unknown, maxLen: number): string {
   if (s == null) return "";
-  let t = String(s)
+  const t = String(s)
     .replace(/\0/g, "")
+    // eslint-disable-next-line no-control-regex -- intentional: strip control chars for sanitization
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
     .trim();
   return t.length > maxLen ? t.slice(0, maxLen) : t;
@@ -487,7 +489,9 @@ function cleanRoadmapOutput(roadmapData: Record<string, unknown>): void {
             course.platform = platform;
             const rawUrl = typeof course.url === "string" ? course.url.trim().slice(0, 2048) : "";
             const validUrl = isValidCourseUrl(rawUrl) ? rawUrl : null;
-            course.url = validUrl && isAllowedCourseHost(validUrl) ? validUrl : null;
+            const allowed = validUrl && isAllowedCourseHost(validUrl);
+            const isYoutube = allowed && isYouTubeUrl(validUrl);
+            course.url = allowed && !isYoutube ? validUrl : null;
           }
         }
       }
@@ -588,17 +592,29 @@ function route(path: string): string | null {
     if (p1 === "users") {
       if (!p2) return "admin/users";
       if (p2 === "stats") return "admin/users/stats";
+      if (p2 === "bulk") return "admin/users/bulk";
+      if (p2 === "export") return "admin/users/export";
+      if (p2 === "journey" && p3) return "admin/users/journey";
       if (p3 === "impersonate") return "admin/users/impersonate";
       if (p3 === "ban") return "admin/users/ban";
+      if (p3 === "notes") return "admin/users/notes";
+      if (p3 === "tags") return "admin/users/tags";
       return "admin/users/id";
     }
     if (p1 === "subscriptions") {
       if (!p2) return "admin/subscriptions";
       if (p2 === "revenue") return "admin/subscriptions/revenue";
+      if (p2 === "churn-analysis") return "admin/subscriptions/churn-analysis";
+      if (p2 === "refunds") return "admin/subscriptions/refunds";
+      if (p3 === "events") return "admin/subscriptions/events";
+      if (p3 === "manual-update") return "admin/subscriptions/manual-update";
       return "admin/subscriptions/id";
     }
     if (p1 === "analytics") {
       if (p2 === "insights") return "admin/analytics/insights";
+      if (p2 === "traffic") return "admin/analytics/traffic";
+      if (p2 === "conversions") return "admin/analytics/conversions";
+      if (p2 === "user-journeys") return "admin/analytics/user-journeys";
       return "admin/analytics";
     }
     if (p1 === "content") {
@@ -617,6 +633,11 @@ function route(path: string): string | null {
       if (p2 === "feature-flags") return "admin/settings/feature-flags";
       if (p2) return "admin/settings/key";
       return "admin/settings";
+    }
+    if (p1 === "themes") {
+      if (!p2) return "admin/themes";
+      if (p3 === "set-default") return "admin/themes/set-default";
+      return "admin/themes/id";
     }
     if (p1 === "audit-log") {
       if (p2) return "admin/audit-log/id";
@@ -637,6 +658,11 @@ function route(path: string): string | null {
   if (p0 === "unsubscribe-email") return "unsubscribe-email";
   if (p0 === "push-subscription") return "push-subscription";
   if (p0 === "vapid-public") return "vapid-public";
+  if (p0 === "events") {
+    if (p1 === "track") return "events/track";
+    return null;
+  }
+  if (p0 === "themes" && !p1) return "themes"; // Public themes endpoint
   if (p0 === "career-dna") {
     if (p1 === "analyze") return "career-dna/analyze";
     if (p1 === "result" && p2) return "career-dna/result";
@@ -676,19 +702,26 @@ async function ensureProfileAndSubscription(
   email: string | undefined,
   displayName: string | undefined
 ) {
-  const name = (displayName ?? email?.split("@")[0] ?? "User").trim().slice(0, 500);
   const normalizedEmail = email?.trim().toLowerCase() ?? null;
-  const { error: profileErr } = await supabase.from("profiles").upsert(
-    { user_id: userId, email: normalizedEmail, display_name: name, preferred_language: "en" },
-    { onConflict: "user_id" }
-  );
-  if (profileErr) {
-    logError("api", "ensureProfileAndSubscription: profiles upsert failed", new Error(profileErr.message));
-    throw new Error("Failed to ensure profile");
+  const { data: existing } = await supabase.from("profiles").select("user_id").eq("user_id", userId).maybeSingle();
+  if (existing) {
+    // Profile exists: do not overwrite display_name or other user-edited fields
+  } else {
+    const name = (displayName ?? email?.split("@")[0] ?? "User").trim().slice(0, 500);
+    const { error: insertErr } = await supabase.from("profiles").insert({
+      user_id: userId,
+      email: normalizedEmail,
+      display_name: name,
+      preferred_language: "en",
+    });
+    if (insertErr) {
+      logError("api", "ensureProfileAndSubscription: profiles insert failed", new Error(insertErr.message));
+      throw new Error("Failed to ensure profile");
+    }
   }
   const { error: subErr } = await supabase.from("subscriptions").upsert(
     { user_id: userId, tier: "free", status: "active" },
-    { onConflict: "user_id" }
+    { onConflict: "user_id", ignoreDuplicates: true }
   );
   if (subErr) {
     logError("api", "ensureProfileAndSubscription: subscriptions upsert failed", new Error(subErr.message));
@@ -704,13 +737,24 @@ Deno.serve(async (req: Request) => {
   const pathHeader = req.headers.get("x-path") ?? req.headers.get("X-Path");
   const url = new URL(req.url);
   const pathFromQuery = url.searchParams.get("path");
-  const path = pathHeader ?? pathFromQuery ?? url.pathname.replace(/^.*\/api\/?/, "/api/");
+  let path = pathHeader ?? pathFromQuery ?? url.pathname.replace(/^.*\/api\/?/, "/api/");
+  
+  // If path is just "/api" with query params, try to extract from X-Path header or return error
+  if (path === "/api" || path === "/api/") {
+    if (!pathHeader && !pathFromQuery) {
+      logError("api", "Missing X-Path header", { url: req.url, pathname: url.pathname, searchParams: Object.fromEntries(url.searchParams) });
+      return jsonResponse({ error: "Missing X-Path header. Please ensure the API client sets the X-Path header correctly." }, 400);
+    }
+    path = pathHeader ?? pathFromQuery ?? "/api/";
+  }
+  
   const normalizedPath = path.startsWith("/api") ? path : `/api/${path}`;
   const pathSegments = normalizedPath.replace(/^\/api\/?/, "").split("/").filter(Boolean);
   const routeKey = route(normalizedPath);
 
   if (!routeKey) {
-    return jsonResponse({ error: "Not found" }, 404);
+    logError("api", "Route not found", { normalizedPath, pathSegments, url: req.url });
+    return jsonResponse({ error: "Not found", path: normalizedPath }, 404);
   }
 
   const supabase = getSupabase();
@@ -724,7 +768,9 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const authHeader = req.headers.get("authorization") ?? null;
+  const authFromHeader = req.headers.get("authorization") ?? null;
+  const userToken = req.headers.get("x-user-token")?.trim();
+  const authHeader = authFromHeader ?? (userToken ? `Bearer ${userToken}` : null);
   const authResult = await getAuthUser(authHeader);
   const user = "user" in authResult ? authResult.user : null;
   const authFailureReason = "reason" in authResult ? authResult.reason : null;
@@ -736,6 +782,8 @@ Deno.serve(async (req: Request) => {
     "jobs/weekly",
     "unsubscribe-email",
     "vapid-public",
+    "events/track",
+    "themes",
     "career-dna/analyze",
     "career-dna/result",
     "career-dna/lead",
@@ -743,9 +791,11 @@ Deno.serve(async (req: Request) => {
     "career-dna/squad/get",
   ].includes(routeKey);
   if (requireAuth && !user) {
+    const code = authFailureReason ?? "unauthorized";
     return jsonResponse(
-      { error: "Unauthorized", code: authFailureReason ?? "unauthorized" },
-      401
+      { error: "Unauthorized", code },
+      401,
+      { headers: { "X-Auth-Failure-Code": code } }
     );
   }
 
@@ -824,6 +874,14 @@ Deno.serve(async (req: Request) => {
               const sanitized = raw.replace(/\s/g, "").slice(0, 20);
               if (!/^\+?[\d]{7,20}$/.test(sanitized)) return (current as { phone?: string }).phone ?? null;
               return sanitized.startsWith("+") ? sanitized : `+${sanitized}`;
+            })(),
+            preferred_theme_id: (() => {
+              if (!("preferred_theme_id" in b)) return (current as { preferred_theme_id?: string }).preferred_theme_id ?? null;
+              const themeId = trimStr(b.preferred_theme_id);
+              if (!themeId) return null;
+              // Validate UUID format
+              if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(themeId)) return (current as { preferred_theme_id?: string }).preferred_theme_id ?? null;
+              return themeId;
             })(),
             updated_at: new Date().toISOString(),
           };
@@ -1587,6 +1645,109 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         return jsonResponse({ publicKey });
       }
 
+      case "themes": {
+        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        
+        // Public endpoint - no auth required
+        const { data: themes } = await supabase
+          .from("theme_settings")
+          .select("id, name, colors, is_default, description")
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: false });
+        
+        return jsonResponse({ themes: themes ?? [] });
+      }
+
+      case "events/track": {
+        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        
+        // Allow anonymous tracking (user may not be logged in)
+        const eventData = body as {
+          event_type?: string;
+          event_name?: string;
+          page_path?: string;
+          referrer?: string;
+          utm_source?: string;
+          utm_medium?: string;
+          utm_campaign?: string;
+          utm_term?: string;
+          utm_content?: string;
+          device_type?: string;
+          browser?: string;
+          country?: string;
+          session_id?: string;
+          metadata?: Record<string, unknown>;
+        };
+        
+        if (!eventData.event_type || !eventData.event_name || !eventData.page_path || !eventData.session_id) {
+          return jsonResponse({ error: "event_type, event_name, page_path, and session_id are required" }, 400);
+        }
+        
+        // Insert event (user_id is nullable for anonymous users)
+        const { error: insertError } = await supabase.from("user_events").insert({
+          user_id: user?.id || null,
+          event_type: eventData.event_type,
+          event_name: eventData.event_name,
+          page_path: eventData.page_path,
+          referrer: eventData.referrer || null,
+          utm_source: eventData.utm_source || null,
+          utm_medium: eventData.utm_medium || null,
+          utm_campaign: eventData.utm_campaign || null,
+          utm_term: eventData.utm_term || null,
+          utm_content: eventData.utm_content || null,
+          device_type: eventData.device_type || null,
+          browser: eventData.browser || null,
+          country: eventData.country || null,
+          session_id: eventData.session_id,
+          metadata: eventData.metadata || {},
+        });
+        
+        if (insertError) {
+          logError("api", "events/track: failed to insert event", insertError);
+          return jsonResponse({ error: "Failed to track event" }, 500);
+        }
+        
+        // Update or create session
+        if (eventData.session_id) {
+          const { data: existingSession } = await supabase
+            .from("user_sessions")
+            .select("id, page_count")
+            .eq("session_id", eventData.session_id)
+            .maybeSingle();
+          
+          if (existingSession) {
+            // Update existing session
+            await supabase
+              .from("user_sessions")
+              .update({
+                page_count: (existingSession.page_count || 1) + 1,
+                country: eventData.country || null,
+                device_type: eventData.device_type || null,
+                browser: eventData.browser || null,
+              })
+              .eq("id", existingSession.id);
+          } else {
+            // Create new session
+            await supabase.from("user_sessions").insert({
+              user_id: user?.id || null,
+              session_id: eventData.session_id,
+              referrer: eventData.referrer || null,
+              utm_source: eventData.utm_source || null,
+              utm_medium: eventData.utm_medium || null,
+              utm_campaign: eventData.utm_campaign || null,
+              utm_term: eventData.utm_term || null,
+              utm_content: eventData.utm_content || null,
+              device_type: eventData.device_type || null,
+              browser: eventData.browser || null,
+              country: eventData.country || null,
+              page_count: 1,
+            });
+          }
+        }
+        
+        return jsonResponse({ success: true });
+      }
+
       case "push-subscription": {
         if (req.method !== "POST" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
         const endpoint = typeof (body as { endpoint?: string }).endpoint === "string" ? (body as { endpoint: string }).endpoint.trim() : "";
@@ -2227,7 +2388,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             /* use default */
           }
           logError("api", "checkout/create: Polar checkouts API error", new Error(`${checkoutRes.status} ${errMessage} | ${responseText?.slice(0, 200)}`));
-          const status = checkoutRes.status >= 500 ? 502 : checkoutRes.status >= 400 ? checkoutRes.status : 500;
+          const polarStatus = checkoutRes.status;
+          if (polarStatus === 401 || polarStatus === 403) {
+            return jsonResponse(
+              { error: "Payment provider authentication failed. Please try again later or contact support.", code: "polar_auth" },
+              502
+            );
+          }
+          const status = polarStatus >= 500 ? 502 : polarStatus >= 400 ? polarStatus : 500;
           return jsonResponse({ error: errMessage }, status);
         }
         let checkout: { url?: string; checkout?: { url?: string } };
@@ -3368,7 +3536,7 @@ Skills: ${skillList.join(", ")}
               contents: [{ role: "user", parts: [{ text: "Generate a 5-question quiz for this week's learning." }] }],
               tools: [{ functionDeclarations: [openAiFunctionToGeminiDeclaration("create_quiz", "Create a multiple choice quiz", createQuizParams)] }],
               toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["create_quiz"] } },
-              generationConfig: { thinkingConfig: { thinkingLevel: "high" }, temperature: 1.0, maxOutputTokens: 4096 },
+              generationConfig: { thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "minimal" : "low" }, temperature: 1.0, maxOutputTokens: 4096 },
             }),
           });
           if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
@@ -3493,12 +3661,11 @@ Skills: ${skillList.join(", ")}
           const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
           const offset = (page - 1) * limit;
           
-          let query = supabase
-            .from("profiles")
-            .select("*, subscriptions(tier, status)", { count: "exact" });
+          let query = supabase.from("profiles").select("user_id, display_name, email, created_at, role, job_title, target_career, experience_level, industry, skills, learning_style, weekly_hours, budget, preferred_language, onboarding_completed, location, job_work_preference, find_jobs_enabled, linkedin_url, twitter_url, github_url, phone", { count: "exact" });
           
           if (search) {
-            query = query.or(`display_name.ilike.%${search}%,email.ilike.%${search}%`);
+            const searchPattern = `%${search}%`;
+            query = query.or(`display_name.ilike.${searchPattern},email.ilike.${searchPattern}`);
           }
           if (role) {
             query = query.eq("role", role);
@@ -3510,25 +3677,121 @@ Skills: ${skillList.join(", ")}
             query = query.lte("created_at", endDate);
           }
           
-          const { data, error, count } = await query
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+          let profilesData: any[] | null = null;
+          let profilesCount: number | null = null;
+          let profilesErr: any = null;
           
-          if (error) throw error;
+          const result = await query.order("created_at", { ascending: false }).range(0, 9999);
+          profilesData = result.data;
+          profilesCount = result.count;
+          profilesErr = result.error;
           
-          let filtered = data ?? [];
+          if (profilesErr) {
+            const errMsg = String(profilesErr.message || profilesErr).toLowerCase();
+            logError("api", "admin/users: query error", { error: profilesErr, search, role, errMsg });
+            
+            // If .or() syntax error and we have search, try fallback approach
+            if ((errMsg.includes("or") || errMsg.includes("syntax") || errMsg.includes("parse")) && search) {
+              logError("api", "admin/users: .or() syntax error, using fallback queries", profilesErr);
+              try {
+                const searchPattern = `%${search}%`;
+                let nameQuery = supabase.from("profiles").select("*", { count: "exact" }).ilike("display_name", searchPattern);
+                let emailQuery = supabase.from("profiles").select("*", { count: "exact" }).ilike("email", searchPattern);
+                if (role) {
+                  nameQuery = nameQuery.eq("role", role);
+                  emailQuery = emailQuery.eq("role", role);
+                }
+                if (startDate) {
+                  nameQuery = nameQuery.gte("created_at", startDate);
+                  emailQuery = emailQuery.gte("created_at", startDate);
+                }
+                if (endDate) {
+                  nameQuery = nameQuery.lte("created_at", endDate);
+                  emailQuery = emailQuery.lte("created_at", endDate);
+                }
+                const [nameResult, emailResult] = await Promise.all([
+                  nameQuery.order("created_at", { ascending: false }).range(0, 9999),
+                  emailQuery.order("created_at", { ascending: false }).range(0, 9999)
+                ]);
+                if (nameResult.error && !nameResult.error.message?.toLowerCase().includes("role")) throw nameResult.error;
+                if (emailResult.error && !emailResult.error.message?.toLowerCase().includes("role")) throw emailResult.error;
+                const nameData = nameResult.data ?? [];
+                const emailData = emailResult.data ?? [];
+                const combined = [...nameData, ...emailData];
+                const uniqueMap = new Map();
+                for (const p of combined) {
+                  uniqueMap.set((p as any).user_id, p);
+                }
+                profilesData = Array.from(uniqueMap.values()) as any[];
+                profilesCount = profilesData.length;
+                profilesErr = null;
+              } catch (fallbackErr) {
+                logError("api", "admin/users: fallback query also failed", fallbackErr);
+                // Continue to role retry logic below
+              }
+            }
+            
+            // If role column error, retry without role filter
+            if (profilesErr && (errMsg.includes("role") || errMsg.includes("column")) && role) {
+              logError("api", "admin/users: role column may not exist, retrying without role filter", profilesErr);
+              query = supabase.from("profiles").select("*", { count: "exact" });
+              if (search) {
+                const searchPattern = `%${search}%`;
+                query = query.or(`display_name.ilike.${searchPattern},email.ilike.${searchPattern}`);
+              }
+              if (startDate) query = query.gte("created_at", startDate);
+              if (endDate) query = query.lte("created_at", endDate);
+              const retry = await query.order("created_at", { ascending: false }).range(0, 9999);
+              if (retry.error) {
+                logError("api", "admin/users: retry without role also failed", retry.error);
+                throw retry.error;
+              }
+              profilesData = retry.data;
+              profilesCount = retry.count;
+              profilesErr = null;
+            } else if (profilesErr) {
+              throw profilesErr;
+            }
+          }
+          const allProfiles = profilesData ?? [];
+          const userIds = allProfiles.map((p: { user_id: string }) => p.user_id).filter(Boolean);
+          const subsByUser: Record<string, { tier: string; status: string }> = {};
+          if (userIds.length > 0) {
+            try {
+              const { data: subs, error: subsError } = await supabase.from("subscriptions").select("user_id, tier, status").in("user_id", userIds);
+              if (subsError) {
+                logError("api", "admin/users: subscriptions query error", subsError);
+              } else {
+                for (const s of subs ?? []) {
+                  if (s.user_id) {
+                    subsByUser[s.user_id] = { tier: s.tier || "free", status: s.status || "active" };
+                  }
+                }
+              }
+            } catch (subsErr) {
+              logError("api", "admin/users: subscriptions query exception", subsErr);
+            }
+          }
+          let filtered = allProfiles.map((p: any) => ({
+            ...p,
+            subscriptions: p.user_id && subsByUser[p.user_id] ? [{ tier: subsByUser[p.user_id].tier, status: subsByUser[p.user_id].status }] : [],
+          }));
           if (tier) {
-            filtered = filtered.filter((p: any) => p.subscriptions?.[0]?.tier === tier);
+            filtered = filtered.filter((p: any) => p.user_id && subsByUser[p.user_id]?.tier === tier);
           }
           if (status) {
-            filtered = filtered.filter((p: any) => p.subscriptions?.[0]?.status === status);
+            filtered = filtered.filter((p: any) => p.user_id && subsByUser[p.user_id]?.status === status);
           }
-          
-          await logAdminAction(supabase, user!.id, "list_users", "users", undefined, { filters: { search, role, tier, status } }, req);
-          
+          const total = filtered.length;
+          const paginated = filtered.slice(offset, offset + limit);
+          try {
+            await logAdminAction(supabase, user!.id, "list_users", "users", undefined, { filters: { search, role, tier, status } }, req);
+          } catch (logErr) {
+            logError("api", "admin/users: failed to log action", logErr);
+          }
           return jsonResponse({
-            users: filtered,
-            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+            users: paginated,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
           });
         }
         return jsonResponse({ error: "Method not allowed" }, 405);
@@ -3677,6 +3940,413 @@ Skills: ${skillList.join(", ")}
         return jsonResponse({ error: "Method not allowed" }, 405);
       }
 
+      case "admin/users/journey": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const userId = pathSegments[3];
+          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          
+          // Get user events
+          const { data: events } = await supabase
+            .from("user_events")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: true })
+            .limit(1000);
+          
+          // Get sessions
+          const { data: sessions } = await supabase
+            .from("user_sessions")
+            .select("*")
+            .eq("user_id", userId)
+            .order("started_at", { ascending: true });
+          
+          // Get conversions
+          const { data: conversions } = await supabase
+            .from("conversion_events")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: true });
+          
+          // Get roadmaps
+          const { data: roadmaps } = await supabase
+            .from("roadmaps")
+            .select("id, title, created_at, progress_percentage")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: true });
+          
+          // Get subscription history
+          const { data: subscriptionEvents } = await supabase
+            .from("subscription_events")
+            .select("*")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: true });
+          
+          // Build timeline
+          const timeline: Array<{
+            type: string;
+            timestamp: string;
+            data: unknown;
+          }> = [];
+          
+          if (events) {
+            for (const event of events) {
+              timeline.push({
+                type: "event",
+                timestamp: event.created_at,
+                data: event,
+              });
+            }
+          }
+          
+          if (sessions) {
+            for (const session of sessions) {
+              timeline.push({
+                type: "session",
+                timestamp: session.started_at,
+                data: session,
+              });
+            }
+          }
+          
+          if (conversions) {
+            for (const conv of conversions) {
+              timeline.push({
+                type: "conversion",
+                timestamp: conv.created_at,
+                data: conv,
+              });
+            }
+          }
+          
+          if (roadmaps) {
+            for (const roadmap of roadmaps) {
+              timeline.push({
+                type: "roadmap",
+                timestamp: roadmap.created_at,
+                data: roadmap,
+              });
+            }
+          }
+          
+          if (subscriptionEvents) {
+            for (const subEvent of subscriptionEvents) {
+              timeline.push({
+                type: "subscription_event",
+                timestamp: subEvent.created_at,
+                data: subEvent,
+              });
+            }
+          }
+          
+          timeline.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_user_journey", "users", userId, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/users/journey: failed to log action", logErr);
+          }
+          
+          return jsonResponse({
+            timeline,
+            events: events ?? [],
+            sessions: sessions ?? [],
+            conversions: conversions ?? [],
+            roadmaps: roadmaps ?? [],
+            subscriptionEvents: subscriptionEvents ?? [],
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/bulk": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "POST") {
+          const { user_ids, action, data: actionData } = body as {
+            user_ids?: string[];
+            action?: string;
+            data?: Record<string, unknown>;
+          };
+          
+          if (!Array.isArray(user_ids) || user_ids.length === 0) {
+            return jsonResponse({ error: "user_ids array required" }, 400);
+          }
+          
+          if (!action) {
+            return jsonResponse({ error: "action required" }, 400);
+          }
+          
+          const results: Array<{ user_id: string; success: boolean; error?: string }> = [];
+          
+          for (const userId of user_ids) {
+            if (!UUID_REGEX.test(userId)) {
+              results.push({ user_id: userId, success: false, error: "Invalid user ID" });
+              continue;
+            }
+            
+            try {
+              switch (action) {
+                case "delete":
+                  const cascade = actionData?.cascade === true;
+                  if (cascade) {
+                    await supabase.from("chat_history").delete().eq("user_id", userId);
+                    const { data: weekRows } = await supabase.from("roadmap_weeks").select("id").eq("user_id", userId);
+                    for (const w of weekRows ?? []) {
+                      await supabase.from("quiz_results").delete().eq("roadmap_week_id", (w as { id: string }).id);
+                      await supabase.from("course_recommendations").delete().eq("roadmap_week_id", (w as { id: string }).id);
+                    }
+                    await supabase.from("roadmap_weeks").delete().eq("user_id", userId);
+                    await supabase.from("roadmaps").delete().eq("user_id", userId);
+                  }
+                  await supabase.from("subscriptions").delete().eq("user_id", userId);
+                  await supabase.from("profiles").delete().eq("user_id", userId);
+                  await supabase.auth.admin.deleteUser(userId);
+                  results.push({ user_id: userId, success: true });
+                  break;
+                  
+                case "update_tier":
+                  if (!actionData?.tier) {
+                    results.push({ user_id: userId, success: false, error: "tier required" });
+                    break;
+                  }
+                  await supabase
+                    .from("subscriptions")
+                    .update({ tier: actionData.tier })
+                    .eq("user_id", userId);
+                  results.push({ user_id: userId, success: true });
+                  break;
+                  
+                case "add_tags":
+                  if (!Array.isArray(actionData?.tags)) {
+                    results.push({ user_id: userId, success: false, error: "tags array required" });
+                    break;
+                  }
+                  const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("user_tags")
+                    .eq("user_id", userId)
+                    .single();
+                  const existingTags = (profile?.user_tags as string[]) || [];
+                  const newTags = [...new Set([...existingTags, ...(actionData.tags as string[])])];
+                  await supabase
+                    .from("profiles")
+                    .update({ user_tags: newTags })
+                    .eq("user_id", userId);
+                  results.push({ user_id: userId, success: true });
+                  break;
+                  
+                default:
+                  results.push({ user_id: userId, success: false, error: `Unknown action: ${action}` });
+              }
+            } catch (error) {
+              results.push({ user_id: userId, success: false, error: String(error) });
+            }
+          }
+          
+          try {
+            await logAdminAction(supabase, user!.id, "bulk_user_action", "users", undefined, { action, count: user_ids.length }, req);
+          } catch (logErr) {
+            logError("api", "admin/users/bulk: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ results });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/notes": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const userId = pathSegments[2];
+        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        
+        if (req.method === "GET") {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("user_notes")
+            .eq("user_id", userId)
+            .single();
+          return jsonResponse({ notes: profile?.user_notes || "" });
+        }
+        
+        if (req.method === "POST") {
+          const { notes } = body as { notes?: string };
+          await supabase
+            .from("profiles")
+            .update({ user_notes: notes || null })
+            .eq("user_id", userId);
+          
+          try {
+            await logAdminAction(supabase, user!.id, "update_user_notes", "users", userId, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/users/notes: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ success: true });
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/tags": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const userId = pathSegments[2];
+        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        
+        if (req.method === "GET") {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("user_tags")
+            .eq("user_id", userId)
+            .single();
+          return jsonResponse({ tags: (profile?.user_tags as string[]) || [] });
+        }
+        
+        if (req.method === "POST") {
+          const { action, tags } = body as { action?: "add" | "remove"; tags?: string[] };
+          
+          if (!action || !Array.isArray(tags)) {
+            return jsonResponse({ error: "action and tags array required" }, 400);
+          }
+          
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("user_tags")
+            .eq("user_id", userId)
+            .single();
+          
+          const existingTags = (profile?.user_tags as string[]) || [];
+          let newTags: string[];
+          
+          if (action === "add") {
+            newTags = [...new Set([...existingTags, ...tags])];
+          } else {
+            newTags = existingTags.filter(t => !tags.includes(t));
+          }
+          
+          await supabase
+            .from("profiles")
+            .update({ user_tags: newTags })
+            .eq("user_id", userId);
+          
+          try {
+            await logAdminAction(supabase, user!.id, "update_user_tags", "users", userId, { action, tags }, req);
+          } catch (logErr) {
+            logError("api", "admin/users/tags: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ success: true, tags: newTags });
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/export": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const format = url.searchParams.get("format") || "json"; // json or csv
+          const startDate = url.searchParams.get("start_date");
+          const endDate = url.searchParams.get("end_date");
+          const tier = url.searchParams.get("tier");
+          const status = url.searchParams.get("status");
+          const tags = url.searchParams.get("tags"); // comma-separated
+          
+          let query = supabase.from("profiles").select("*");
+          
+          if (startDate) query = query.gte("created_at", startDate);
+          if (endDate) query = query.lte("created_at", endDate);
+          
+          const { data: profiles } = await query.order("created_at", { ascending: false }).limit(10000);
+          
+          // Get subscriptions for filtering
+          const userIds = (profiles ?? []).map((p: { user_id: string }) => p.user_id);
+          const { data: subscriptions } = await supabase
+            .from("subscriptions")
+            .select("user_id, tier, status")
+            .in("user_id", userIds);
+          
+          const subsByUser: Record<string, { tier: string; status: string }> = {};
+          for (const s of subscriptions ?? []) {
+            subsByUser[s.user_id] = { tier: s.tier, status: s.status };
+          }
+          
+          // Filter by tier/status/tags
+          let filtered = (profiles ?? []).map((p: any) => ({
+            ...p,
+            subscription_tier: subsByUser[p.user_id]?.tier || "free",
+            subscription_status: subsByUser[p.user_id]?.status || "active",
+          }));
+          
+          if (tier) {
+            filtered = filtered.filter((p: any) => subsByUser[p.user_id]?.tier === tier);
+          }
+          if (status) {
+            filtered = filtered.filter((p: any) => subsByUser[p.user_id]?.status === status);
+          }
+          if (tags) {
+            const tagList = tags.split(",").map(t => t.trim());
+            filtered = filtered.filter((p: any) => {
+              const userTags = (p.user_tags as string[]) || [];
+              return tagList.some(tag => userTags.includes(tag));
+            });
+          }
+          
+          if (format === "csv") {
+            // Convert to CSV
+            if (filtered.length === 0) {
+              return new Response("No data", { status: 404, headers: { "Content-Type": "text/csv" } });
+            }
+            
+            const headers = Object.keys(filtered[0]);
+            const csvRows = [
+              headers.join(","),
+              ...filtered.map((row: any) =>
+                headers.map(header => {
+                  const value = row[header];
+                  if (Array.isArray(value)) return JSON.stringify(value);
+                  if (value === null || value === undefined) return "";
+                  return String(value).replace(/"/g, '""');
+                }).join(",")
+              ),
+            ];
+            
+            const csv = csvRows.join("\n");
+            
+            try {
+              await logAdminAction(supabase, user!.id, "export_users", "users", undefined, { format, count: filtered.length }, req);
+            } catch (logErr) {
+              logError("api", "admin/users/export: failed to log action", logErr);
+            }
+            
+            return new Response(csv, {
+              headers: {
+                "Content-Type": "text/csv",
+                "Content-Disposition": `attachment; filename="users_export_${new Date().toISOString().split("T")[0]}.csv"`,
+                ...corsHeaders,
+              },
+            });
+          }
+          
+          try {
+            await logAdminAction(supabase, user!.id, "export_users", "users", undefined, { format, count: filtered.length }, req);
+          } catch (logErr) {
+            logError("api", "admin/users/export: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ users: filtered, count: filtered.length });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
       case "admin/subscriptions": {
         const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
         if (!authCheck.authorized) return authCheck.error!;
@@ -3690,26 +4360,35 @@ Skills: ${skillList.join(", ")}
           const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
           const offset = (page - 1) * limit;
           
-          let query = supabase
-            .from("subscriptions")
-            .select("*, profiles(display_name, email)", { count: "exact" });
-          
-          if (tier) query = query.eq("tier", tier);
+          let query = supabase.from("subscriptions").select("id, user_id, tier, status, current_period_start, current_period_end, created_at", { count: "exact" });
+          const includeAll = url.searchParams.get("include_all") === "true";
+          if (tier) {
+            query = query.eq("tier", tier);
+          } else if (!includeAll) {
+            query = query.neq("tier", "free");
+          }
           if (status) query = query.eq("status", status);
           if (startDate) query = query.gte("created_at", startDate);
           if (endDate) query = query.lte("created_at", endDate);
-          
-          const { data, error, count } = await query
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
-          
+          const { data: subsData, error, count } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
           if (error) throw error;
-          
+          const subs = subsData ?? [];
+          const userIds = subs.map((s: { user_id: string }) => s.user_id);
+          const profilesByUser: Record<string, { display_name?: string; email?: string }> = {};
+          if (userIds.length > 0) {
+            const { data: profs } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", userIds);
+            for (const p of profs ?? []) {
+              profilesByUser[p.user_id] = { display_name: p.display_name, email: p.email };
+            }
+          }
+          const withProfiles = subs.map((s: any) => ({
+            ...s,
+            profiles: profilesByUser[s.user_id] ?? {},
+          }));
           await logAdminAction(supabase, user!.id, "list_subscriptions", "subscriptions", undefined, { filters: { tier, status } }, req);
-          
           return jsonResponse({
-            subscriptions: data ?? [],
-            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+            subscriptions: withProfiles,
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
           });
         }
         return jsonResponse({ error: "Method not allowed" }, 405);
@@ -3764,12 +4443,12 @@ Skills: ${skillList.join(", ")}
         if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) return jsonResponse({ error: "Invalid subscription ID" }, 400);
         
         if (req.method === "GET") {
-          const { data, error } = await supabase.from("subscriptions").select("*, profiles(*)").eq("id", subscriptionId).single();
+          const { data: sub, error } = await supabase.from("subscriptions").select("*").eq("id", subscriptionId).single();
           if (error) throw error;
-          if (!data) return jsonResponse({ error: "Subscription not found" }, 404);
-          
+          if (!sub) return jsonResponse({ error: "Subscription not found" }, 404);
+          const { data: prof } = await supabase.from("profiles").select("display_name, email").eq("user_id", sub.user_id).single();
+          const data = { ...sub, profiles: prof ?? {} };
           await logAdminAction(supabase, user!.id, "view_subscription", "subscriptions", subscriptionId, {}, req);
-          
           return jsonResponse(data);
         }
         
@@ -3790,6 +4469,279 @@ Skills: ${skillList.join(", ")}
           await logAdminAction(supabase, user!.id, "update_subscription", "subscriptions", subscriptionId, { fields: Object.keys(updatePayload) }, req);
           
           return jsonResponse(data);
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/events": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const subscriptionId = pathSegments[2];
+          if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) {
+            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+          }
+          
+          const { data: events } = await supabase
+            .from("subscription_events")
+            .select("*")
+            .eq("subscription_id", subscriptionId)
+            .order("created_at", { ascending: true });
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_subscription_events", "subscriptions", subscriptionId, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/subscriptions/events: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ events: events ?? [] });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/manual-update": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "POST") {
+          const subscriptionId = pathSegments[2];
+          if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) {
+            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+          }
+          
+          const { tier, status, current_period_start, current_period_end, reason } = body as {
+            tier?: string;
+            status?: string;
+            current_period_start?: string;
+            current_period_end?: string;
+            reason?: string;
+          };
+          
+          // Get current subscription
+          const { data: currentSub } = await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("id", subscriptionId)
+            .single();
+          
+          if (!currentSub) {
+            return jsonResponse({ error: "Subscription not found" }, 404);
+          }
+          
+          const updates: Record<string, unknown> = {};
+          if (tier) updates.tier = tier;
+          if (status) updates.status = status;
+          if (current_period_start) updates.current_period_start = current_period_start;
+          if (current_period_end) updates.current_period_end = current_period_end;
+          
+          const { data: updatedSub, error: updateError } = await supabase
+            .from("subscriptions")
+            .update(updates)
+            .eq("id", subscriptionId)
+            .select()
+            .single();
+          
+          if (updateError) throw updateError;
+          
+          // Create subscription event
+          const eventType = tier && tier !== currentSub.tier
+            ? (tier > currentSub.tier ? "upgraded" : "downgraded")
+            : "updated";
+          
+          await supabase.from("subscription_events").insert({
+            subscription_id: subscriptionId,
+            user_id: currentSub.user_id,
+            event_type: eventType,
+            from_tier: currentSub.tier,
+            to_tier: (tier || currentSub.tier) as any,
+            reason: reason || "Manual admin update",
+            metadata: { admin_user_id: user!.id },
+          });
+          
+          try {
+            await logAdminAction(supabase, user!.id, "manual_update_subscription", "subscriptions", subscriptionId, { updates }, req);
+          } catch (logErr) {
+            logError("api", "admin/subscriptions/manual-update: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ subscription: updatedSub });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/churn-analysis": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const period = url.searchParams.get("period") || "30"; // days
+          const periodDays = parseInt(period, 10);
+          
+          const periodStart = new Date();
+          periodStart.setDate(periodStart.getDate() - periodDays);
+          
+          // Get canceled subscriptions in period
+          const { data: canceledSubs } = await supabase
+            .from("subscription_events")
+            .select("subscription_id, user_id, event_type, created_at, reason, metadata")
+            .eq("event_type", "canceled")
+            .gte("created_at", periodStart.toISOString());
+          
+          // Get active subscriptions at start of period
+          const { count: activeAtStart } = await supabase
+            .from("subscriptions")
+            .select("*", { count: "exact", head: true })
+            .neq("tier", "free")
+            .eq("status", "active")
+            .lte("created_at", periodStart.toISOString());
+          
+          // Get new subscriptions in period
+          const { count: newSubs } = await supabase
+            .from("subscriptions")
+            .select("*", { count: "exact", head: true })
+            .neq("tier", "free")
+            .gte("created_at", periodStart.toISOString());
+          
+          // Get current active subscriptions
+          const { count: activeNow } = await supabase
+            .from("subscriptions")
+            .select("*", { count: "exact", head: true })
+            .neq("tier", "free")
+            .eq("status", "active");
+          
+          const churned = canceledSubs?.length || 0;
+          const churnRate = activeAtStart && activeAtStart > 0
+            ? Math.round((churned / activeAtStart) * 10000) / 100
+            : 0;
+          
+          // Churn reasons
+          const churnReasons: Record<string, number> = {};
+          if (canceledSubs) {
+            for (const sub of canceledSubs) {
+              const reason = sub.reason || "unknown";
+              churnReasons[reason] = (churnReasons[reason] || 0) + 1;
+            }
+          }
+          
+          // Retention cohorts (simplified - by signup month)
+          const cohortData: Record<string, { total: number; retained: number }> = {};
+          const { data: allSubs } = await supabase
+            .from("subscriptions")
+            .select("user_id, created_at, status")
+            .neq("tier", "free");
+          
+          if (allSubs) {
+            for (const sub of allSubs) {
+              const signupDate = new Date(sub.created_at);
+              const cohort = `${signupDate.getFullYear()}-${String(signupDate.getMonth() + 1).padStart(2, "0")}`;
+              if (!cohortData[cohort]) {
+                cohortData[cohort] = { total: 0, retained: 0 };
+              }
+              cohortData[cohort].total++;
+              if (sub.status === "active") {
+                cohortData[cohort].retained++;
+              }
+            }
+          }
+          
+          const retentionCohorts = Object.entries(cohortData)
+            .map(([cohort, data]) => ({
+              cohort,
+              total: data.total,
+              retained: data.retained,
+              retentionRate: Math.round((data.retained / data.total) * 10000) / 100,
+            }))
+            .sort((a, b) => a.cohort.localeCompare(b.cohort));
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_churn_analysis", "subscriptions", undefined, { period }, req);
+          } catch (logErr) {
+            logError("api", "admin/subscriptions/churn-analysis: failed to log action", logErr);
+          }
+          
+          return jsonResponse({
+            period: periodDays,
+            churned,
+            churnRate,
+            activeAtStart: activeAtStart || 0,
+            newSubscriptions: newSubs || 0,
+            activeNow: activeNow || 0,
+            churnReasons: Object.entries(churnReasons).map(([reason, count]) => ({ reason, count })),
+            retentionCohorts,
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/subscriptions/refunds": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data: refundEvents } = await supabase
+            .from("subscription_events")
+            .select("*, subscriptions(user_id, tier)")
+            .eq("event_type", "refunded")
+            .order("created_at", { ascending: false })
+            .limit(100);
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_refunds", "subscriptions", undefined, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/subscriptions/refunds: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ refunds: refundEvents ?? [] });
+        }
+        
+        if (req.method === "POST") {
+          const { subscription_id, amount, reason } = body as {
+            subscription_id?: string;
+            amount?: number;
+            reason?: string;
+          };
+          
+          if (!subscription_id || !UUID_REGEX.test(subscription_id)) {
+            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+          }
+          
+          const { data: sub } = await supabase
+            .from("subscriptions")
+            .select("*")
+            .eq("id", subscription_id)
+            .single();
+          
+          if (!sub) {
+            return jsonResponse({ error: "Subscription not found" }, 404);
+          }
+          
+          // Create refund event
+          await supabase.from("subscription_events").insert({
+            subscription_id,
+            user_id: sub.user_id,
+            event_type: "refunded",
+            from_tier: sub.tier,
+            to_tier: "free",
+            amount: amount || 0,
+            reason: reason || "Admin refund",
+            metadata: { admin_user_id: user!.id },
+          });
+          
+          // Update subscription to free/canceled
+          await supabase
+            .from("subscriptions")
+            .update({ tier: "free", status: "canceled" })
+            .eq("id", subscription_id);
+          
+          try {
+            await logAdminAction(supabase, user!.id, "process_refund", "subscriptions", subscription_id, { amount, reason }, req);
+          } catch (logErr) {
+            logError("api", "admin/subscriptions/refunds: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ success: true });
         }
         
         return jsonResponse({ error: "Method not allowed" }, 405);
@@ -3945,6 +4897,351 @@ Skills: ${skillList.join(", ")}
               userGrowth: userGrowthData,
               activeUsers: activeUsersData,
               revenue: revenueData,
+            },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/analytics/traffic": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const startDate = url.searchParams.get("start_date");
+          const endDate = url.searchParams.get("end_date");
+          const groupBy = url.searchParams.get("group_by") || "day"; // hour, day, week
+          
+          const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const end = endDate ? new Date(endDate) : new Date();
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          
+          // Get page views
+          const { data: eventsData } = await supabase
+            .from("user_events")
+            .select("event_type, page_path, referrer, utm_source, utm_medium, utm_campaign, device_type, browser, country, created_at")
+            .eq("event_type", "page_view")
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString())
+            .order("created_at", { ascending: true });
+          
+          // Get sessions
+          const { data: sessionsData } = await supabase
+            .from("user_sessions")
+            .select("session_id, started_at, ended_at, page_count, duration_seconds, referrer, utm_source, utm_medium, utm_campaign, device_type, browser, country, converted")
+            .gte("started_at", start.toISOString())
+            .lte("started_at", end.toISOString());
+          
+          // Aggregate page views by time period
+          const timeSeries: Record<string, number> = {};
+          const topPages: Record<string, number> = {};
+          const referrers: Record<string, number> = {};
+          const utmSources: Record<string, number> = {};
+          const utmCampaigns: Record<string, number> = {};
+          const devices: Record<string, number> = {};
+          const browsers: Record<string, number> = {};
+          const countries: Record<string, number> = {};
+          
+          // Initialize time buckets
+          const current = new Date(start);
+          while (current <= end) {
+            let key = "";
+            if (groupBy === "hour") {
+              key = current.toISOString().slice(0, 13) + ":00:00";
+              current.setHours(current.getHours() + 1);
+            } else if (groupBy === "week") {
+              const weekStart = new Date(current);
+              weekStart.setDate(current.getDate() - current.getDay());
+              key = weekStart.toISOString().split("T")[0];
+              current.setDate(current.getDate() + 7);
+            } else {
+              key = current.toISOString().split("T")[0];
+              current.setDate(current.getDate() + 1);
+            }
+            timeSeries[key] = 0;
+          }
+          
+          // Aggregate events
+          if (eventsData) {
+            for (const event of eventsData) {
+              const date = new Date(event.created_at as string);
+              let key = "";
+              if (groupBy === "hour") {
+                key = date.toISOString().slice(0, 13) + ":00:00";
+              } else if (groupBy === "week") {
+                const weekStart = new Date(date);
+                weekStart.setDate(date.getDate() - date.getDay());
+                key = weekStart.toISOString().split("T")[0];
+              } else {
+                key = date.toISOString().split("T")[0];
+              }
+              if (timeSeries[key] !== undefined) timeSeries[key]++;
+              
+              const path = event.page_path as string;
+              topPages[path] = (topPages[path] || 0) + 1;
+              
+              const ref = event.referrer as string;
+              if (ref) {
+                try {
+                  const refDomain = new URL(ref).hostname;
+                  referrers[refDomain] = (referrers[refDomain] || 0) + 1;
+                } catch {
+                  referrers[ref] = (referrers[ref] || 0) + 1;
+                }
+              }
+              
+              const utmSource = event.utm_source as string;
+              if (utmSource) utmSources[utmSource] = (utmSources[utmSource] || 0) + 1;
+              
+              const utmCampaign = event.utm_campaign as string;
+              if (utmCampaign) utmCampaigns[utmCampaign] = (utmCampaigns[utmCampaign] || 0) + 1;
+              
+              const device = event.device_type as string;
+              if (device) devices[device] = (devices[device] || 0) + 1;
+              
+              const browserName = event.browser as string;
+              if (browserName) browsers[browserName] = (browsers[browserName] || 0) + 1;
+              
+              const countryName = event.country as string;
+              if (countryName && countryName !== "unknown") countries[countryName] = (countries[countryName] || 0) + 1;
+            }
+          }
+          
+          // Calculate session metrics
+          let totalSessions = 0;
+          let totalPageViews = 0;
+          let totalDuration = 0;
+          let convertedSessions = 0;
+          
+          if (sessionsData) {
+            totalSessions = sessionsData.length;
+            for (const session of sessionsData) {
+              totalPageViews += session.page_count || 1;
+              if (session.duration_seconds) totalDuration += session.duration_seconds;
+              if (session.converted) convertedSessions++;
+            }
+          }
+          
+          const avgDuration = totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+          const avgPagesPerSession = totalSessions > 0 ? Math.round((totalPageViews / totalSessions) * 100) / 100 : 0;
+          const bounceRate = totalSessions > 0 ? Math.round(((totalSessions - (sessionsData?.filter(s => (s.page_count || 1) > 1).length || 0)) / totalSessions) * 10000) / 100 : 0;
+          const conversionRate = totalSessions > 0 ? Math.round((convertedSessions / totalSessions) * 10000) / 100 : 0;
+          
+          // Convert to arrays
+          const timeSeriesData = Object.keys(timeSeries)
+            .sort()
+            .map((date) => ({ date, value: timeSeries[date] }));
+          
+          const topPagesData = Object.entries(topPages)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([path, count]) => ({ path, count }));
+          
+          const referrersData = Object.entries(referrers)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([domain, count]) => ({ domain, count }));
+          
+          const utmSourcesData = Object.entries(utmSources)
+            .sort(([, a], [, b]) => b - a)
+            .map(([source, count]) => ({ source, count }));
+          
+          const utmCampaignsData = Object.entries(utmCampaigns)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([campaign, count]) => ({ campaign, count }));
+          
+          const devicesData = Object.entries(devices)
+            .map(([device, count]) => ({ device, count }));
+          
+          const browsersData = Object.entries(browsers)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 10)
+            .map(([browser, count]) => ({ browser, count }));
+          
+          const countriesData = Object.entries(countries)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([country, count]) => ({ country, count }));
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_traffic_analytics", "analytics", undefined, { startDate, endDate }, req);
+          } catch (logErr) {
+            logError("api", "admin/analytics/traffic: failed to log action", logErr);
+          }
+          
+          return jsonResponse({
+            timeSeries: timeSeriesData,
+            topPages: topPagesData,
+            referrers: referrersData,
+            utmSources: utmSourcesData,
+            utmCampaigns: utmCampaignsData,
+            devices: devicesData,
+            browsers: browsersData,
+            countries: countriesData,
+            sessionMetrics: {
+              totalSessions,
+              avgDuration,
+              avgPagesPerSession,
+              bounceRate,
+              conversionRate,
+            },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/analytics/conversions": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const startDate = url.searchParams.get("start_date");
+          const endDate = url.searchParams.get("end_date");
+          
+          const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const end = endDate ? new Date(endDate) : new Date();
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          
+          // Get conversion events
+          const { data: conversionsData } = await supabase
+            .from("conversion_events")
+            .select("conversion_type, funnel_stage, value, currency, metadata, created_at, user_id, session_id")
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString())
+            .order("created_at", { ascending: true });
+          
+          // Get sessions for funnel analysis
+          const { data: sessionsData } = await supabase
+            .from("user_sessions")
+            .select("session_id, started_at, utm_source, utm_medium, utm_campaign, converted, conversion_type")
+            .gte("started_at", start.toISOString())
+            .lte("started_at", end.toISOString());
+          
+          // Funnel stages
+          const funnelStages = ["landing", "signup", "onboarding", "roadmap_generated", "subscription"];
+          const funnelData: Record<string, number> = {};
+          const conversionRates: Record<string, number> = {};
+          
+          // Initialize funnel
+          for (const stage of funnelStages) {
+            funnelData[stage] = 0;
+          }
+          
+          // Aggregate conversions by type and stage
+          const conversionsByType: Record<string, number> = {};
+          const conversionsByStage: Record<string, number> = {};
+          const conversionsBySource: Record<string, number> = {};
+          const conversionsByCampaign: Record<string, number> = {};
+          const timeToConversion: number[] = [];
+          let totalRevenue = 0;
+          
+          // Count signups (from profiles)
+          const { count: signupCount } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString());
+          
+          funnelData["signup"] = signupCount || 0;
+          
+          // Count roadmap generations
+          const { count: roadmapCount } = await supabase
+            .from("roadmaps")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString());
+          
+          funnelData["roadmap_generated"] = roadmapCount || 0;
+          
+          // Count subscriptions
+          const { count: subscriptionCount } = await supabase
+            .from("subscriptions")
+            .select("*", { count: "exact", head: true })
+            .neq("tier", "free")
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString());
+          
+          funnelData["subscription"] = subscriptionCount || 0;
+          
+          // Process conversion events
+          if (conversionsData) {
+            for (const conv of conversionsData) {
+              const type = conv.conversion_type as string;
+              const stage = conv.funnel_stage as string;
+              
+              conversionsByType[type] = (conversionsByType[type] || 0) + 1;
+              conversionsByStage[stage] = (conversionsByStage[stage] || 0) + 1;
+              
+              if (conv.value) {
+                totalRevenue += Number(conv.value);
+              }
+              
+              // Get session for source attribution
+              if (conv.session_id) {
+                const session = sessionsData?.find(s => s.session_id === conv.session_id);
+                if (session) {
+                  const source = session.utm_source || "direct";
+                  conversionsBySource[source] = (conversionsBySource[source] || 0) + 1;
+                  
+                  if (session.utm_campaign) {
+                    conversionsByCampaign[session.utm_campaign] = (conversionsByCampaign[session.utm_campaign] || 0) + 1;
+                  }
+                }
+              }
+            }
+          }
+          
+          // Calculate conversion rates
+          const totalVisitors = sessionsData?.length || 0;
+          if (totalVisitors > 0) {
+            conversionRates["signup"] = Math.round((funnelData["signup"] / totalVisitors) * 10000) / 100;
+            conversionRates["roadmap_generated"] = Math.round((funnelData["roadmap_generated"] / totalVisitors) * 10000) / 100;
+            conversionRates["subscription"] = Math.round((funnelData["subscription"] / totalVisitors) * 10000) / 100;
+          }
+          
+          // Calculate time to conversion (simplified - would need session start times)
+          // This is a placeholder - in production, calculate from session start to conversion
+          
+          const funnelDataArray = funnelStages.map((stage) => ({
+            stage,
+            count: funnelData[stage] || 0,
+            conversionRate: conversionRates[stage] || 0,
+          }));
+          
+          const conversionsByTypeData = Object.entries(conversionsByType)
+            .map(([type, count]) => ({ type, count }));
+          
+          const conversionsByStageData = Object.entries(conversionsByStage)
+            .map(([stage, count]) => ({ stage, count }));
+          
+          const conversionsBySourceData = Object.entries(conversionsBySource)
+            .sort(([, a], [, b]) => b - a)
+            .map(([source, count]) => ({ source, count }));
+          
+          const conversionsByCampaignData = Object.entries(conversionsByCampaign)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([campaign, count]) => ({ campaign, count }));
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_conversion_analytics", "analytics", undefined, { startDate, endDate }, req);
+          } catch (logErr) {
+            logError("api", "admin/analytics/conversions: failed to log action", logErr);
+          }
+          
+          return jsonResponse({
+            funnel: funnelDataArray,
+            conversionsByType: conversionsByTypeData,
+            conversionsByStage: conversionsByStageData,
+            conversionsBySource: conversionsBySourceData,
+            conversionsByCampaign: conversionsByCampaignData,
+            totalRevenue: Math.round(totalRevenue * 100) / 100,
+            timeToConversion: {
+              avg: 0, // Placeholder - calculate from actual data
+              median: 0,
             },
           });
         }
@@ -4232,29 +5529,41 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (!authCheck.authorized) return authCheck.error!;
         
         if (req.method === "GET") {
-          const search = url.searchParams.get("search") ?? "";
-          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
-          const offset = (page - 1) * limit;
-          
-          let query = supabase.from("roadmaps").select("*, profiles(display_name, email)", { count: "exact" });
-          
-          if (search) {
-            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+          try {
+            const search = url.searchParams.get("search") ?? "";
+            const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+            const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+            const offset = (page - 1) * limit;
+            
+            let query = supabase.from("roadmaps").select("id, title, description, user_id, created_at, updated_at, profiles(display_name, email)", { count: "exact" });
+            
+            if (search) {
+              query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+            }
+            
+            const { data, error, count } = await query
+              .order("created_at", { ascending: false })
+              .range(offset, offset + limit - 1);
+            
+            if (error) {
+              logError("api", "admin/content/roadmaps: query error", error);
+              throw error;
+            }
+            
+            try {
+              await logAdminAction(supabase, user!.id, "list_roadmaps", "roadmaps", undefined, { search }, req);
+            } catch (logErr) {
+              logError("api", "admin/content/roadmaps: failed to log action", logErr);
+            }
+            
+            return jsonResponse({
+              roadmaps: data ?? [],
+              pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+            });
+          } catch (err) {
+            logError("api", "admin/content/roadmaps: handler error", err);
+            throw err;
           }
-          
-          const { data, error, count } = await query
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
-          
-          if (error) throw error;
-          
-          await logAdminAction(supabase, user!.id, "list_roadmaps", "roadmaps", undefined, { search }, req);
-          
-          return jsonResponse({
-            roadmaps: data ?? [],
-            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
-          });
         }
         return jsonResponse({ error: "Method not allowed" }, 405);
       }
@@ -4281,33 +5590,45 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (!authCheck.authorized) return authCheck.error!;
         
         if (req.method === "GET") {
-          const userId = url.searchParams.get("user_id");
-          const search = url.searchParams.get("search") ?? "";
-          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
-          const offset = (page - 1) * limit;
-          
-          let query = supabase.from("chat_history").select("*, profiles(display_name, email)", { count: "exact" });
-          
-          if (userId && UUID_REGEX.test(userId)) {
-            query = query.eq("user_id", userId);
+          try {
+            const userId = url.searchParams.get("user_id");
+            const search = url.searchParams.get("search") ?? "";
+            const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+            const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+            const offset = (page - 1) * limit;
+            
+            let query = supabase.from("chat_history").select("id, user_id, content, created_at, profiles(display_name, email)", { count: "exact" });
+            
+            if (userId && UUID_REGEX.test(userId)) {
+              query = query.eq("user_id", userId);
+            }
+            if (search) {
+              query = query.ilike("content", `%${search}%`);
+            }
+            
+            const { data, error, count } = await query
+              .order("created_at", { ascending: false })
+              .range(offset, offset + limit - 1);
+            
+            if (error) {
+              logError("api", "admin/content/chat: query error", error);
+              throw error;
+            }
+            
+            try {
+              await logAdminAction(supabase, user!.id, "list_chat", "chat_history", undefined, { userId, search }, req);
+            } catch (logErr) {
+              logError("api", "admin/content/chat: failed to log action", logErr);
+            }
+            
+            return jsonResponse({
+              messages: data ?? [],
+              pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+            });
+          } catch (err) {
+            logError("api", "admin/content/chat: handler error", err);
+            throw err;
           }
-          if (search) {
-            query = query.ilike("content", `%${search}%`);
-          }
-          
-          const { data, error, count } = await query
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
-          
-          if (error) throw error;
-          
-          await logAdminAction(supabase, user!.id, "list_chat", "chat_history", undefined, { userId, search }, req);
-          
-          return jsonResponse({
-            messages: data ?? [],
-            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
-          });
         }
         return jsonResponse({ error: "Method not allowed" }, 405);
       }
@@ -4428,8 +5749,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
           const offset = (page - 1) * limit;
           
-          let query = supabase.from("admin_audit_log").select("*, profiles(display_name, email)", { count: "exact" });
-          
+          let query = supabase.from("admin_audit_log").select("id, admin_user_id, action, resource_type, resource_id, details, ip_address, user_agent, created_at", { count: "exact" });
           if (adminUserId && UUID_REGEX.test(adminUserId)) {
             query = query.eq("admin_user_id", adminUserId);
           }
@@ -4445,17 +5765,306 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           if (endDate) {
             query = query.lte("created_at", endDate);
           }
+          const { data: logsData, error, count } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+          if (error) throw error;
+          const logs = logsData ?? [];
+          const adminIds = [...new Set(logs.map((l: { admin_user_id: string }) => l.admin_user_id))];
+          const profilesByUser: Record<string, { display_name?: string; email?: string }> = {};
+          if (adminIds.length > 0) {
+            const { data: profs } = await supabase.from("profiles").select("user_id, display_name, email").in("user_id", adminIds);
+            for (const p of profs ?? []) {
+              profilesByUser[p.user_id] = { display_name: p.display_name, email: p.email };
+            }
+          }
+          const logsWithProfiles = logs.map((l: any) => ({
+            ...l,
+            profiles: profilesByUser[l.admin_user_id] ?? {},
+          }));
+          return jsonResponse({
+            logs: logsWithProfiles,
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/analytics/user-journeys": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const startDate = url.searchParams.get("start_date");
+          const endDate = url.searchParams.get("end_date");
           
-          const { data, error, count } = await query
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+          const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const end = endDate ? new Date(endDate) : new Date();
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          
+          // Get all page views for flow analysis
+          const { data: pageViews } = await supabase
+            .from("user_events")
+            .select("page_path, session_id, user_id, created_at")
+            .eq("event_type", "page_view")
+            .gte("created_at", start.toISOString())
+            .lte("created_at", end.toISOString())
+            .order("created_at", { ascending: true });
+          
+          // Build page flow (common paths)
+          const pageFlow: Record<string, Record<string, number>> = {};
+          const dropOffPoints: Record<string, number> = {};
+          
+          if (pageViews) {
+            // Group by session
+            const sessions: Record<string, Array<{ path: string; timestamp: string }>> = {};
+            for (const view of pageViews) {
+              const sessionId = view.session_id as string;
+              if (!sessions[sessionId]) {
+                sessions[sessionId] = [];
+              }
+              sessions[sessionId].push({
+                path: view.page_path as string,
+                timestamp: view.created_at as string,
+              });
+            }
+            
+            // Build flow graph
+            for (const sessionViews of Object.values(sessions)) {
+              for (let i = 0; i < sessionViews.length - 1; i++) {
+                const from = sessionViews[i].path;
+                const to = sessionViews[i + 1].path;
+                if (!pageFlow[from]) {
+                  pageFlow[from] = {};
+                }
+                pageFlow[from][to] = (pageFlow[from][to] || 0) + 1;
+              }
+              
+              // Track drop-offs (last page in session)
+              if (sessionViews.length > 0) {
+                const lastPage = sessionViews[sessionViews.length - 1].path;
+                dropOffPoints[lastPage] = (dropOffPoints[lastPage] || 0) + 1;
+              }
+            }
+          }
+          
+          // Convert to array format
+          const flowData = Object.entries(pageFlow).map(([from, tos]) => ({
+            from,
+            to: Object.entries(tos).map(([to, count]) => ({ to, count })),
+          }));
+          
+          const dropOffData = Object.entries(dropOffPoints)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 20)
+            .map(([page, count]) => ({ page, count }));
+          
+          // Funnel analysis
+          const funnelStages = [
+            { name: "Landing", path: "/" },
+            { name: "Signup", path: "/signup" },
+            { name: "Onboarding", path: "/wizard" },
+            { name: "Dashboard", path: "/dashboard" },
+            { name: "Roadmap", path: "/dashboard/roadmap" },
+            { name: "Subscription", path: "/dashboard/upgrade" },
+          ];
+          
+          const funnelData: Array<{ stage: string; count: number; dropOff: number }> = [];
+          let previousCount = pageViews?.length || 0;
+          
+          for (const stage of funnelStages) {
+            const stageCount = pageViews?.filter(v => (v.page_path as string).startsWith(stage.path)).length || 0;
+            const dropOff = previousCount - stageCount;
+            funnelData.push({
+              stage: stage.name,
+              count: stageCount,
+              dropOff: Math.max(0, dropOff),
+            });
+            previousCount = stageCount;
+          }
+          
+          try {
+            await logAdminAction(supabase, user!.id, "view_user_journeys", "analytics", undefined, { startDate, endDate }, req);
+          } catch (logErr) {
+            logError("api", "admin/analytics/user-journeys: failed to log action", logErr);
+          }
+          
+          return jsonResponse({
+            flow: flowData,
+            dropOffPoints: dropOffData,
+            funnel: funnelData,
+          });
+        }
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/themes": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "GET") {
+          const { data: themes } = await supabase
+            .from("theme_settings")
+            .select("*")
+            .order("is_default", { ascending: false })
+            .order("created_at", { ascending: false });
+          
+          try {
+            await logAdminAction(supabase, user!.id, "list_themes", "themes", undefined, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/themes: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ themes: themes ?? [] });
+        }
+        
+        if (req.method === "POST") {
+          const { name, colors, description } = body as {
+            name?: string;
+            colors?: Record<string, string>;
+            description?: string;
+          };
+          
+          if (!name || !colors) {
+            return jsonResponse({ error: "name and colors required" }, 400);
+          }
+          
+          const { data: theme, error: insertError } = await supabase
+            .from("theme_settings")
+            .insert({
+              name,
+              colors: colors as any,
+              description: description || null,
+              is_admin_created: true,
+              created_by: user!.id,
+            })
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          
+          try {
+            await logAdminAction(supabase, user!.id, "create_theme", "themes", theme.id, { name }, req);
+          } catch (logErr) {
+            logError("api", "admin/themes: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ theme });
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/themes/id": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        const themeId = pathSegments[2];
+        if (!themeId || !UUID_REGEX.test(themeId)) {
+          return jsonResponse({ error: "Invalid theme ID" }, 400);
+        }
+        
+        if (req.method === "GET") {
+          const { data: theme, error } = await supabase
+            .from("theme_settings")
+            .select("*")
+            .eq("id", themeId)
+            .single();
+          
+          if (error) throw error;
+          if (!theme) return jsonResponse({ error: "Theme not found" }, 404);
+          
+          return jsonResponse({ theme });
+        }
+        
+        if (req.method === "PATCH") {
+          const { name, colors, description } = body as {
+            name?: string;
+            colors?: Record<string, string>;
+            description?: string;
+          };
+          
+          const updates: Record<string, unknown> = {};
+          if (name) updates.name = name;
+          if (colors) updates.colors = colors as any;
+          if (description !== undefined) updates.description = description;
+          
+          const { data: theme, error } = await supabase
+            .from("theme_settings")
+            .update(updates)
+            .eq("id", themeId)
+            .select()
+            .single();
           
           if (error) throw error;
           
-          return jsonResponse({
-            logs: data ?? [],
-            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
-          });
+          try {
+            await logAdminAction(supabase, user!.id, "update_theme", "themes", themeId, { updates }, req);
+          } catch (logErr) {
+            logError("api", "admin/themes/id: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ theme });
+        }
+        
+        if (req.method === "DELETE") {
+          // Check if theme is default
+          const { data: theme } = await supabase
+            .from("theme_settings")
+            .select("is_default")
+            .eq("id", themeId)
+            .single();
+          
+          if (theme?.is_default) {
+            return jsonResponse({ error: "Cannot delete default theme" }, 400);
+          }
+          
+          await supabase.from("theme_settings").delete().eq("id", themeId);
+          
+          try {
+            await logAdminAction(supabase, user!.id, "delete_theme", "themes", themeId, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/themes/id: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ success: true });
+        }
+        
+        return jsonResponse({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/themes/set-default": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        
+        if (req.method === "POST") {
+          const themeId = pathSegments[2];
+          if (!themeId || !UUID_REGEX.test(themeId)) {
+            return jsonResponse({ error: "Invalid theme ID" }, 400);
+          }
+          
+          // Unset current default
+          await supabase
+            .from("theme_settings")
+            .update({ is_default: false })
+            .eq("is_default", true);
+          
+          // Set new default
+          const { data: theme, error } = await supabase
+            .from("theme_settings")
+            .update({ is_default: true })
+            .eq("id", themeId)
+            .select()
+            .single();
+          
+          if (error) throw error;
+          
+          try {
+            await logAdminAction(supabase, user!.id, "set_default_theme", "themes", themeId, {}, req);
+          } catch (logErr) {
+            logError("api", "admin/themes/set-default: failed to log action", logErr);
+          }
+          
+          return jsonResponse({ theme });
         }
         return jsonResponse({ error: "Method not allowed" }, 405);
       }

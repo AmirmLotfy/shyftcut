@@ -77,6 +77,16 @@ export const seoByPath: Record<string, SeoEntry> = {
     description:
       "Take the free 90-second Career DNA quiz. See how well your personality fits your field and discover careers that match your strengths.",
   },
+  "/affiliate": {
+    title: "Earn with Shyftcut – Affiliate Program",
+    description:
+      "Share Shyftcut with friends and earn 15% on their first purchase plus 10% on every renewal. Join our affiliate program and get paid monthly.",
+  },
+  "/earn": {
+    title: "Earn with Shyftcut – Refer Friends, Get Paid",
+    description:
+      "Join the Shyftcut affiliate program. Sign up free, share your link, and earn 15% on first payment and 10% on every renewal. Payouts monthly.",
+  },
 };
 
 /** Arabic SEO copy per route (in-app title/description when language is ar). */
@@ -145,6 +155,16 @@ export const seoByPathAr: Record<string, SeoEntry> = {
     title: "اختبار الحمض النووي المهني | جد مجالك المثالي | Shyftcut",
     description:
       "خض اختبار الـ 90 ثانية المجاني. اكتشف مدى توافق شخصيتك مع مجالك وتعرف على المسارات التي تناسب نقاط قوتك.",
+  },
+  "/affiliate": {
+    title: "اكسب مع Shyftcut – برنامج الشركاء",
+    description:
+      "شارك Shyftcut مع أصدقائك واحصل على 15٪ من أول اشتراك و10٪ من كل تجديد. انضم لبرنامج الشركاء واحصل على مدفوعات شهرية.",
+  },
+  "/earn": {
+    title: "اكسب مع Shyftcut – أَحِل أصدقاءك، واحصل على أجر",
+    description:
+      "انضم لبرنامج شركاء Shyftcut. سجّل مجاناً، شارك رابطك، واحصل على 15٪ من الدفعة الأولى و10٪ من كل تجديد. مدفوعات شهرية.",
   },
 };
 

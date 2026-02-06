@@ -6,8 +6,6 @@ import { GlassInputWrapper } from '@/components/ui/auth-glass-input';
 import { AuthLayout } from '@/components/auth/AuthLayout';
 import { AuthLayoutMobile } from '@/components/auth/AuthLayoutMobile';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { AuthCaptcha, HCAPTCHA_ENABLED } from '@/components/auth/AuthCaptcha';
-import type { AuthCaptchaRef } from '@/components/auth/AuthCaptcha';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,25 +15,24 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | undefined>();
-  const captchaRef = useRef<AuthCaptchaRef>(null);
+  const submittingRef = useRef(false);
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
   const { resetPasswordForEmail } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
     try {
-      await resetPasswordForEmail(email, captchaToken);
+      await resetPasswordForEmail(email);
       setSent(true);
     } catch {
-      setCaptchaToken(undefined);
-      captchaRef.current?.reset();
       // Error is handled in AuthContext
     } finally {
+      submittingRef.current = false;
       setIsLoading(false);
-      captchaRef.current?.reset();
     }
   };
 
@@ -52,8 +49,8 @@ export default function ForgotPassword() {
         path="/forgot-password"
       />
       <Layout {...layoutProps}>
-        <div className="flex flex-col gap-6">
-          <h1 className="animate-element animate-delay-100 text-4xl md:text-5xl font-semibold leading-tight">
+        <div className="flex flex-col gap-3 md:gap-4">
+          <h1 className="animate-element animate-delay-100 text-2xl sm:text-3xl md:text-4xl lg:text-[2.25rem] font-semibold leading-tight">
             <span className="font-light tracking-tighter">{t('auth.forgotPasswordTitle')}</span>
           </h1>
           <p className="animate-element animate-delay-200 text-muted-foreground">
@@ -61,7 +58,7 @@ export default function ForgotPassword() {
           </p>
 
           {sent ? (
-            <div className="animate-element animate-delay-300 space-y-5">
+            <div className="animate-element animate-delay-300 space-y-3 md:space-y-4">
               <p className="text-center text-sm text-muted-foreground">
                 {t('auth.forgotPasswordSuccess')}
               </p>
@@ -70,7 +67,7 @@ export default function ForgotPassword() {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
               <div className="animate-element animate-delay-300">
                 <label htmlFor="email" className="text-sm font-medium text-muted-foreground">
                   {t('auth.email')}
@@ -88,17 +85,10 @@ export default function ForgotPassword() {
                   />
                 </GlassInputWrapper>
               </div>
-              <div className="animate-element animate-delay-400">
-                <AuthCaptcha
-                  ref={captchaRef}
-                  onVerify={setCaptchaToken}
-                  onExpire={() => setCaptchaToken(undefined)}
-                />
-              </div>
               <Button
                 type="submit"
                 className="animate-element animate-delay-400 w-full rounded-2xl py-4 font-medium btn-glow"
-                disabled={isLoading || (HCAPTCHA_ENABLED && !captchaToken)}
+                disabled={isLoading}
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />

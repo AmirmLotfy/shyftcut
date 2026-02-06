@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sheet';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { getUpgradePath } from '@/lib/upgrade-link';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { LOGO_PATH } from '@/lib/seo';
@@ -97,11 +98,11 @@ export function MobileNavSheet({ open, onOpenChange, trigger }: MobileNavSheetPr
           {user && (
             <>
               <div className="my-1 h-px bg-border/60" />
-              <Link to="/dashboard" onClick={handleNavClick} className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-medium transition-colors hover:bg-muted/80 active:bg-muted" data-testid="nav-link-dashboard">
+              <Link to={dashboardPaths.index} onClick={handleNavClick} className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-medium transition-colors hover:bg-muted/80 active:bg-muted" data-testid="nav-link-dashboard">
                 <IconMapTrifold className="h-5 w-5 shrink-0 text-muted-foreground" />
                 {t('nav.dashboard')}
               </Link>
-              <Link to="/profile" onClick={handleNavClick} className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-medium transition-colors hover:bg-muted/80 active:bg-muted">
+              <Link to={dashboardPaths.profile} onClick={handleNavClick} className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-[15px] font-medium transition-colors hover:bg-muted/80 active:bg-muted">
                 <IconUser className="h-5 w-5 shrink-0 text-muted-foreground" />
                 {t('nav.profile')}
               </Link>

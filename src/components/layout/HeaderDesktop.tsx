@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { getUpgradePath } from '@/lib/upgrade-link';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { cn } from '@/lib/utils';
@@ -116,18 +117,18 @@ export function HeaderDesktop() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className={cn('gap-1.5', rightActionsClass)} data-testid="user-menu-trigger">
                   <IconUser className="h-4 w-4" />
-                  <span className="max-w-[100px] truncate">{user.email?.split('@')[0]}</span>
+                  <span className="max-w-[100px] truncate">{user.user_metadata?.display_name ?? user.email?.split('@')[0]}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'}>
                 <DropdownMenuItem asChild>
-                  <Link to="/dashboard" className="flex items-center gap-2" data-testid="nav-link-dashboard">
+                  <Link to={dashboardPaths.index} className="flex items-center gap-2" data-testid="nav-link-dashboard">
                     <IconMapTrifold className="h-4 w-4" />
                     {t('nav.dashboard')}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/profile" className="flex items-center gap-2">
+                  <Link to={dashboardPaths.profile} className="flex items-center gap-2">
                     <IconUser className="h-4 w-4" />
                     {t('nav.profile')}
                   </Link>

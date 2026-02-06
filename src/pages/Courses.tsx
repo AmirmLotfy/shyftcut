@@ -1,17 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, ExternalLink, Filter, Search, Star, Clock, DollarSign, Check, Bookmark, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -22,53 +22,128 @@ export default function Courses() {
   const { activeRoadmap, isLoading, isError, error } = useRoadmap();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [weekFilter, setWeekFilter] = useState<string>('all');
   const [platformFilter, setPlatformFilter] = useState('all');
   const [difficultyFilter, setDifficultyFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState('relevance');
 
-  // Get all courses from all weeks
-  const allCourses = useMemo(() => {
+  // Sorted weeks (same order as Roadmap)
+  const weeks = useMemo(() => {
     if (!activeRoadmap?.roadmap_weeks) return [];
-    
-    return activeRoadmap.roadmap_weeks.flatMap((week: any) => 
+    return [...activeRoadmap.roadmap_weeks].sort((a: any, b: any) => a.week_number - b.week_number);
+  }, [activeRoadmap]);
+
+  // Unlocked week numbers: Week 1 always, then Week N when Week N-1 is completed (matches Roadmap)
+  const unlockedWeekNumbers = useMemo(() => {
+    const nums: number[] = [];
+    for (let i = 0; i < weeks.length; i++) {
+      const w = weeks[i];
+      const prev = weeks[i - 1];
+      if (i === 0 || prev?.is_completed) {
+        nums.push(w.week_number);
+      }
+    }
+    return nums;
+  }, [weeks]);
+
+  const unlockedSet = useMemo(() => new Set(unlockedWeekNumbers), [unlockedWeekNumbers]);
+
+  // Only courses from unlocked weeks (matches Roadmap progression)
+  const allCourses = useMemo(() => {
+    return weeks.flatMap((week: any) =>
       (week.course_recommendations || []).map((course: any) => ({
         ...course,
         weekNumber: week.week_number,
         weekTitle: week.title,
       }))
-    );
-  }, [activeRoadmap]);
+    ).filter((c: any) => unlockedSet.has(c.weekNumber));
+  }, [weeks, unlockedSet]);
 
-  // Get unique platforms
+  // Total courses (all weeks) for locked-week hint
+  const totalCourseCount = useMemo(() => {
+    return weeks.reduce((acc: number, w: any) => acc + (w.course_recommendations?.length || 0), 0);
+  }, [weeks]);
+
+  // Sync week filter from URL (?week=3) when navigating from Dashboard/Roadmap
+  useEffect(() => {
+    const w = searchParams.get('week');
+    if (w) {
+      const n = parseInt(w, 10);
+      if (!isNaN(n) && n >= 1 && unlockedSet.has(n)) setWeekFilter(String(n));
+    }
+  }, [searchParams, unlockedSet]);
+
+  // Reset week filter if selected week is locked (e.g. user navigated away and back)
+  useEffect(() => {
+    if (weekFilter !== 'all') {
+      const n = parseInt(weekFilter, 10);
+      if (!isNaN(n) && !unlockedSet.has(n)) setWeekFilter('all');
+    }
+  }, [weekFilter, unlockedSet]);
+
+  // Week numbers for filter (only unlocked)
+  const weekNumbers = useMemo(() => [...unlockedWeekNumbers], [unlockedWeekNumbers]);
+
+  // Unique platforms from unlocked courses
   const platforms = useMemo(() => {
-    const unique = new Set(allCourses.map((c: any) => c.platform));
-    return Array.from(unique);
+    const byLower = new Map<string, string>();
+    for (const c of allCourses) {
+      const p = String(c.platform || '').trim();
+      if (!p) continue;
+      const key = p.toLowerCase();
+      if (!byLower.has(key)) byLower.set(key, p);
+    }
+    return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b));
   }, [allCourses]);
+
+  // Normalize difficulty for comparison (AI may return "Beginner" vs "beginner")
+  const norm = (s: string | null | undefined) => String(s || '').toLowerCase().trim();
 
   // Filter and sort courses
   const filteredCourses = useMemo(() => {
     let filtered = allCourses;
 
+    // Week filter (align with week-by-week view)
+    if (weekFilter !== 'all') {
+      const weekNum = parseInt(weekFilter, 10);
+      if (!isNaN(weekNum)) {
+        filtered = filtered.filter((c: any) => c.weekNumber === weekNum);
+      }
+    }
+
     // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((c: any) => 
-        c.title.toLowerCase().includes(query) ||
-        c.platform.toLowerCase().includes(query) ||
-        c.instructor?.toLowerCase().includes(query)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((c: any) =>
+        (c.title && c.title.toLowerCase().includes(query)) ||
+        (c.platform && c.platform.toLowerCase().includes(query)) ||
+        (c.instructor && c.instructor.toLowerCase().includes(query))
       );
     }
 
-    // Platform filter
+    // Platform filter (case-insensitive)
     if (platformFilter !== 'all') {
-      filtered = filtered.filter((c: any) => c.platform === platformFilter);
+      const pf = platformFilter.toLowerCase();
+      filtered = filtered.filter((c: any) => norm(c.platform) === pf);
     }
 
-    // Difficulty filter
+    // Difficulty filter (case-insensitive, normalizes AI variants like "Beginner")
     if (difficultyFilter !== 'all') {
-      filtered = filtered.filter((c: any) => c.difficulty_level === difficultyFilter);
+      const df = difficultyFilter.toLowerCase();
+      filtered = filtered.filter((c: any) => norm(c.difficulty_level) === df);
+    }
+
+    // Status filter (to do / completed / saved)
+    if (statusFilter === 'completed') {
+      filtered = filtered.filter((c: any) => c.is_completed);
+    } else if (statusFilter === 'todo') {
+      filtered = filtered.filter((c: any) => !c.is_completed);
+    } else if (statusFilter === 'saved') {
+      filtered = filtered.filter((c: any) => c.is_saved);
     }
 
     // Sort
@@ -91,7 +166,7 @@ export default function Courses() {
     }
 
     return filtered;
-  }, [allCourses, searchQuery, platformFilter, difficultyFilter, sortBy]);
+  }, [allCourses, searchQuery, weekFilter, platformFilter, difficultyFilter, statusFilter, sortBy]);
 
   const toggleSaved = async (courseId: string, currentSaved: boolean) => {
     const token = await getAccessToken();
@@ -135,17 +210,17 @@ export default function Courses() {
 
   if (isLoading) {
     return (
-      <Layout>
+      <>
         <div className="flex min-h-[60vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </>
     );
   }
 
   if (isError) {
     return (
-      <Layout>
+      <>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -162,16 +237,16 @@ export default function Courses() {
               {(error as Error)?.message || (language === 'ar' ? 'تعذر تحميل الدورات.' : 'We couldn\'t load your courses. Please try again.')}
             </p>
             <Button asChild>
-              <Link to="/dashboard">{language === 'ar' ? 'العودة للوحة التحكم' : 'Back to Dashboard'}</Link>
+              <Link to={dashboardPaths.index}>{language === 'ar' ? 'العودة للوحة التحكم' : 'Back to Dashboard'}</Link>
             </Button>
           </motion.div>
         </div>
-      </Layout>
+      </>
     );
   }
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         {/* Header */}
         <motion.div
@@ -183,10 +258,21 @@ export default function Courses() {
             {language === 'ar' ? 'مكتبة الدورات' : 'Course Library'}
           </h1>
           <p className="text-muted-foreground">
-            {language === 'ar'
-              ? `${allCourses.length} دورة موصى بها لرحلتك المهنية`
-              : `${allCourses.length} courses recommended for your career journey`}
+            {filteredCourses.length !== allCourses.length
+              ? (language === 'ar'
+                ? `عرض ${filteredCourses.length} من ${allCourses.length} دورة`
+                : `Showing ${filteredCourses.length} of ${allCourses.length} courses`)
+              : (language === 'ar'
+                ? `${allCourses.length} دورة متاحة (حسب تقدمك في خريطة الطريق)`
+                : `${allCourses.length} courses available (follows your roadmap progress)`)}
           </p>
+          {totalCourseCount > allCourses.length && (
+            <p className="mt-1 text-sm text-muted-foreground/80">
+              {language === 'ar'
+                ? `أكمل الأسابيع الحالية لفتح ${totalCourseCount - allCourses.length} دورة إضافية`
+                : `Complete current weeks to unlock ${totalCourseCount - allCourses.length} more courses`}
+            </p>
+          )}
         </motion.div>
 
         {/* Filters */}
@@ -205,22 +291,36 @@ export default function Courses() {
               className="pl-10 rtl:pl-0 rtl:pr-10"
             />
           </div>
-          
+
+          <Select value={weekFilter} onValueChange={setWeekFilter}>
+            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[140px]">
+              <SelectValue placeholder={language === 'ar' ? 'الأسبوع' : 'Week'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{language === 'ar' ? 'كل الأسابيع' : 'All Weeks'}</SelectItem>
+              {weekNumbers.map((wn) => (
+                <SelectItem key={wn} value={String(wn)}>
+                  {language === 'ar' ? `الأسبوع ${wn}` : `Week ${wn}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={platformFilter} onValueChange={setPlatformFilter}>
-            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[180px]">
-              <Filter className="mr-2 h-4 w-4 rtl:mr-0 rtl:ml-2" />
+            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[160px]">
+              <Filter className="mr-2 h-4 w-4 shrink-0 rtl:mr-0 rtl:ml-2" />
               <SelectValue placeholder={language === 'ar' ? 'المنصة' : 'Platform'} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{language === 'ar' ? 'كل المنصات' : 'All Platforms'}</SelectItem>
-              {platforms.map((platform) => (
+              {platforms.filter((p) => p && p.trim()).map((platform) => (
                 <SelectItem key={platform} value={platform}>{platform}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={difficultyFilter} onValueChange={setDifficultyFilter}>
-            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[180px]">
+            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[160px]">
               <SelectValue placeholder={language === 'ar' ? 'المستوى' : 'Difficulty'} />
             </SelectTrigger>
             <SelectContent>
@@ -228,6 +328,18 @@ export default function Courses() {
               <SelectItem value="beginner">{language === 'ar' ? 'مبتدئ' : 'Beginner'}</SelectItem>
               <SelectItem value="intermediate">{language === 'ar' ? 'متوسط' : 'Intermediate'}</SelectItem>
               <SelectItem value="advanced">{language === 'ar' ? 'متقدم' : 'Advanced'}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="min-touch w-full min-w-0 sm:w-[140px]">
+              <SelectValue placeholder={language === 'ar' ? 'الحالة' : 'Status'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+              <SelectItem value="todo">{language === 'ar' ? 'للمراجعة' : 'To Do'}</SelectItem>
+              <SelectItem value="completed">{language === 'ar' ? 'مكتمل' : 'Completed'}</SelectItem>
+              <SelectItem value="saved">{language === 'ar' ? 'محفوظ' : 'Saved'}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -357,6 +469,6 @@ export default function Courses() {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   );
 }

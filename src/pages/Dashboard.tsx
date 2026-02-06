@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { BarChart3, BookOpen, Clock, Target, ArrowRight, Loader2, Brain, Calendar, TrendingUp, AlertCircle, RefreshCw, MessageSquare, HelpCircle, Map, Star, Gauge, CreditCard, Flame, Trash2 } from 'lucide-react';
+import { BarChart3, BookOpen, Clock, Target, ArrowRight, Loader2, Brain, Calendar, TrendingUp, AlertCircle, RefreshCw, MessageSquare, HelpCircle, Map, Star, Gauge, CreditCard, Flame, Trash2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Layout } from '@/components/layout/Layout';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
@@ -19,11 +18,12 @@ import { useStudyStreak } from '@/hooks/useStudyStreak';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api';
-import { getUpgradePath } from '@/lib/upgrade-link';
 import { getUnlockSummary } from '@/lib/premium-features';
 import { CheckoutButton } from '@/components/pricing/CheckoutButton';
+import { FreePlanBanner } from '@/components/common/FreePlanBanner';
 import { POLAR_PRODUCTS } from '@/lib/polar-config';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { WeekTasks } from '@/components/study/WeekTasks';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,13 +33,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis
 export default function Dashboard() {
   const { language, t } = useLanguage();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { user, getAccessToken } = useAuth();
   const { roadmaps, activeRoadmap, updateRoadmap, isUpdatingRoadmap, deleteRoadmap, isDeletingRoadmap, isLoading: isLoadingRoadmap, isError: isErrorRoadmap, error: errorRoadmap } = useRoadmap();
   const { profile, isLoading: isLoadingProfile, error: errorProfile } = useProfile();
   const { analytics, isLoading: isLoadingAnalytics } = useAnalytics();
   const { isPremium, tier, periodEnd } = useSubscription();
-  const { getChatMessagesRemaining, getQuizzesRemaining, getRoadmapsRemaining, getNotesRemaining, getTasksRemaining, getAiSuggestionsRemaining, usage, limits, isUnlimitedChat, isUnlimitedQuizzes, isUnlimitedRoadmaps, isUnlimitedNotes, isUnlimitedTasks, isUnlimitedAiSuggestions } = useUsageLimits();
+  const usageLimits = useUsageLimits();
+  const { getChatMessagesRemaining, getQuizzesRemaining, getRoadmapsRemaining, getNotesRemaining, getTasksRemaining, getAiSuggestionsRemaining, usage, limits, isUnlimitedChat, isUnlimitedQuizzes, isUnlimitedRoadmaps, isUnlimitedNotes, isUnlimitedTasks, isUnlimitedAiSuggestions } = usageLimits;
   const { streak } = useStudyStreak();
   const { preferences: notifPrefs } = useNotificationPreferences();
   const { toast } = useToast();
@@ -70,8 +70,7 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <Layout>
-        <div className="container mx-auto max-w-app-content px-4 py-8">
+      <div className="container mx-auto max-w-app-content px-4 py-8">
           <Skeleton className="mb-6 h-9 w-64" />
           <Skeleton className="mb-6 h-5 w-72" />
           <Skeleton className="mb-6 h-24 w-full rounded-xl" />
@@ -86,13 +85,11 @@ export default function Dashboard() {
             <Skeleton className="h-24 w-full sm:w-[220px] rounded-xl" />
           </div>
         </div>
-      </Layout>
     );
   }
 
   if (isError) {
     return (
-      <Layout>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -123,65 +120,187 @@ export default function Dashboard() {
                 {t('common.retry')}
               </Button>
               <Button asChild>
-                <Link to="/dashboard">{t('dashboard.backToDashboard')}</Link>
+                <Link to={dashboardPaths.index}>{t('dashboard.backToDashboard')}</Link>
               </Button>
             </div>
           </motion.div>
         </div>
-      </Layout>
     );
   }
 
-  // First-time user (0 roadmaps): redirect to wizard to create first roadmap
-  if (!isLoadingRoadmap && Array.isArray(roadmaps) && roadmaps.length === 0) {
-    navigate('/wizard', { replace: true });
-    return null;
-  }
-
-  // If no active roadmap but user has roadmaps, show CTA to pick one or create
+  // No active roadmap: full dashboard shell with locked features and upgrade focus
   if (!activeRoadmap) {
+    const canCreate = usageLimits.canCreateRoadmap();
     return (
-      <Layout>
-        <div className="container mx-auto px-4 py-20">
+      <div
+        data-testid="dashboard-content"
+        className="min-h-full bg-gradient-to-b from-background via-background to-muted/20"
+        style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}
+      >
+        <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
+          {showStreakBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3"
+            >
+              <p className="text-sm text-foreground">
+                {streak.current_streak > 0 ? t('dashboard.studyTodayToKeepStreak') : t('dashboard.studyTodayStart')}
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to={dashboardPaths.study}>{t('dashboard.thisWeek')}</Link>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={dismissStreakBanner} aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}>
+                  ×
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mx-auto max-w-lg text-center"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 rounded-2xl border border-border/40 bg-card/50 px-6 py-6 sm:px-8 sm:py-7 backdrop-blur-sm"
           >
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
-              <Brain className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="mb-3 text-2xl font-bold sm:text-3xl">
-              {t('dashboard.createYourRoadmap')}
+            <h1 className="min-w-0 text-xl font-semibold tracking-tight sm:text-2xl md:text-[1.75rem]">
+              <span className="block truncate">{t('dashboard.welcome')}, {(profile as { display_name?: string })?.display_name || user?.email?.split('@')[0]}</span>
             </h1>
-            <p className="mb-6 text-muted-foreground">
-              {language === 'ar'
-                ? 'خطة 12 أسبوعاً مبنية على هدفك وجدولك.'
-                : 'A 12-week plan built for your goal and schedule.'}
+            <p className="mt-2 text-[15px] text-muted-foreground leading-relaxed">
+              {t('dashboard.emptyState.subtitle')}
             </p>
-            <ul className="mb-8 text-start text-sm text-muted-foreground inline-block space-y-2">
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {t('dashboard.fiveStepsShort')}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {t('dashboard.curatedCourses')}
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {t('dashboard.aiCoach')}
-              </li>
-            </ul>
-            <Button asChild size="lg" className="btn-glow gap-2">
-              <Link to="/wizard">
-                {t('dashboard.buildRoadmap')}
+          </motion.div>
+
+          {!isPremium && (
+            <FreePlanBanner
+              className="mb-6"
+              returnTo={dashboardPaths.index}
+              ctaText={t('dashboard.emptyState.upgradeCta')}
+              usageSummary={
+                <>
+                  {t('dashboard.freePlan')} · {t('dashboard.roadmapsLabel')}{' '}
+                  {isUnlimitedRoadmaps ? '∞' : `${usage?.roadmapsCreated ?? 0}/${limits.roadmaps}`}
+                  {' · '}{t('dashboard.chat')} {isUnlimitedChat ? '∞' : getChatMessagesRemaining()}
+                  {t('dashboard.quizzes')} {isUnlimitedQuizzes ? '∞' : getQuizzesRemaining()}
+                </>
+              }
+            />
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <Card className="dashboard-card overflow-hidden">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 sm:h-12 sm:w-12 sm:rounded-xl">
+                      <Flame className="h-7 w-7 text-primary sm:h-6 sm:w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-semibold sm:text-base">{t('dashboard.streak')}</h3>
+                      <p className="text-2xl font-bold tabular-nums text-primary sm:text-2xl">
+                        {streak.current_streak > 0
+                          ? t('dashboard.streakDays').replace('{{count}}', String(streak.current_streak))
+                          : t('dashboard.streakDaysZero')}
+                      </p>
+                      <p className="text-sm text-muted-foreground sm:text-xs">
+                        {t('dashboard.longestStreak')}: {streak.longest_streak} {language === 'ar' ? 'أيام' : 'days'}
+                      </p>
+                    </div>
+                  </div>
+                  {streak.activity_dates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 sm:gap-1">
+                      {streak.activity_dates.slice(0, 28).map((d) => (
+                        <div key={d} className="h-6 w-6 rounded-md bg-primary/20 sm:h-5 sm:w-5 sm:rounded-sm" title={d} aria-hidden />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {!isPremium && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8"
+          >
+            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-muted-foreground">
+              <Lock className="h-5 w-5" />
+              {t('dashboard.emptyState.lockedHint')}
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Card className="dashboard-card flex min-w-0 flex-col opacity-75">
+                <CardContent className="flex flex-1 items-center gap-3 p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <Map className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium">{t('dashboard.roadmap')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.trackWeekly')}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="dashboard-card flex min-w-0 flex-col opacity-75">
+                <CardContent className="flex flex-1 items-center gap-3 p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <BookOpen className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium">{t('dashboard.browseCourses')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.curatedCourses')}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="dashboard-card flex min-w-0 flex-col opacity-75">
+                <CardContent className="flex flex-1 items-center gap-3 p-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium">{t('dashboard.talkToCoach')}</p>
+                    <p className="text-xs text-muted-foreground">{t('dashboard.aiCoach')}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-4"
+          >
+            {!isPremium && (
+              <CheckoutButton
+                planId="premium"
+                productId={POLAR_PRODUCTS.premium.yearly.productId}
+                returnTo={dashboardPaths.index}
+                size="lg"
+                className="btn-glow min-h-[48px] gap-2"
+              >
+                {t('dashboard.upgrade')}
                 <ArrowRight className="h-5 w-5" />
-              </Link>
-            </Button>
+              </CheckoutButton>
+            )}
+            {canCreate && (
+              <Button asChild variant={isPremium ? 'default' : 'outline'} size="lg" className="btn-glow min-h-[48px] gap-2">
+                <Link to="/wizard">
+                  {t('dashboard.buildRoadmap')}
+                  <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+            )}
           </motion.div>
         </div>
-      </Layout>
+      </div>
     );
   }
 
@@ -220,26 +339,27 @@ export default function Dashboard() {
   }));
 
   return (
-    <Layout>
+    <>
       <OnboardingTour />
       <div
         data-testid="dashboard-content"
-        className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8"
+        className="min-h-full bg-gradient-to-b from-background via-background to-muted/20"
         style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}
       >
+        <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         {/* Dismissible banner: study today to keep streak */}
         {showStreakBanner && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3"
+            className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-primary/15 bg-primary/5 px-4 py-3"
           >
             <p className="text-sm text-foreground">
               {streak.current_streak > 0 ? t('dashboard.studyTodayToKeepStreak') : t('dashboard.studyTodayStart')}
             </p>
             <div className="flex shrink-0 items-center gap-2">
               <Button variant="ghost" size="sm" asChild>
-                <Link to="/study">{t('dashboard.thisWeek')}</Link>
+                <Link to={dashboardPaths.study}>{t('dashboard.thisWeek')}</Link>
               </Button>
               <Button variant="ghost" size="sm" onClick={dismissStreakBanner} aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}>
                 ×
@@ -248,16 +368,16 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Welcome: one line + contextual second line */}
+        {/* Welcome hero — 2026 refined */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-8 rounded-2xl border border-border/40 bg-card/50 px-6 py-6 sm:px-8 sm:py-7 backdrop-blur-sm"
         >
-          <h1 className="min-w-0 text-xl font-bold leading-tight sm:text-2xl md:text-3xl">
+          <h1 className="min-w-0 text-xl font-semibold tracking-tight sm:text-2xl md:text-[1.75rem]">
             <span className="block truncate">{t('dashboard.welcome')}, {(profile as { display_name?: string })?.display_name || user?.email?.split('@')[0]}</span>
           </h1>
-          <p className="mt-1 text-[15px] text-muted-foreground leading-relaxed">
+          <p className="mt-2 text-[15px] text-muted-foreground leading-relaxed">
             {language === 'ar'
               ? `الأسبوع ${currentWeek?.week_number || 1} من ${weeks.length} · ${currentWeek?.estimated_hours ?? 0} ساعة هذا الأسبوع`
               : `Week ${currentWeek?.week_number || 1} of ${weeks.length} · ${currentWeek?.estimated_hours ?? 0}h left this week`}
@@ -267,41 +387,23 @@ export default function Dashboard() {
 
         {/* Free plan: slim inline bar */}
         {!isPremium && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:py-2"
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="shrink-0 text-sm text-muted-foreground">
+          <FreePlanBanner
+            className="mb-6"
+            returnTo={dashboardPaths.index}
+            usageSummary={
+              <>
                 {t('dashboard.freePlan')} · {t('dashboard.chat')}{' '}
                 {isUnlimitedChat ? '∞' : getChatMessagesRemaining()}
                 {t('dashboard.quizzes')} {isUnlimitedQuizzes ? '∞' : getQuizzesRemaining()}
                 {t('dashboard.notes')} {isUnlimitedNotes ? '∞' : getNotesRemaining()}
                 {t('dashboard.tasks')} {isUnlimitedTasks ? '∞' : getTasksRemaining()}
                 {t('dashboard.aiToday')} {isUnlimitedAiSuggestions ? '∞' : getAiSuggestionsRemaining()}
-              </span>
-              <Link
-                to="/upgrade?returnTo=/dashboard"
-                state={{ returnTo: '/dashboard' }}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                {getUnlockSummary(language === 'ar' ? 'ar' : 'en')}
-              </Link>
-            </div>
-            <CheckoutButton
-              planId="premium"
-              productId={POLAR_PRODUCTS.premium.yearly.productId}
-              returnTo="/dashboard"
-              size="sm"
-              className="min-h-[44px] shrink-0"
-            >
-              {t('dashboard.upgrade')}
-            </CheckoutButton>
-          </motion.div>
+              </>
+            }
+          />
         )}
 
-        {/* Study streak */}
+        {/* Study streak - stacked on mobile, horizontal on desktop */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -309,35 +411,37 @@ export default function Dashboard() {
         >
           <Card className="dashboard-card overflow-hidden">
             <CardContent className="p-4 sm:p-5">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  <Flame className="h-6 w-6 text-primary" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold">{t('dashboard.streak')}</h3>
-                  <p className="text-2xl font-bold tabular-nums text-primary">
-                    {streak.current_streak > 0
-                      ? t('dashboard.streakDays').replace('{{count}}', String(streak.current_streak))
-                      : t('dashboard.streakDaysZero')}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {t('dashboard.longestStreak')}: {streak.longest_streak} {language === 'ar' ? 'أيام' : 'days'}
-                  </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 sm:h-12 sm:w-12 sm:rounded-xl">
+                    <Flame className="h-7 w-7 text-primary sm:h-6 sm:w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base font-semibold sm:text-base">{t('dashboard.streak')}</h3>
+                    <p className="text-2xl font-bold tabular-nums text-primary sm:text-2xl">
+                      {streak.current_streak > 0
+                        ? t('dashboard.streakDays').replace('{{count}}', String(streak.current_streak))
+                        : t('dashboard.streakDaysZero')}
+                    </p>
+                    <p className="text-sm text-muted-foreground sm:text-xs">
+                      {t('dashboard.longestStreak')}: {streak.longest_streak} {language === 'ar' ? 'أيام' : 'days'}
+                    </p>
+                  </div>
                 </div>
                 {!studiedToday && (
-                  <p className="text-sm text-muted-foreground shrink-0 max-w-[200px] sm:max-w-none">
+                  <p className="text-sm text-muted-foreground sm:shrink-0 sm:max-w-[200px]">
                     {streak.current_streak > 0 ? t('dashboard.studyTodayToKeepStreak') : t('dashboard.studyTodayStart')}
                   </p>
                 )}
               </div>
               {streak.activity_dates.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1">
+                <div className="mt-4 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-1">
                   {(() => {
                     const dates = streak.activity_dates.slice(0, 28);
                     return dates.map((d) => (
                       <div
                         key={d}
-                        className="h-5 w-5 rounded-sm bg-primary/20"
+                        className="h-6 w-6 rounded-md bg-primary/20 sm:h-5 sm:w-5 sm:rounded-sm"
                         title={d}
                         aria-hidden
                       />
@@ -488,7 +592,7 @@ export default function Dashboard() {
                   <CheckoutButton
                     planId="premium"
                     productId={POLAR_PRODUCTS.premium.yearly.productId}
-                    returnTo="/dashboard"
+                    returnTo={dashboardPaths.index}
                     variant="default"
                     size="sm"
                     className="min-h-[44px] gap-2"
@@ -706,7 +810,7 @@ export default function Dashboard() {
                     <CardDescription>{currentWeek?.description}</CardDescription>
                   </div>
                 <Button asChild variant="outline" size="sm">
-                    <Link to="/roadmap">
+                    <Link to={dashboardPaths.roadmap}>
                     {t('dashboard.viewFullRoadmap')}
                     </Link>
                   </Button>
@@ -892,7 +996,7 @@ export default function Dashboard() {
           className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-stretch"
         >
           <Card className="dashboard-card flex-1 transition-all card-glow">
-            <Link to="/roadmap" className="flex items-center gap-4 p-6">
+            <Link to={dashboardPaths.roadmap} className="flex items-center gap-4 p-6">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                 <Target className="h-6 w-6 text-primary" />
               </div>
@@ -907,19 +1011,20 @@ export default function Dashboard() {
           </Card>
           <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:max-w-[200px] lg:flex-col">
             <Card className="dashboard-card flex-1 min-w-0 transition-all">
-              <Link to="/courses" className="flex min-touch items-center gap-3 p-4">
+              <Link to={currentWeek?.week_number ? `${dashboardPaths.courses}?week=${currentWeek.week_number}` : dashboardPaths.courses} className="flex min-touch items-center gap-3 p-4">
                 <BookOpen className="h-5 w-5 shrink-0 text-accent" />
                 <span className="font-medium text-sm">{t('dashboard.browseCourses')}</span>
               </Link>
             </Card>
             <Card className="dashboard-card flex-1 min-w-0 transition-all">
-              <Link to="/chat" className="flex min-touch items-center gap-3 p-4">
+              <Link to={dashboardPaths.chat} className="flex min-touch items-center gap-3 p-4">
                 <Brain className="h-5 w-5 shrink-0 text-warning" />
                 <span className="font-medium text-sm">{t('dashboard.talkToCoach')}</span>
               </Link>
             </Card>
           </div>
         </motion.div>
+        </div>
       </div>
 
       {/* Delete roadmap confirm dialog */}
@@ -954,6 +1059,6 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
 }

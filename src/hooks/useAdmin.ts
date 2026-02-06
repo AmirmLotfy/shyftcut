@@ -143,6 +143,7 @@ export function useAdminSubscriptions(filters?: {
   endDate?: string;
   page?: number;
   limit?: number;
+  includeAll?: boolean;
 }) {
   const { getAccessToken } = useAuth();
   const params = new URLSearchParams();
@@ -152,6 +153,7 @@ export function useAdminSubscriptions(filters?: {
   if (filters?.endDate) params.set('end_date', filters.endDate);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
+  if (filters?.includeAll) params.set('include_all', 'true');
 
   return useQuery({
     queryKey: ['admin', 'subscriptions', filters],
@@ -351,6 +353,449 @@ export function useUpdateAdminSetting() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] });
+    },
+  });
+}
+
+// Traffic Analytics
+export interface AdminTraffic {
+  timeSeries: Array<{ date: string; value: number }>;
+  topPages: Array<{ path: string; count: number }>;
+  referrers: Array<{ domain: string; count: number }>;
+  utmSources: Array<{ source: string; count: number }>;
+  utmCampaigns: Array<{ campaign: string; count: number }>;
+  devices: Array<{ device: string; count: number }>;
+  browsers: Array<{ browser: string; count: number }>;
+  countries: Array<{ country: string; count: number }>;
+  sessionMetrics: {
+    totalSessions: number;
+    avgDuration: number;
+    avgPagesPerSession: number;
+    bounceRate: number;
+    conversionRate: number;
+  };
+}
+
+export function useAdminTraffic(startDate?: string, endDate?: string) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  return useQuery({
+    queryKey: ['admin', 'analytics', 'traffic', startDate, endDate],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<AdminTraffic>(`/api/admin/analytics/traffic?${params.toString()}`, { token });
+    },
+  });
+}
+
+// Conversion Analytics
+export interface AdminConversions {
+  funnel: Array<{ stage: string; count: number; conversionRate: number }>;
+  conversionsByType: Array<{ type: string; count: number }>;
+  conversionsByStage: Array<{ stage: string; count: number }>;
+  conversionsBySource: Array<{ source: string; count: number }>;
+  conversionsByCampaign: Array<{ campaign: string; count: number }>;
+  totalRevenue: number;
+  timeToConversion: { avg: number; median: number };
+}
+
+export function useAdminConversions(startDate?: string, endDate?: string) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  return useQuery({
+    queryKey: ['admin', 'analytics', 'conversions', startDate, endDate],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<AdminConversions>(`/api/admin/analytics/conversions?${params.toString()}`, { token });
+    },
+  });
+}
+
+// User Journey Analytics
+export interface AdminUserJourneys {
+  flow: Array<{ from: string; to: Array<{ to: string; count: number }> }>;
+  dropOffPoints: Array<{ page: string; count: number }>;
+  funnel: Array<{ stage: string; count: number; dropOff: number }>;
+}
+
+export function useAdminUserJourneys(startDate?: string, endDate?: string) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  return useQuery({
+    queryKey: ['admin', 'analytics', 'user-journeys', startDate, endDate],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<AdminUserJourneys>(`/api/admin/analytics/user-journeys?${params.toString()}`, { token });
+    },
+  });
+}
+
+// User Journey (individual user)
+export interface UserJourney {
+  timeline: Array<{ type: string; timestamp: string; data: unknown }>;
+  events: unknown[];
+  sessions: unknown[];
+  conversions: unknown[];
+  roadmaps: unknown[];
+  subscriptionEvents: unknown[];
+}
+
+export function useAdminUserJourney(userId: string) {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'users', userId, 'journey'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<UserJourney>(`/api/admin/users/journey/${userId}`, { token });
+    },
+    enabled: !!userId,
+  });
+}
+
+// User Notes
+export function useAdminUserNotes(userId: string, options?: { enabled?: boolean }) {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'users', userId, 'notes'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ notes: string }>(`/api/admin/users/${userId}/notes`, { token });
+    },
+    enabled: options?.enabled !== false && !!userId,
+  });
+}
+
+export function useUpdateAdminUserNotes() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, notes }: { userId: string; notes: string }) => {
+      const token = await getAccessToken();
+      return apiFetch(`/api/admin/users/${userId}/notes`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ notes }),
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.userId, 'notes'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.userId] });
+    },
+  });
+}
+
+// User Tags
+export function useAdminUserTags(userId: string, options?: { enabled?: boolean }) {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'users', userId, 'tags'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ tags: string[] }>(`/api/admin/users/${userId}/tags`, { token });
+    },
+    enabled: options?.enabled !== false && !!userId,
+  });
+}
+
+export function useUpdateAdminUserTags() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ userId, action, tags }: { userId: string; action: 'add' | 'remove'; tags: string[] }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ success: boolean; tags: string[] }>(`/api/admin/users/${userId}/tags`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ action, tags }),
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.userId, 'tags'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', variables.userId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
+// Bulk User Actions
+export function useBulkUserAction() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ user_ids, action, data }: { user_ids: string[]; action: string; data?: Record<string, unknown> }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ results: Array<{ user_id: string; success: boolean; error?: string }> }>(`/api/admin/users/bulk`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ user_ids, action, data }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
+// User Export
+export function useAdminUsersExport(filters?: {
+  startDate?: string;
+  endDate?: string;
+  tier?: string;
+  status?: string;
+  tags?: string;
+  format?: 'json' | 'csv';
+}) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (filters?.startDate) params.set('start_date', filters.startDate);
+  if (filters?.endDate) params.set('end_date', filters.endDate);
+  if (filters?.tier) params.set('tier', filters.tier);
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.tags) params.set('tags', filters.tags);
+  params.set('format', filters?.format || 'json');
+
+  return useQuery({
+    queryKey: ['admin', 'users', 'export', filters],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      if (filters?.format === 'csv') {
+        const response = await fetch(`/api/admin/users/export?${params.toString()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Path': '/api/admin/users/export',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          },
+        });
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return { success: true };
+      }
+      return apiFetch<{ users: unknown[]; count: number }>(`/api/admin/users/export?${params.toString()}`, { token });
+    },
+    enabled: false, // Manual trigger only
+  });
+}
+
+// Subscription Events
+export interface SubscriptionEvent {
+  id: string;
+  subscription_id: string;
+  user_id: string;
+  event_type: string;
+  from_tier?: string;
+  to_tier?: string;
+  amount?: number;
+  reason?: string;
+  created_at: string;
+}
+
+export function useAdminSubscriptionEvents(subscriptionId: string) {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'subscriptions', subscriptionId, 'events'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ events: SubscriptionEvent[] }>(`/api/admin/subscriptions/${subscriptionId}/events`, { token });
+    },
+    enabled: !!subscriptionId,
+  });
+}
+
+// Manual Subscription Update
+export function useManualSubscriptionUpdate() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ subscriptionId, updates }: { subscriptionId: string; updates: { tier?: string; status?: string; current_period_start?: string; current_period_end?: string; reason?: string } }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ subscription: AdminSubscription }>(`/api/admin/subscriptions/${subscriptionId}/manual-update`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions', variables.subscriptionId] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions', 'revenue'] });
+    },
+  });
+}
+
+// Churn Analysis
+export interface ChurnAnalysis {
+  period: number;
+  churned: number;
+  churnRate: number;
+  activeAtStart: number;
+  newSubscriptions: number;
+  activeNow: number;
+  churnReasons: Array<{ reason: string; count: number }>;
+  retentionCohorts: Array<{ cohort: string; total: number; retained: number; retentionRate: number }>;
+}
+
+export function useAdminChurnAnalysis(startDate?: string, endDate?: string) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  return useQuery({
+    queryKey: ['admin', 'subscriptions', 'churn-analysis', startDate, endDate],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<ChurnAnalysis>(`/api/admin/subscriptions/churn-analysis?${params.toString()}`, { token });
+    },
+  });
+}
+
+// Refunds
+export function useAdminRefunds() {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'subscriptions', 'refunds'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ refunds: SubscriptionEvent[] }>('/api/admin/subscriptions/refunds', { token });
+    },
+  });
+}
+
+export function useProcessRefund() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ subscription_id, amount, reason }: { subscription_id: string; amount?: number; reason?: string }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ success: boolean }>('/api/admin/subscriptions/refunds', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ subscription_id, amount, reason }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions', 'refunds'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'subscriptions', 'revenue'] });
+    },
+  });
+}
+
+// Themes
+export interface Theme {
+  id: string;
+  name: string;
+  is_default: boolean;
+  is_admin_created: boolean;
+  created_by?: string;
+  colors: Record<string, string>;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useAdminThemes() {
+  const { getAccessToken } = useAuth();
+  return useQuery({
+    queryKey: ['admin', 'themes'],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ themes: Theme[] }>('/api/admin/themes', { token });
+    },
+  });
+}
+
+export function useCreateAdminTheme() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ name, colors, description }: { name: string; colors: Record<string, string>; description?: string }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ theme: Theme }>('/api/admin/themes', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ name, colors, description }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'themes'] });
+    },
+  });
+}
+
+export function useUpdateAdminTheme() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ themeId, updates }: { themeId: string; updates: { name?: string; colors?: Record<string, string>; description?: string } }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ theme: Theme }>(`/api/admin/themes/${themeId}`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'themes'] });
+    },
+  });
+}
+
+export function useDeleteAdminTheme() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (themeId: string) => {
+      const token = await getAccessToken();
+      return apiFetch<{ success: boolean }>(`/api/admin/themes/${themeId}`, {
+        method: 'DELETE',
+        token,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'themes'] });
+    },
+  });
+}
+
+export function useSetDefaultTheme() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (themeId: string) => {
+      const token = await getAccessToken();
+      return apiFetch<{ theme: Theme }>(`/api/admin/themes/${themeId}/set-default`, {
+        method: 'POST',
+        token,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'themes'] });
     },
   });
 }
