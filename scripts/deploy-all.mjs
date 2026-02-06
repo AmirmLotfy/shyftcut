@@ -58,7 +58,7 @@ for (const fn of functions) {
 
 if (!skipVercel) {
   console.log("\n--- Deploying frontend (Vercel) ---");
-  run("npx vercel --prod");
+  run("npx vercel --prod --force");
 }
 
 console.log("\n=== Done ===");
