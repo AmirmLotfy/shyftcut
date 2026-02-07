@@ -2,7 +2,7 @@
 
 **AI-powered career transition platform.** Get a personalized 12-week learning roadmap, verified course recommendations from trusted platforms, AI coaching, quizzes, and progress tracking—all in 90 seconds.
 
-[![Shyftcut](https://shyftcut.com/og-image.png)](https://shyftcut.com)
+<a href="https://shyftcut.com"><img src="Shyftcut-devpost-gemini.jpg" alt="Shyftcut" width="480" /></a>
 
 ---
 
@@ -262,4 +262,4 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist.
 
 ## License
 
-Private. All rights reserved.
+[MIT](LICENSE)
