@@ -26,36 +26,87 @@ Get a personalized 12-week career roadmap with real course links in 90 sec. Gemi
 
 ## About the project (Markdown allowed)
 
+![Shyftcut — Your 90-second career shift, powered by Gemini 3](https://github.com/AmirmLotfy/shyftcut/raw/main/Shyftcut-devpost-gemini.webp)
+
+**One quiz. One roadmap. Real courses.** Shyftcut turns career chaos into a clear 12-week plan—in 90 seconds. No more dead links or guesswork: every course URL is _real_, thanks to Gemini 3 and Google Search grounding.
+
+---
+
 ### Inspiration
 
-Career switchers waste hours googling courses and piecing together learning paths. We wanted one place where someone answers a few questions and gets a concrete 12-week plan with real course URLs—not placeholders—in under two minutes. Gemini 3’s grounding and structured output made that possible.
+Career switchers waste **hours** googling courses and piecing together learning paths. We wanted one place where someone answers a few questions and gets a concrete 12-week plan with **real course URLs**—not placeholders—in under two minutes. Gemini 3’s grounding and structured output made that possible.
+
+---
 
 ### What it does
 
-Shyftcut is an AI-powered career transition platform. Users take a 90-second wizard (or a viral Career DNA quiz), get a personalized 12-week learning roadmap with **real course links** from 16 trusted platforms (Udemy, Coursera, LinkedIn Learning, YouTube, etc.), and track progress with weekly tasks and notes. Premium users get an AI career coach (chat with optional web search), unlimited AI-generated quizzes, CV analysis, job recommendations via Google Search, and AI avatar generation—all powered by Gemini 3.
+| User action | What they get (Gemini 3) |
+|-------------|---------------------------|
+| **90-second Wizard** | Personalized 12-week roadmap with weekly goals, skills, deliverables, and **real course links** from 16 platforms |
+| **Career DNA quiz** | Viral “discover your fit” result + shareable card; optional leaderboard & challenge friends |
+| **Dashboard** | Study tracking, streaks, badges; per-week notes & tasks with **AI task suggestions** (function calling) |
+| **AI Coach (Chat)** | 24/7 career chat with optional **web search grounding**; streaming replies, thought signatures for context |
+| **Quizzes** | Unlimited **AI-generated multiple-choice quizzes** per week (Gemini function calling) |
+| **CV Analysis** | Paste CV → strengths, gaps, and actionable recommendations |
+| **Job search** | **10 matching jobs** via Google Search grounding; save to list |
+| **Avatar** | Generate professional profile pictures (3/month, **Gemini 3 Pro Image**) |
+
+The app is **bilingual** (English & Arabic, RTL) and works on desktop and mobile.
+
+---
 
 ### How we built it
 
-Shyftcut is a React (Vite, TypeScript, Tailwind, shadcn/ui) frontend on Vercel. All AI runs in Supabase Edge Functions (Deno): a single `api` router handles chat, roadmap generation, CV analysis, job search, quiz generation, task suggestions, and avatar generation. Roadmap generation uses Gemini 3 with `tools: [{ google_search: {} }]`, `responseMimeType: application/json`, and a strict schema; we then clean invalid URLs and call a dedicated `courses-search` function (also Gemini + grounding) to fill missing course links. Chat uses streaming, optional search grounding, and cached system instructions. Quiz and task features use Gemini function declarations. Avatar images use `gemini-3-pro-image-preview`. Auth and data are Supabase (PostgreSQL, Auth, Storage); payments are Polar; email is Resend. The app is bilingual (English and Arabic, RTL).
+**Frontend:** React (Vite, TypeScript, Tailwind, shadcn/ui) on Vercel — fast, responsive, PWA-ready.
+
+**Backend:** All AI runs in **Supabase Edge Functions (Deno)**. One `api` router handles chat, roadmap, CV, jobs, quiz, tasks, and avatar. A dedicated `courses-search` function fills missing course URLs using Gemini + Google Search.
+
+**Gemini 3 usage at a glance:**
+
+| Feature | Model | Key API usage |
+|---------|--------|----------------|
+| Roadmap generation | gemini-3-flash-preview | `google_search` tool, `responseMimeType: application/json`, schema |
+| Chat (coach) | gemini-3-flash-preview | Streaming, optional grounding, context caching, thought signatures |
+| CV analysis / Jobs | gemini-3-flash-preview | Structured JSON, grounding for jobs |
+| Quizzes / Tasks | gemini-3-flash-preview | Function declarations (`create_quiz`, `suggest_tasks`) |
+| Avatar | gemini-3-pro-image-preview | Image generation |
+
+**Example:** Roadmap generation sends one request with `tools: [{ google_search: {} }]` and a strict JSON schema; we clean invalid URLs and call `courses-search` for any missing links. Result: a full roadmap with real Udemy, Coursera, YouTube, etc. links in one flow.
+
+**Rest of stack:** Auth & DB (Supabase), payments (Polar), email (Resend).
+
+---
 
 ### Challenges we ran into
 
-Balancing grounding quality with strict output shape required clear prompts and schema design so the model returned both grounded content and valid JSON. We had to handle thought parts in responses (e.g. for Flash) and strip them before parsing. Validating and allowlisting course URLs across 16 platforms and filling gaps without over-calling the API meant batching and timeouts in `fillMissingCourseUrls`. Keeping chat responsive with long system prompts led us to Gemini 3 context caching and key rotation for reliability. Shipping a single codebase for free and premium (roadmap limits, unlimited quizzes, chat, CV, jobs, avatar) required careful feature flags and subscription checks in the Edge layer.
+| Challenge | How we solved it |
+|-----------|-------------------|
+| Grounding + strict JSON in one call | Clear system prompts, `responseJsonSchema`, and post-processing to strip invalid URLs and fill gaps via `courses-search` |
+| Thought parts in Gemini Flash responses | Strip thought parts before parsing JSON; handle both thought and final content in streams |
+| 16 platforms, no hallucinated URLs | Allowlist in `course-hosts.ts`, validate every URL; only call search for allowed platforms with batching and timeouts |
+| Long chat system prompts → latency | Gemini 3 **context caching** for system instruction; key rotation for reliability |
+| Free vs Premium in one codebase | Feature flags and subscription checks in the Edge layer; single router, different limits (e.g. 1 roadmap vs unlimited) |
+
+---
 
 ### Accomplishments that we're proud of
 
-- **Gemini 3 end-to-end:** Every AI feature uses only Gemini 3 (Flash, Pro, Pro Image)—roadmaps, chat, CV, jobs, quizzes, tasks, avatars—with no fallback models.
-- **Real course links at scale:** Google Search grounding + a 16-platform allowlist and URL validation so every roadmap ships with working course URLs, not placeholders.
-- **Structured output + grounding:** Combining `responseMimeType: application/json` and `responseJsonSchema` with `google_search` so we get parseable, grounded roadmaps in one call.
-- **Production-ready stack:** Single Edge router, context caching, thought signatures for chat, function calling for quizzes/tasks, and bilingual (EN/AR) UX.
+- **Gemini 3 only.** Every AI feature uses **only** Gemini 3 (Flash, Pro, Pro Image)—no fallback models.
+- **Real course links at scale.** Google Search grounding + 16-platform allowlist + validation = every roadmap ships with working links.
+- **Structured output + grounding together.** `responseMimeType: application/json` + `responseJsonSchema` + `google_search` in one call for parseable, grounded roadmaps.
+- **Production-ready.** Single Edge router, context caching, thought signatures, function calling, bilingual (EN/AR).
+
+---
 
 ### What we learned
 
-We learned to lean on Gemini 3’s full stack: **Google Search grounding** for roadmap and job recommendations so links are real and up to date; **structured JSON output** so we can parse and validate weeks, skills, and courses; **function calling** for quizzes and task suggestions so the UI stays deterministic; and **thought signatures** in chat so the coach keeps context across turns. We tuned thinking levels (e.g. low for CV/jobs, higher for roadmaps) and added context caching for long system prompts to keep latency and cost in check. Enforcing an allowlist of 16 trusted course platforms and validating every URL kept quality high and avoided hallucinated links.
+We leaned on **Gemini 3’s full stack**: **Google Search grounding** for real, up-to-date links; **structured JSON output** for reliable parsing; **function calling** for deterministic quizzes and tasks; **thought signatures** so the coach keeps context across turns. We tuned thinking levels (e.g. low for CV/jobs, higher for roadmaps) and used **context caching** for long prompts to keep latency and cost in check. The 16-platform allowlist and URL validation kept quality high and avoided hallucinated links.
+
+---
 
 ### What's next for Shyftcut | Your 90-second career shift, powered by Gemini 3
 
-We plan to deepen Gemini 3 integration: more grounded features (e.g. live salary and hiring trends in chat), expanded course platforms, and community study groups with shared roadmaps. We’ll keep optimizing thinking levels and caching for latency, and explore batch and reasoning features as the Gemini 3 API evolves.
+More **grounded** features (e.g. live salary and hiring trends in chat), more course platforms, and **community study groups** with shared roadmaps. We’ll keep optimizing thinking levels and caching, and explore batch and reasoning features as the Gemini 3 API evolves.
 
 ---
 
