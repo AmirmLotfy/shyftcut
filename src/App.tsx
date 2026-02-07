@@ -43,7 +43,8 @@ const Cookies = lazy(() => import("./pages/Cookies"));
 const Refund = lazy(() => import("./pages/Refund"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
-const Support = lazy(() => import("./pages/Support"));
+const Tickets = lazy(() => import("./pages/Tickets"));
+const TicketDetail = lazy(() => import("./pages/TicketDetail"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
@@ -54,16 +55,18 @@ const Earn = lazy(() => import("./pages/Earn"));
 const Affiliate = lazy(() => import("./pages/Affiliate"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
-const Users = lazy(() => import("./pages/admin/Users").then(m => ({ default: m.Users })));
+const Users = lazy(() => import("./pages/admin/Users"));
 const Subscriptions = lazy(() => import("./pages/admin/Subscriptions"));
 const Analytics = lazy(() => import("./pages/admin/Analytics"));
 const Traffic = lazy(() => import("./pages/admin/Traffic"));
 const Conversions = lazy(() => import("./pages/admin/Conversions"));
 const UserJourney = lazy(() => import("./pages/admin/UserJourney"));
-const Themes = lazy(() => import("./pages/admin/Themes"));
-const Content = lazy(() => import("./pages/admin/Content"));
 const Settings = lazy(() => import("./pages/admin/Settings"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
+const AdminTickets = lazy(() => import("./pages/admin/Tickets"));
+const AdminTicketDetail = lazy(() => import("./pages/admin/AdminTicketDetail"));
+const Leads = lazy(() => import("./pages/admin/Leads"));
+const ContactRequests = lazy(() => import("./pages/admin/ContactRequests"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,13 +120,15 @@ const RoutesContent = () => (
           <Route path="community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="upgrade" element={<ProtectedRoute><Upgrade /></ProtectedRoute>} />
-          <Route path="support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+          <Route path="support" element={<Navigate to="/dashboard/tickets" replace />} />
+          <Route path="tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
+          <Route path="tickets/:id" element={<ProtectedRoute><TicketDetail /></ProtectedRoute>} />
           <Route path="checkout/success" element={<ProtectedRoute><CheckoutSuccess /></ProtectedRoute>} />
           <Route path="checkout/cancel" element={<CheckoutCancel />} />
           <Route path="affiliate" element={<Affiliate />} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>}>
+        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
           <Route index element={<Navigate to="/admin/users" replace />} />
           <Route path="users" element={<Users />} />
           <Route path="subscriptions" element={<Subscriptions />} />
@@ -131,8 +136,10 @@ const RoutesContent = () => (
           <Route path="traffic" element={<Traffic />} />
           <Route path="conversions" element={<Conversions />} />
           <Route path="user-journey" element={<UserJourney />} />
-          <Route path="themes" element={<Themes />} />
-          <Route path="content" element={<Content />} />
+          <Route path="tickets" element={<AdminTickets />} />
+          <Route path="tickets/:id" element={<AdminTicketDetail />} />
+          <Route path="leads" element={<Leads />} />
+          <Route path="contact-requests" element={<ContactRequests />} />
           <Route path="settings" element={<Settings />} />
           <Route path="audit-log" element={<AuditLog />} />
         </Route>

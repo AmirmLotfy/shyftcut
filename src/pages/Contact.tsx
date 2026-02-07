@@ -21,6 +21,7 @@ import { getSeo } from '@/data/seo-content';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/hooks/use-toast';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
+import { COUNTRY_CODES, flagEmoji, buildPhone, getCountryCodeFromDial } from '@/lib/country-codes';
 import { debugLog, debugError } from '@/lib/debug';
 import { captureException } from '@/lib/error-tracking';
 import { z } from 'zod';
@@ -44,7 +45,8 @@ export default function Contact() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: '',
+    phoneCountryCode: '+1',
+    phoneNational: '',
     company: '',
     topic: 'general' as TopicValue,
     subject: '',
@@ -84,12 +86,18 @@ export default function Contact() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fullPhone = buildPhone(formData.phoneCountryCode, formData.phoneNational);
     const payload = {
-      ...formData,
-      phone: formData.phone || undefined,
+      name: formData.name,
+      email: formData.email,
+      phone: fullPhone || undefined,
+      phoneCountryCode: fullPhone ? getCountryCodeFromDial(formData.phoneCountryCode) : undefined,
       company: formData.company || undefined,
+      topic: formData.topic,
+      subject: formData.subject,
+      message: formData.message,
     };
-    const result = contactSchema.safeParse(payload);
+    const result = contactSchema.safeParse({ ...formData, phone: fullPhone || '' });
     if (!result.success) {
       toast({
         title: language === 'ar' ? 'خطأ في التحقق' : 'Validation Error',
@@ -101,10 +109,11 @@ export default function Contact() {
 
     setIsSubmitting(true);
     try {
+      const body = { name: payload.name, email: payload.email, phone: payload.phone, phoneCountryCode: payload.phoneCountryCode, company: payload.company, topic: payload.topic, subject: payload.subject, message: payload.message };
       const res = await fetch(apiPath('/api/contact'), {
         method: 'POST',
         headers: apiHeaders('/api/contact', null),
-        body: JSON.stringify(result.data),
+        body: JSON.stringify(body),
       });
       const raw = await res.text();
       let data: Record<string, unknown> = {};
@@ -129,7 +138,7 @@ export default function Contact() {
           ? 'شكراً لتواصلك. سنرد عليك قريباً.'
           : "Thanks for reaching out. We'll get back to you soon.",
       });
-      setFormData({ name: '', email: '', phone: '', company: '', topic: 'general', subject: '', message: '' });
+      setFormData({ name: '', email: '', phoneCountryCode: '+1', phoneNational: '', company: '', topic: 'general', subject: '', message: '' });
     } catch (err) {
       debugError('Contact', 'contact submit failed', err);
       captureException(err);
@@ -284,13 +293,32 @@ export default function Contact() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="contact-phone">{language === 'ar' ? 'رقم الهاتف' : 'Phone'}</Label>
-                      <Input
-                        id="contact-phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
-                      />
+                      <div className="flex gap-2">
+                        <Select value={formData.phoneCountryCode} onValueChange={(v) => setFormData({ ...formData, phoneCountryCode: v })}>
+                          <SelectTrigger className="w-[140px] shrink-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COUNTRY_CODES.map((c) => (
+                              <SelectItem key={c.code} value={c.dial}>
+                                <span className="flex items-center gap-2">
+                                  <span aria-hidden>{flagEmoji(c.code)}</span>
+                                  <span>{c.dial} {c.code}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          id="contact-phone"
+                          type="tel"
+                          inputMode="numeric"
+                          value={formData.phoneNational}
+                          onChange={(e) => setFormData({ ...formData, phoneNational: e.target.value.replace(/\D/g, '') })}
+                          placeholder={language === 'ar' ? 'اختياري' : 'Optional'}
+                          className="min-w-0 flex-1"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="contact-company">{language === 'ar' ? 'الشركة / المؤسسة' : 'Company'}</Label>

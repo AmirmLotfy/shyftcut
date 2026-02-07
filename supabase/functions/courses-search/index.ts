@@ -73,7 +73,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const langInstruction = language === "ar"
-    ? " When results exist in Arabic, prefer them. Use natural Arabic for titles when presenting to Arabic users."
+    ? " When results exist in Arabic, prefer them. Use Egyptian modern professional tone for titles when presenting to Arabic users."
     : " Use English search and results.";
   const systemPrompt = `You are a course finder. Use Google Search to find ONE real course on the platform "${platform}" that matches the user's query. ${ALLOWED_DOMAINS_INSTRUCTION} Return only one result: the URL of a specific course page (not the platform homepage, not a search results page). The URL must be a full HTTP or HTTPS link to a course detail page (path must not be only /).${langInstruction}`;
   const userPrompt = `Find a real course on ${platform} for: ${query}. Use search and return the exact course page URL and title in the required JSON format.`;

@@ -264,14 +264,31 @@ export default function CareerDNA() {
                           <span>{answers[QUIZ_QUESTIONS[step].id] ?? 5}</span>
                           <span className="text-muted-foreground">/ 10</span>
                         </div>
-                        <Slider
-                          value={[(answers[QUIZ_QUESTIONS[step].id] as number) ?? 5]}
-                          onValueChange={([v]) => setAnswer(QUIZ_QUESTIONS[step].id, v)}
-                          min={1}
-                          max={10}
-                          step={1}
-                          className="w-full touch-manipulation"
-                        />
+                        {/* Mobile: 1-10 button strip for easy tap selection */}
+                        <div className="grid grid-cols-5 gap-2 sm:hidden">
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                            <Button
+                              key={n}
+                              variant={(answers[QUIZ_QUESTIONS[step].id] as number) === n ? 'default' : 'outline'}
+                              size="default"
+                              className="h-12 min-w-0 touch-manipulation"
+                              onClick={() => setAnswer(QUIZ_QUESTIONS[step].id, n)}
+                            >
+                              {n}
+                            </Button>
+                          ))}
+                        </div>
+                        {/* Desktop: slider */}
+                        <div className="hidden sm:block">
+                          <Slider
+                            value={[(answers[QUIZ_QUESTIONS[step].id] as number) ?? 5]}
+                            onValueChange={([v]) => setAnswer(QUIZ_QUESTIONS[step].id, v)}
+                            min={1}
+                            max={10}
+                            step={1}
+                            className="w-full touch-manipulation"
+                          />
+                        </div>
                       </div>
                     )}
 

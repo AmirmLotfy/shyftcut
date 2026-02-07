@@ -21,10 +21,22 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    // Chunk load failure (404 on lazy-loaded module) – reload with cache-bust to get fresh assets after deploy
+    const msg = String(error?.message ?? '');
+    if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Loading chunk') || msg.includes('ChunkLoadError')) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('_refresh', String(Date.now()));
+      window.location.replace(url.toString());
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    const msg = String(error?.message ?? '');
+    if (msg.includes('Failed to fetch dynamically imported module') || msg.includes('Loading chunk') || msg.includes('ChunkLoadError')) {
+      return; // Already triggered reload in getDerivedStateFromError
+    }
     console.error('ErrorBoundary caught an error:', error?.message ?? String(error), error?.stack, errorInfo);
     captureException(error);
   }

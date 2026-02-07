@@ -62,10 +62,12 @@ Used by **Edge Functions** (`api` and `webhook-polar`). Supabase **auto-injects*
 ## 3. Polar (payments)
 
 - **Dashboard:** [polar.sh](https://polar.sh)
-- **API token:** Create in Polar → Settings/API. Put in Vercel (if needed for server-side) and in **Supabase Edge secrets** as `POLAR_ACCESS_TOKEN`.
+- **API token:** Create in Polar → Settings/API → Organization Access Tokens. **Important:** Create token **without expiration** (leave expiration field blank) to avoid token expiration after redeploys. **Recommended:** Set token directly in Supabase Dashboard (not via sync script) to avoid truncation issues. See [POLAR_TOKEN_SETUP.md](POLAR_TOKEN_SETUP.md) and [POLAR_TOKEN_TROUBLESHOOTING.md](POLAR_TOKEN_TROUBLESHOOTING.md) for details.
 - **Webhook secret:** Polar → Webhooks → create endpoint → copy signing secret. Set in Supabase as `POLAR_WEBHOOK_SECRET`.
 - **Webhook URL:** `https://<your-project-ref>.supabase.co/functions/v1/webhook-polar`
 - **Product/price IDs:** In app, `src/lib/polar-config.ts` must use the same price IDs as in your Polar product.
+
+**⚠️ Token Issues:** If your token stops working, see [POLAR_TOKEN_TROUBLESHOOTING.md](POLAR_TOKEN_TROUBLESHOOTING.md) for debugging steps. Common causes: token truncation during sync, character encoding issues, or actual expiration despite "never expire" setting.
 
 ### Affonso (affiliate program, optional)
 

@@ -11,7 +11,7 @@ import { TopPagesTable } from '@/components/admin/TopPagesTable';
 import { ReferrerChart } from '@/components/admin/ReferrerChart';
 import { SessionMetrics } from '@/components/admin/SessionMetrics';
 
-export function Traffic() {
+export default function Traffic() {
   const { language } = useLanguage();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');

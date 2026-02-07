@@ -1,5 +1,13 @@
 /** Country/region dial codes for phone number input. Common ones first, then alphabetical. */
 
+/** Returns flag emoji for ISO 3166-1 alpha-2 country code (e.g. "US" -> "🇺🇸"). */
+export function flagEmoji(code: string): string {
+  if (!code || code.length !== 2) return '';
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 - 65 + c.charCodeAt(0)))
+    .join('');
+}
+
 export const COUNTRY_CODES: { code: string; label: string; dial: string }[] = [
   { code: 'US', label: 'United States', dial: '+1' },
   { code: 'GB', label: 'United Kingdom', dial: '+44' },
@@ -156,6 +164,13 @@ export const COUNTRY_CODES: { code: string; label: string; dial: string }[] = [
   { code: 'ZM', label: 'Zambia', dial: '+260' },
   { code: 'ZW', label: 'Zimbabwe', dial: '+263' },
 ];
+
+/** Get ISO country code from dial code (e.g. "+1" -> "US"). Returns first match if multiple share same dial. */
+export function getCountryCodeFromDial(dial: string): string {
+  const normalized = dial.startsWith('+') ? dial : `+${dial}`;
+  const found = COUNTRY_CODES.find((c) => c.dial === normalized);
+  return found?.code ?? 'US';
+}
 
 /** Parse stored phone (e.g. +12025551234) into { countryCode, nationalNumber }. */
 export function parsePhone(stored: string | null | undefined): { countryCode: string; nationalNumber: string } {

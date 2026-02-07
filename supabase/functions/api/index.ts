@@ -1,7 +1,7 @@
 // Supabase Edge Function: single router for all /api/* routes.
 // Frontend sends X-Path header (e.g. /api/profile). Requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY; optional RESEND_API_KEY, GEMINI_API_KEY, etc.
 
-import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { getCorsHeaders, corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { getAuthUser } from "../_shared/auth.ts";
 import { getSupabase } from "../_shared/supabase.ts";
 import { logError, safeErrorMessage } from "../_shared/log.ts";
@@ -28,6 +28,7 @@ import {
 } from "../_shared/gemini.ts";
 import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
 import { isYouTubeUrl } from "../_shared/verify-course-url.ts";
+import { scrapeCourseMetadata } from "../_shared/course-metadata.ts";
 
 const CHAT_BLOCKED_MESSAGE = "This response was blocked by content filters. Please rephrase and try again.";
 
@@ -431,6 +432,53 @@ async function fetchCourseUrlFromSearch(
   }
 }
 
+/**
+ * Enrich course metadata by scraping the course URL for real pricing and other metadata.
+ * Updates the course record in the database with scraped data.
+ */
+async function enrichCourseMetadata(
+  supabase: ReturnType<typeof getSupabase>,
+  courseId: string,
+  courseUrl: string
+): Promise<void> {
+  try {
+    const metadata = await scrapeCourseMetadata(courseUrl);
+    const updates: Record<string, unknown> = {};
+    
+    // Only update fields that we successfully scraped (don't overwrite with null)
+    if (metadata.price !== null) {
+      updates.price = metadata.price;
+      updates.currency = metadata.currency || 'USD';
+    }
+    if (metadata.rating !== null) {
+      updates.rating = metadata.rating;
+    }
+    if (metadata.instructor) {
+      updates.instructor = metadata.instructor;
+    }
+    if (metadata.duration) {
+      updates.duration = metadata.duration;
+    }
+    if (metadata.difficulty_level) {
+      updates.difficulty_level = metadata.difficulty_level;
+    }
+    if (metadata.title) {
+      updates.title = metadata.title;
+    }
+    
+    // Only update if we found at least one piece of metadata
+    if (Object.keys(updates).length > 0) {
+      await supabase
+        .from("course_recommendations")
+        .update(updates)
+        .eq("id", courseId);
+    }
+  } catch (error) {
+    console.warn("[enrichCourseMetadata] Failed for course", courseId, error);
+    // Silently fail - don't block roadmap generation
+  }
+}
+
 /** Fill missing course URLs in roadmapData by calling courses-search. Mutates roadmapData.weeks[].courses[].url. */
 async function fillMissingCourseUrls(
   roadmapData: Record<string, unknown>,
@@ -577,13 +625,18 @@ function route(path: string): string | null {
     if (p1 === "change-password") return "auth/change-password";
     return null;
   }
-  if (p0 === "courses" && p1) return "courses/id";
+  if (p0 === "courses") {
+    if (p1 === "refresh-metadata") return "courses/refresh-metadata";
+    if (p1) return "courses/id";
+    return null;
+  }
   if (p0 === "notes") {
     if (p1) return "notes/id";
     return "notes";
   }
   if (p0 === "tasks") {
     if (p1 === "suggest") return "tasks/suggest";
+    if (p1 === "auto-generate") return "tasks/auto-generate";
     if (p1) return "tasks/id";
     return "tasks";
   }
@@ -643,6 +696,8 @@ function route(path: string): string | null {
       if (p2) return "admin/audit-log/id";
       return "admin/audit-log";
     }
+    if (p1 === "leads") return "admin/leads";
+    if (p1 === "contact-requests") return "admin/contact-requests";
     return null;
   }
   if (p0 === "cv" && p1 === "analyze") return "cv/analyze";
@@ -716,7 +771,7 @@ async function ensureProfileAndSubscription(
     });
     if (insertErr) {
       logError("api", "ensureProfileAndSubscription: profiles insert failed", new Error(insertErr.message));
-      throw new Error("Failed to ensure profile");
+    throw new Error("Failed to ensure profile");
     }
   }
   const { error: subErr } = await supabase.from("subscriptions").upsert(
@@ -731,8 +786,11 @@ async function ensureProfileAndSubscription(
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response(null, { status: 204, headers: getCorsHeaders(req) });
   }
+
+  const json = (body: unknown, status: number, init?: ResponseInit) =>
+    jsonResponse(body, status, init, req);
 
   const pathHeader = req.headers.get("x-path") ?? req.headers.get("X-Path");
   const url = new URL(req.url);
@@ -743,7 +801,7 @@ Deno.serve(async (req: Request) => {
   if (path === "/api" || path === "/api/") {
     if (!pathHeader && !pathFromQuery) {
       logError("api", "Missing X-Path header", { url: req.url, pathname: url.pathname, searchParams: Object.fromEntries(url.searchParams) });
-      return jsonResponse({ error: "Missing X-Path header. Please ensure the API client sets the X-Path header correctly." }, 400);
+      return json({ error: "Missing X-Path header. Please ensure the API client sets the X-Path header correctly." }, 400);
     }
     path = pathHeader ?? pathFromQuery ?? "/api/";
   }
@@ -754,7 +812,7 @@ Deno.serve(async (req: Request) => {
 
   if (!routeKey) {
     logError("api", "Route not found", { normalizedPath, pathSegments, url: req.url });
-    return jsonResponse({ error: "Not found", path: normalizedPath }, 404);
+    return json({ error: "Not found", path: normalizedPath }, 404);
   }
 
   const supabase = getSupabase();
@@ -792,7 +850,7 @@ Deno.serve(async (req: Request) => {
   ].includes(routeKey);
   if (requireAuth && !user) {
     const code = authFailureReason ?? "unauthorized";
-    return jsonResponse(
+    return json(
       { error: "Unauthorized", code },
       401,
       { headers: { "X-Auth-Failure-Code": code } }
@@ -810,7 +868,7 @@ Deno.serve(async (req: Request) => {
     switch (routeKey) {
       case "profile": {
         if (req.method !== "GET" && req.method !== "PATCH") {
-          return jsonResponse({ error: "Method not allowed" }, 405);
+          return json({ error: "Method not allowed" }, 405);
         }
         await ensureProfileAndSubscription(
           supabase,
@@ -824,7 +882,7 @@ Deno.serve(async (req: Request) => {
             .select("*")
             .eq("user_id", user!.id)
             .single();
-          if (!current) return jsonResponse({ error: "Profile not found" }, 404);
+          if (!current) return json({ error: "Profile not found" }, 404);
           const trimStr = (v: unknown): string | null =>
             v != null && String(v).trim() !== "" ? String(v).trim() : null;
           const b = body as Record<string, unknown>;
@@ -892,25 +950,25 @@ Deno.serve(async (req: Request) => {
             .select()
             .single();
           if (error) throw error;
-          return jsonResponse(updated ?? current);
+          return json(updated ?? current);
         }
         const { data: profile } = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", user!.id)
           .single();
-        return jsonResponse(profile ?? null);
+        return json(profile ?? null);
       }
 
       case "profile/avatar/generate": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const AVATAR_LIMIT_PER_MONTH = 3;
         const bucketName = "avatars";
         try {
           const sub = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
           const tier = (sub?.data?.tier ?? "free") as string;
           if (!isPaidTier(tier)) {
-            return jsonResponse({ error: "Avatar generation is for Premium subscribers only." }, 402);
+            return json({ error: "Avatar generation is for Premium subscribers only." }, 402);
           }
           const startOfMonth = new Date();
           startOfMonth.setDate(1);
@@ -921,13 +979,13 @@ Deno.serve(async (req: Request) => {
             .eq("user_id", user!.id)
             .gte("created_at", startOfMonth.toISOString());
           if ((count ?? 0) >= AVATAR_LIMIT_PER_MONTH) {
-            return jsonResponse(
+            return json(
               { error: `You have used your ${AVATAR_LIMIT_PER_MONTH} avatar generations this month. Next month you can generate more.` },
               402
             );
           }
           const config = getGeminiConfig();
-          if (!config) return jsonResponse({ error: "AI image generation is not configured." }, 500);
+          if (!config) return json({ error: "AI image generation is not configured." }, 500);
           const avatarImageSize = (Deno.env.get("GEMINI_AVATAR_IMAGE_SIZE") ?? "2K").toUpperCase() === "4K" ? "4K" : "2K";
           const imageUrl = getGeminiGenerateContentUrl(GEMINI_IMAGE_MODEL);
           const prompt =
@@ -947,7 +1005,7 @@ Deno.serve(async (req: Request) => {
           if (!res.ok) {
             const errText = await res.text();
             console.error("avatar generate Gemini error:", res.status, errText);
-            return jsonResponse({ error: "Avatar generation failed. Please try again." }, 500);
+            return json({ error: "Avatar generation failed. Please try again." }, 500);
           }
           const json = (await res.json()) as {
             candidates?: Array<{
@@ -966,7 +1024,7 @@ Deno.serve(async (req: Request) => {
           const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
           if (!finishCheck.ok) {
             console.error("avatar generate: blocked finish reason", finishCheck.finishReason);
-            return jsonResponse({ error: finishCheck.userMessage ?? "Avatar generation was blocked. Please try again." }, 400);
+            return json({ error: finishCheck.userMessage ?? "Avatar generation was blocked. Please try again." }, 400);
           }
           logGeminiUsage(json.usageMetadata, "profile/avatar/generate");
           const parts = json.candidates?.[0]?.content?.parts ?? [];
@@ -979,7 +1037,7 @@ Deno.serve(async (req: Request) => {
           }
           if (!base64Data) {
             console.error("avatar generate: no image in response");
-            return jsonResponse({ error: "No image was generated. Please try again." }, 500);
+            return json({ error: "No image was generated. Please try again." }, 500);
           }
           const binary = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
           const fileName = `${user!.id}/${Date.now()}.png`;
@@ -989,7 +1047,7 @@ Deno.serve(async (req: Request) => {
           });
           if (uploadError) {
             console.error("avatar upload error:", uploadError);
-            return jsonResponse(
+            return json(
               { error: "Failed to save avatar. Ensure the 'avatars' storage bucket exists and is public." },
               500
             );
@@ -1001,15 +1059,15 @@ Deno.serve(async (req: Request) => {
             .from("profiles")
             .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
             .eq("user_id", user!.id);
-          return jsonResponse({ avatar_url: avatarUrl });
+          return json({ avatar_url: avatarUrl });
         } catch (err) {
           logError("profile/avatar/generate", "unexpected error", err);
-          return jsonResponse({ error: "Avatar generation failed. Please try again." }, 500);
+          return json({ error: "Avatar generation failed. Please try again." }, 500);
         }
       }
 
       case "profile/avatar/upload": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const bucketName = "avatars";
         const MAX_AVATAR_BASE64_BYTES = 2 * 1024 * 1024; // 2MB decoded
         const ALLOWED_MIMES = ["image/jpeg", "image/png", "image/webp"];
@@ -1017,15 +1075,15 @@ Deno.serve(async (req: Request) => {
           const payload = body as { image?: string; mime?: string };
           const base64 = typeof payload?.image === "string" ? payload.image.trim() : "";
           const mime = typeof payload?.mime === "string" ? payload.mime.trim().toLowerCase() : "image/png";
-          if (!base64) return jsonResponse({ error: "image (base64) is required" }, 400);
-          if (!ALLOWED_MIMES.includes(mime)) return jsonResponse({ error: "mime must be image/jpeg, image/png, or image/webp" }, 400);
+          if (!base64) return json({ error: "image (base64) is required" }, 400);
+          if (!ALLOWED_MIMES.includes(mime)) return json({ error: "mime must be image/jpeg, image/png, or image/webp" }, 400);
           let binary: Uint8Array;
           try {
             binary = Uint8Array.from(atob(base64.replace(/^data:image\/\w+;base64,/, "")), (c) => c.charCodeAt(0));
           } catch {
-            return jsonResponse({ error: "Invalid base64 image" }, 400);
+            return json({ error: "Invalid base64 image" }, 400);
           }
-          if (binary.length > MAX_AVATAR_BASE64_BYTES) return jsonResponse({ error: "Image too large. Max 2MB." }, 400);
+          if (binary.length > MAX_AVATAR_BASE64_BYTES) return json({ error: "Image too large. Max 2MB." }, 400);
           const ext = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
           const fileName = `${user!.id}/${Date.now()}.${ext}`;
           const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, binary, {
@@ -1034,7 +1092,7 @@ Deno.serve(async (req: Request) => {
           });
           if (uploadError) {
             console.error("profile/avatar/upload error:", uploadError);
-            return jsonResponse(
+            return json(
               { error: "Failed to save avatar. Ensure the 'avatars' storage bucket exists and is public." },
               500
             );
@@ -1045,27 +1103,27 @@ Deno.serve(async (req: Request) => {
             .from("profiles")
             .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
             .eq("user_id", user!.id);
-          return jsonResponse({ avatar_url: avatarUrl });
+          return json({ avatar_url: avatarUrl });
         } catch (err) {
           logError("profile/avatar/upload", "unexpected error", err);
-          return jsonResponse({ error: "Avatar upload failed. Please try again." }, 500);
+          return json({ error: "Avatar upload failed. Please try again." }, 500);
         }
       }
 
       case "cv/analyze": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (subscription?.data?.tier ?? "free") as string;
         if (!isPaidTier(tier)) {
-          return jsonResponse({ error: "CV analysis is for Premium subscribers only." }, 402);
+          return json({ error: "CV analysis is for Premium subscribers only." }, 402);
         }
         const { pasteText } = body as { pasteText?: string };
         const text = sanitizeUserText(pasteText, MAX_CV_PASTE_LEN);
         if (text.length < MIN_CV_PASTE_LEN) {
-          return jsonResponse({ error: "Paste at least 50 characters of your CV to analyze." }, 400);
+          return json({ error: "Paste at least 50 characters of your CV to analyze." }, 400);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const { data: profile } = await supabase.from("profiles").select("target_career, job_title").eq("user_id", user!.id).single();
         const targetRole = (profile as { target_career?: string } | null)?.target_career ?? "the role they are targeting";
         const systemPrompt = `You are a career coach. Analyze the candidate's CV/resume and return a JSON object with:
@@ -1090,41 +1148,41 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             },
           }),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
         if (!aiRes.ok) {
           console.error("cv/analyze Gemini error:", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "CV analysis failed. Please try again." }, 500);
+          return json({ error: "CV analysis failed. Please try again." }, 500);
         }
         let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
         try {
           aiJson = (await aiRes.json()) as typeof aiJson;
         } catch {
-          return jsonResponse({ error: "CV analysis failed." }, 500);
+          return json({ error: "CV analysis failed." }, 500);
         }
         const cands = aiJson.candidates ?? [];
         const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
         if (!finishCheck.ok) {
-          return jsonResponse({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
+          return json({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
         }
         logGeminiUsage(aiJson.usageMetadata, "cv/analyze");
         const parts = cands[0]?.content?.parts ?? [];
         const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
-        if (!jsonText.trim()) return jsonResponse({ error: "Invalid analysis response." }, 500);
+        if (!jsonText.trim()) return json({ error: "Invalid analysis response." }, 500);
         let analysis: Record<string, unknown>;
         try {
           analysis = JSON.parse(jsonText) as Record<string, unknown>;
         } catch {
-          return jsonResponse({ error: "Invalid analysis response." }, 500);
+          return json({ error: "Invalid analysis response." }, 500);
         }
-        return jsonResponse({ analysis });
+        return json({ analysis });
       }
 
       case "jobs/list": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (subscription?.data?.tier ?? "free") as string;
         if (!isPaidTier(tier)) {
-          return jsonResponse({ error: "Job recommendations are for Premium subscribers only." }, 402);
+          return json({ error: "Job recommendations are for Premium subscribers only." }, 402);
         }
         const { data: list } = await supabase
           .from("job_recommendations")
@@ -1132,18 +1190,18 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .eq("user_id", user!.id)
           .order("fetched_at", { ascending: false })
           .limit(50);
-        return jsonResponse(list ?? []);
+        return json(list ?? []);
       }
 
       case "jobs/find": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (subscription?.data?.tier ?? "free") as string;
         if (!isPaidTier(tier)) {
-          return jsonResponse({ error: "Find jobs is for Premium subscribers only." }, 402);
+          return json({ error: "Find jobs is for Premium subscribers only." }, 402);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const { data: profile } = await supabase.from("profiles").select("target_career, job_title, skills, location, job_work_preference").eq("user_id", user!.id).single();
         const p = profile as { target_career?: string; job_title?: string; skills?: string[]; location?: string; job_work_preference?: string } | null;
         const workPref = ["remote", "hybrid", "on_site"].includes(String(p?.job_work_preference ?? "")) ? p!.job_work_preference : "remote";
@@ -1168,31 +1226,31 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             },
           }),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
         if (!aiRes.ok) {
           console.error("jobs/find Gemini error:", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "Job search failed. Please try again." }, 500);
+          return json({ error: "Job search failed. Please try again." }, 500);
         }
         let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
         try {
           aiJson = (await aiRes.json()) as typeof aiJson;
         } catch {
-          return jsonResponse({ error: "Job search failed." }, 500);
+          return json({ error: "Job search failed." }, 500);
         }
         const cands = aiJson.candidates ?? [];
         const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
         if (!finishCheck.ok) {
-          return jsonResponse({ error: finishCheck.userMessage ?? "Job search was blocked. Please try again." }, 400);
+          return json({ error: finishCheck.userMessage ?? "Job search was blocked. Please try again." }, 400);
         }
         logGeminiUsage(aiJson.usageMetadata, "jobs/find");
         const parts = cands[0]?.content?.parts ?? [];
         const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
-        if (!jsonText.trim()) return jsonResponse({ error: "Invalid job search response." }, 500);
+        if (!jsonText.trim()) return json({ error: "Invalid job search response." }, 500);
         let parsed: { jobs?: Array<{ title?: string; company?: string; url?: string; location_type?: string; location?: string; match_score?: number }> };
         try {
           parsed = JSON.parse(jsonText) as typeof parsed;
         } catch {
-          return jsonResponse({ error: "Invalid job search response." }, 500);
+          return json({ error: "Invalid job search response." }, 500);
         }
         const jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
         const fetchedAt = new Date().toISOString();
@@ -1220,23 +1278,23 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         if (toInsert.length > 0) {
           await supabase.from("job_recommendations").insert(toInsert);
         }
-        return jsonResponse({ jobs: toInsert, saved: toInsert.length });
+        return json({ jobs: toInsert, saved: toInsert.length });
       }
 
       case "jobs/weekly": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
         const headerSecret = req.headers.get("x-cron-secret") ?? req.headers.get("X-Cron-Secret") ?? (body as { cron_secret?: string }).cron_secret ?? "";
         if (!cronSecret || headerSecret !== cronSecret) {
-          return jsonResponse({ error: "Unauthorized" }, 401);
+          return json({ error: "Unauthorized" }, 401);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "GEMINI_API_KEY not set" }, 500);
+        if (!config) return json({ error: "GEMINI_API_KEY not set" }, 500);
         const { data: paidUsers } = await supabase
           .from("profiles")
           .select("user_id, target_career, job_title, skills, location, job_work_preference")
           .eq("find_jobs_enabled", true);
-        if (!paidUsers?.length) return jsonResponse({ ok: true, processed: 0 });
+        if (!paidUsers?.length) return json({ ok: true, processed: 0 });
         const subs = await supabase.from("subscriptions").select("user_id, tier").in("user_id", paidUsers.map((u: { user_id: string }) => u.user_id));
         const paidTierUserIds = new Set((subs?.data ?? []).filter((s: { tier: string }) => isPaidTier(s.tier)).map((s: { user_id: string }) => s.user_id));
         let processed = 0;
@@ -1301,21 +1359,21 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             logError("jobs/weekly", `user ${row.user_id}`, e);
           }
         }
-        return jsonResponse({ ok: true, processed });
+        return json({ ok: true, processed });
       }
 
       case "roadmaps": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: list } = await supabase
           .from("roadmaps")
           .select("*")
           .eq("user_id", user!.id)
           .order("created_at", { ascending: false });
-        return jsonResponse(list ?? []);
+        return json(list ?? []);
       }
 
       case "subscription": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         await ensureProfileAndSubscription(
           supabase,
           user!.id,
@@ -1327,11 +1385,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .select("*")
           .eq("user_id", user!.id)
           .single();
-        return jsonResponse(sub ?? null);
+        return json(sub ?? null);
       }
 
       case "usage": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { count: roadmapsCreated } = await supabase
           .from("roadmaps")
           .select("*", { count: "exact", head: true })
@@ -1367,7 +1425,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .select("*", { count: "exact", head: true })
           .eq("user_id", user!.id)
           .gte("created_at", todayIso);
-        return jsonResponse({
+        return json({
           roadmapsCreated: roadmapsCreated ?? 0,
           chatMessagesThisMonth: chatMessagesThisMonth ?? 0,
           quizzesTakenThisMonth: quizzesTakenThisMonth ?? 0,
@@ -1378,7 +1436,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
       }
 
       case "analytics": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -1431,7 +1489,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (!acc) return d;
           return new Date(d) > new Date(acc) ? d : acc;
         }, null);
-        return jsonResponse({
+        return json({
           roadmapsCreated: roadmapsCreatedVal ?? 0,
           chatMessagesThisMonth: chatMessagesThisMonth ?? 0,
           quizzesTaken: quizzesTaken ?? 0,
@@ -1442,20 +1500,20 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
       }
 
       case "roadmap/index": {
-        if (req.method !== "GET" && req.method !== "PATCH" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET" && req.method !== "PATCH" && req.method !== "DELETE") return json({ error: "Method not allowed" }, 405);
         const id = url.searchParams.get("id") ?? (body.id as string);
-        if (!id) return jsonResponse({ error: "id query required" }, 400);
+        if (!id) return json({ error: "id query required" }, 400);
         const { data: roadmap } = await supabase
           .from("roadmaps")
           .select("*")
           .eq("id", id)
           .eq("user_id", user!.id)
           .single();
-        if (!roadmap) return jsonResponse({ error: "Roadmap not found" }, 404);
+        if (!roadmap) return json({ error: "Roadmap not found" }, 404);
         if (req.method === "DELETE") {
           const { error: delErr } = await supabase.from("roadmaps").delete().eq("id", id).eq("user_id", user!.id);
-          if (delErr) return jsonResponse({ error: "Failed to delete roadmap" }, 500);
-          return jsonResponse({ success: true });
+          if (delErr) return json({ error: "Failed to delete roadmap" }, 500);
+          return json({ success: true });
         }
         if (req.method === "PATCH") {
           const { title, description, status } = body as { title?: string; description?: string; status?: string };
@@ -1472,7 +1530,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             .eq("user_id", user!.id)
             .select()
             .single();
-          return jsonResponse(updated ?? { success: true });
+          return json(updated ?? { success: true });
         }
         const { data: weeks } = await supabase
           .from("roadmap_weeks")
@@ -1492,11 +1550,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             };
           })
         );
-        return jsonResponse({ ...roadmap, roadmap_weeks: weeksWithCourses });
+        return json({ ...roadmap, roadmap_weeks: weeksWithCourses });
       }
 
       case "roadmap/active": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: roadmap } = await supabase
           .from("roadmaps")
           .select("*")
@@ -1505,7 +1563,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
-        if (!roadmap) return jsonResponse(null);
+        if (!roadmap) return json(null);
         // Backfill profile.target_career from active roadmap when profile lacks it
         const targetRole = (roadmap as { target_role?: string }).target_role;
         if (targetRole?.trim()) {
@@ -1533,13 +1591,13 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             };
           })
         );
-        return jsonResponse({ ...roadmap, roadmap_weeks: weeksWithCourses });
+        return json({ ...roadmap, roadmap_weeks: weeksWithCourses });
       }
 
       case "roadmap/weeks/complete": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { weekId } = body as { weekId?: string };
-        if (!weekId) return jsonResponse({ error: "weekId required" }, 400);
+        if (!weekId) return json({ error: "weekId required" }, 400);
         const { data: week } = await supabase
           .from("roadmap_weeks")
           .update({ is_completed: true, completed_at: new Date().toISOString() })
@@ -1567,11 +1625,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           const { data: completedWeeks } = await supabase.from("roadmap_weeks").select("id").eq("roadmap_id", roadmapId).eq("user_id", user!.id).eq("is_completed", true);
           if ((completedWeeks ?? []).length === 1) await awardBadge(supabase, user!.id, "first_week");
         }
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "study-streak": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: streak } = await supabase
           .from("study_streaks")
           .select("current_streak, longest_streak, last_activity_date")
@@ -1584,7 +1642,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .gte("activity_date", new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
           .order("activity_date", { ascending: false });
         const activityDates = [...new Set((activityRows ?? []).map((r: { activity_date?: string }) => r.activity_date).filter(Boolean))] as string[];
-        return jsonResponse({
+        return json({
           current_streak: (streak as { current_streak?: number })?.current_streak ?? 0,
           longest_streak: (streak as { longest_streak?: number })?.longest_streak ?? 0,
           last_activity_date: (streak as { last_activity_date?: string })?.last_activity_date ?? null,
@@ -1593,23 +1651,30 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
       }
 
       case "study-activity": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-        const { minutes, date: activityDateParam } = body as { minutes?: number; date?: string };
-        const minMinutes = typeof minutes === "number" && minutes >= 15 ? minutes : 15;
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { minutes, date: activityDateParam, roadmap_week_id } = body as { minutes?: number; date?: string; roadmap_week_id?: string };
+        const minMinutes = typeof minutes === "number" && minutes >= 1 ? minutes : 1;
         const todayUtc = new Date().toISOString().slice(0, 10);
         const activityDate = typeof activityDateParam === "string" && /^\d{4}-\d{2}-\d{2}$/.test(activityDateParam) ? activityDateParam : todayUtc;
+        const weekId = typeof roadmap_week_id === "string" && roadmap_week_id.trim() && UUID_REGEX.test(roadmap_week_id.trim()) ? roadmap_week_id.trim() : null;
+        // Verify week belongs to user if provided
+        if (weekId) {
+          const { data: week } = await supabase.from("roadmap_weeks").select("id").eq("id", weekId).eq("user_id", user!.id).single();
+          if (!week) return json({ error: "Week not found" }, 404);
+        }
         await supabase.from("study_activity").insert({
           user_id: user!.id,
           activity_date: activityDate,
           source: "study_session",
           study_minutes: minMinutes,
+          roadmap_week_id: weekId || null,
         });
         await updateStudyStreak(supabase, user!.id, activityDate);
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "unsubscribe-email": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const token = url.searchParams.get("token")?.trim();
         if (!token || !UUID_REGEX.test(token)) {
           return new Response(
@@ -1639,14 +1704,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
       }
 
       case "vapid-public": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const publicKey = Deno.env.get("VAPID_PUBLIC_KEY")?.trim();
-        if (!publicKey) return jsonResponse({ error: "Push not configured" }, 503);
-        return jsonResponse({ publicKey });
+        if (!publicKey) return json({ error: "Push not configured" }, 503);
+        return json({ publicKey });
       }
 
       case "themes": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         
         // Public endpoint - no auth required
         const { data: themes } = await supabase
@@ -1655,11 +1720,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .order("is_default", { ascending: false })
           .order("created_at", { ascending: false });
         
-        return jsonResponse({ themes: themes ?? [] });
+        return json({ themes: themes ?? [] });
       }
 
       case "events/track": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         
         // Allow anonymous tracking (user may not be logged in)
         const eventData = body as {
@@ -1680,7 +1745,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         };
         
         if (!eventData.event_type || !eventData.event_name || !eventData.page_path || !eventData.session_id) {
-          return jsonResponse({ error: "event_type, event_name, page_path, and session_id are required" }, 400);
+          return json({ error: "event_type, event_name, page_path, and session_id are required" }, 400);
         }
         
         // Insert event (user_id is nullable for anonymous users)
@@ -1704,7 +1769,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         
         if (insertError) {
           logError("api", "events/track: failed to insert event", insertError);
-          return jsonResponse({ error: "Failed to track event" }, 500);
+          return json({ error: "Failed to track event" }, 500);
         }
         
         // Update or create session
@@ -1745,29 +1810,29 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           }
         }
         
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "push-subscription": {
-        if (req.method !== "POST" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST" && req.method !== "DELETE") return json({ error: "Method not allowed" }, 405);
         const endpoint = typeof (body as { endpoint?: string }).endpoint === "string" ? (body as { endpoint: string }).endpoint.trim() : "";
         const p256dh = typeof (body as { keys?: { p256dh?: string } }).keys?.p256dh === "string" ? (body as { keys: { p256dh: string } }).keys.p256dh.trim() : (typeof (body as { p256dh?: string }).p256dh === "string" ? (body as { p256dh: string }).p256dh.trim() : "");
         const auth = typeof (body as { keys?: { auth?: string } }).keys?.auth === "string" ? (body as { keys: { auth: string } }).keys.auth.trim() : (typeof (body as { auth?: string }).auth === "string" ? (body as { auth: string }).auth.trim() : "");
         if (req.method === "POST") {
-          if (!endpoint || !p256dh || !auth) return jsonResponse({ error: "endpoint and keys (p256dh, auth) required" }, 400);
+          if (!endpoint || !p256dh || !auth) return json({ error: "endpoint and keys (p256dh, auth) required" }, 400);
           const userAgent = typeof (body as { user_agent?: string }).user_agent === "string" ? (body as { user_agent: string }).user_agent.slice(0, 500) : null;
           await supabase.from("push_subscriptions").delete().eq("user_id", user!.id).eq("endpoint", endpoint);
           await supabase.from("push_subscriptions").insert({ user_id: user!.id, endpoint, p256dh, auth, user_agent: userAgent });
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         const delEndpoint = typeof (body as { endpoint?: string }).endpoint === "string" ? (body as { endpoint: string }).endpoint.trim() : null;
         if (delEndpoint) await supabase.from("push_subscriptions").delete().eq("user_id", user!.id).eq("endpoint", delEndpoint);
         else await supabase.from("push_subscriptions").delete().eq("user_id", user!.id);
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "notification-preferences": {
-        if (req.method !== "GET" && req.method !== "PATCH") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET" && req.method !== "PATCH") return json({ error: "Method not allowed" }, 405);
         const { data: existing } = await supabase
           .from("notification_preferences")
           .select("*")
@@ -1782,7 +1847,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         };
         if (req.method === "GET") {
           const prefs = existing ?? { user_id: user!.id, ...defaults };
-          return jsonResponse(prefs);
+          return json(prefs);
         }
         const b = body as Record<string, unknown>;
         const trimStr = (v: unknown): string | null => (v != null && String(v).trim() !== "" ? String(v).trim() : null);
@@ -1807,14 +1872,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .select()
           .single();
         if (error) throw error;
-        return jsonResponse(updated ?? payload);
+        return json(updated ?? payload);
       }
 
       case "community/peers": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
-        if (!isPaidTier(tier)) return jsonResponse({ error: "Community is for Premium subscribers." }, 402);
+        if (!isPaidTier(tier)) return json({ error: "Community is for Premium subscribers." }, 402);
         const targetCareer = url.searchParams.get("target_career")?.trim() || null;
         const experienceLevel = url.searchParams.get("experience_level")?.trim() || null;
         let query = supabase.from("profiles").select("user_id, display_name, avatar_url, job_title, target_career, experience_level, linkedin_url").neq("user_id", user!.id);
@@ -1838,29 +1903,29 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           longest_streak: streakMap.get(p.user_id)?.longest_streak ?? 0,
           connected: connectedSet.has(p.user_id),
         }));
-        return jsonResponse(peers);
+        return json(peers);
       }
 
       case "community/connections": {
-        if (req.method !== "POST" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST" && req.method !== "DELETE") return json({ error: "Method not allowed" }, 405);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
-        if (!isPaidTier(tier)) return jsonResponse({ error: "Community is for Premium subscribers." }, 402);
+        if (!isPaidTier(tier)) return json({ error: "Community is for Premium subscribers." }, 402);
         const targetUserId = (body as { target_user_id?: string }).target_user_id;
-        if (!targetUserId || targetUserId === user!.id) return jsonResponse({ error: "Invalid target_user_id" }, 400);
+        if (!targetUserId || targetUserId === user!.id) return json({ error: "Invalid target_user_id" }, 400);
         if (req.method === "POST") {
           await supabase.from("connections").upsert({ user_id: user!.id, target_user_id: targetUserId }, { onConflict: "user_id,target_user_id" });
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         await supabase.from("connections").delete().eq("user_id", user!.id).eq("target_user_id", targetUserId);
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "community/leaderboard": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
-        if (!isPaidTier(tier)) return jsonResponse({ error: "Leaderboard is for Premium subscribers." }, 402);
+        if (!isPaidTier(tier)) return json({ error: "Leaderboard is for Premium subscribers." }, 402);
         const period = url.searchParams.get("period") || "all";
         const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "20", 10)));
         let streakQuery = supabase.from("study_streaks").select("user_id, current_streak, longest_streak, last_activity_date").order("current_streak", { ascending: false }).limit(limit);
@@ -1887,13 +1952,13 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             last_activity_date: r.last_activity_date ?? null,
           };
         });
-        return jsonResponse(leaderboard);
+        return json(leaderboard);
       }
 
       case "community/groups": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
-        if (!isPaidTier(tier)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier(tier)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const targetCareer = url.searchParams.get("target_career")?.trim() || null;
         const experienceLevel = url.searchParams.get("experience_level")?.trim() || null;
         if (req.method === "GET") {
@@ -1930,18 +1995,18 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
               is_member: myGroupIds.has(g.id),
             };
           });
-          return jsonResponse(list);
+          return json(list);
         }
         if (req.method === "POST") {
           const name = typeof (body as { name?: string }).name === "string" ? String((body as { name: string }).name).trim() : "";
-          if (!name || name.length > 200) return jsonResponse({ error: "Group name is required (max 200 characters)" }, 400);
+          if (!name || name.length > 200) return json({ error: "Group name is required (max 200 characters)" }, 400);
           const description = typeof (body as { description?: string }).description === "string" ? String((body as { description: string }).description).trim().slice(0, 1000) : null;
           const modEnabled = Deno.env.get("COMMUNITY_MODERATION_ENABLED") !== "false";
           if (modEnabled) {
             const groupText = name + "\n\n" + (description ?? "");
             const mod = await moderateContent(groupText);
             if (!mod.allowed) {
-              return jsonResponse({
+              return json({
                 error: "Group name or description not allowed",
                 reason: mod.reason ?? "Content violates community guidelines.",
               }, 400);
@@ -1960,15 +2025,15 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           }).select("id, name, description, created_by_user_id, created_at").single();
           if (error) throw error;
           await supabase.from("study_group_members").insert({ group_id: inserted.id, user_id: user!.id, role: "admin" });
-          return jsonResponse(inserted);
+          return json(inserted);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "community/groups/top-by-streak": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const limit = Math.min(20, Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10)));
         const todayUtc = new Date().toISOString().slice(0, 10);
         const { data: groups } = await supabase.from("study_groups").select("id, name").limit(100);
@@ -2015,17 +2080,17 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           });
         }
         results.sort((a, b) => b.group_streak - a.group_streak);
-        return jsonResponse(results.slice(0, limit));
+        return json(results.slice(0, limit));
       }
 
       case "community/groups/id": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const groupId = pathSegments[2];
-        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (!groupId) return json({ error: "Group ID required" }, 400);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: group, error } = await supabase.from("study_groups").select("*").eq("id", groupId).single();
-        if (error || !group) return jsonResponse({ error: "Group not found" }, 404);
+        if (error || !group) return json({ error: "Group not found" }, 404);
         const { data: members } = await supabase.from("study_group_members").select("user_id, role, joined_at").eq("group_id", groupId);
         const userIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
         const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
@@ -2037,35 +2102,35 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           display_name: profileMap.get(m.user_id)?.display_name ?? null,
           avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
         }));
-        return jsonResponse({ ...group, members: membersWithProfiles });
+        return json({ ...group, members: membersWithProfiles });
       }
 
       case "community/groups/join": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const groupId = pathSegments[2];
-        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        if (!groupId) return json({ error: "Group ID required" }, 400);
         const { error } = await supabase.from("study_group_members").upsert({ group_id: groupId, user_id: user!.id, role: "member" }, { onConflict: "group_id,user_id" });
         if (error) throw error;
         await awardBadge(supabase, user!.id, "group_member");
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "community/groups/leave": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const groupId = pathSegments[2];
-        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        if (!groupId) return json({ error: "Group ID required" }, 400);
         await supabase.from("study_group_members").delete().eq("group_id", groupId).eq("user_id", user!.id);
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "community/groups/members": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Study groups are for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Study groups are for Premium subscribers." }, 402);
         const groupId = pathSegments[2];
-        if (!groupId) return jsonResponse({ error: "Group ID required" }, 400);
+        if (!groupId) return json({ error: "Group ID required" }, 400);
         const { data: members } = await supabase.from("study_group_members").select("user_id, role, joined_at").eq("group_id", groupId);
         const userIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
         const { data: profs } = userIds.length ? await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", userIds) : { data: [] };
@@ -2077,34 +2142,34 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           display_name: profileMap.get(m.user_id)?.display_name ?? null,
           avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
         }));
-        return jsonResponse(list);
+        return json(list);
       }
 
       case "community/chat/room": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Chat is for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Chat is for Premium subscribers." }, 402);
         const studyGroupId = pathSegments[3];
-        if (!studyGroupId) return jsonResponse({ error: "Study group ID required" }, 400);
+        if (!studyGroupId) return json({ error: "Study group ID required" }, 400);
         const { data: member } = await supabase.from("study_group_members").select("user_id").eq("group_id", studyGroupId).eq("user_id", user!.id).single();
-        if (!member) return jsonResponse({ error: "You must be a member of this group to access chat" }, 403);
+        if (!member) return json({ error: "You must be a member of this group to access chat" }, 403);
         let { data: room } = await supabase.from("chat_rooms").select("id").eq("study_group_id", studyGroupId).single();
         if (!room) {
           const { data: inserted, error } = await supabase.from("chat_rooms").insert({ study_group_id: studyGroupId }).select("id").single();
           if (error) throw error;
           room = inserted;
         }
-        return jsonResponse({ room_id: (room as { id: string }).id });
+        return json({ room_id: (room as { id: string }).id });
       }
 
       case "community/chat/messages": {
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
-        if (!isPaidTier((sub?.tier ?? "free") as string)) return jsonResponse({ error: "Chat is for Premium subscribers." }, 402);
+        if (!isPaidTier((sub?.tier ?? "free") as string)) return json({ error: "Chat is for Premium subscribers." }, 402);
         const roomId = pathSegments[3];
-        if (!roomId) return jsonResponse({ error: "Room ID required" }, 400);
+        if (!roomId) return json({ error: "Room ID required" }, 400);
         const { data: room } = await supabase.from("chat_rooms").select("study_group_id").eq("id", roomId).single();
-        if (!room?.study_group_id) return jsonResponse({ error: "Room not found" }, 404);
+        if (!room?.study_group_id) return json({ error: "Room not found" }, 404);
         const { data: member } = await supabase.from("study_group_members").select("user_id").eq("group_id", room.study_group_id).eq("user_id", user!.id).single();
-        if (!member) return jsonResponse({ error: "You must be a member of this group to access chat" }, 403);
+        if (!member) return json({ error: "You must be a member of this group to access chat" }, 403);
         if (req.method === "GET") {
           const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
           const { data: messages, error } = await supabase.from("chat_messages").select("id, room_id, user_id, body, created_at").eq("room_id", roomId).order("created_at", { ascending: true }).limit(limit);
@@ -2121,16 +2186,16 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             display_name: profileMap.get(m.user_id)?.display_name ?? null,
             avatar_url: profileMap.get(m.user_id)?.avatar_url ?? null,
           }));
-          return jsonResponse(list);
+          return json(list);
         }
         if (req.method === "POST") {
           const bodyText = typeof (body as { body?: string }).body === "string" ? String((body as { body: string }).body).trim().slice(0, 4000) : "";
-          if (!bodyText) return jsonResponse({ error: "Message body required" }, 400);
+          if (!bodyText) return json({ error: "Message body required" }, 400);
           const modEnabled = Deno.env.get("COMMUNITY_MODERATION_ENABLED") !== "false";
           if (modEnabled) {
             const mod = await moderateContent(bodyText);
             if (!mod.allowed) {
-              return jsonResponse({
+              return json({
                 error: "Message not allowed",
                 reason: mod.reason ?? "Content violates community guidelines.",
               }, 400);
@@ -2138,20 +2203,20 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           }
           const { data: inserted, error } = await supabase.from("chat_messages").insert({ room_id: roomId, user_id: user!.id, body: bodyText }).select("id, room_id, user_id, body, created_at").single();
           if (error) throw error;
-          return jsonResponse(inserted);
+          return json(inserted);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "community/badges": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: badges, error } = await supabase.from("badges").select("id, name, description, criteria").order("id");
         if (error) throw error;
-        return jsonResponse(badges ?? []);
+        return json(badges ?? []);
       }
 
       case "community/me/badges": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const { data: rows, error } = await supabase.from("user_badges").select("badge_id, earned_at").eq("user_id", user!.id);
         if (error) throw error;
         const badgeIds = (rows ?? []).map((r: { badge_id: string }) => r.badge_id);
@@ -2163,32 +2228,35 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           name: detailMap.get(r.badge_id)?.name ?? r.badge_id,
           description: detailMap.get(r.badge_id)?.description ?? null,
         }));
-        return jsonResponse(list);
+        return json(list);
       }
 
       case "contact": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
-        if (!checkPublicRateLimit(`contact:${ip}`, CONTACT_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        if (!checkPublicRateLimit(`contact:${ip}`, CONTACT_RATE_LIMIT_MAX)) return json({ error: "Too many requests. Try again in 15 minutes." }, 429);
         const name = typeof body.name === "string" ? body.name.trim() : "";
         const email = typeof body.email === "string" ? body.email.trim() : "";
         const phone = typeof body.phone === "string" ? body.phone.trim() : null;
+        const phoneCountryCodeRaw = typeof body.phoneCountryCode === "string" ? body.phoneCountryCode.trim() : "";
+        const phoneCountryCode = /^[A-Z]{2}$/i.test(phoneCountryCodeRaw) ? phoneCountryCodeRaw.toUpperCase().slice(0, 2) : null;
         const company = typeof body.company === "string" ? body.company.trim() : null;
         const topicRaw = typeof body.topic === "string" ? body.topic.trim().toLowerCase() : "";
         const allowedTopics = ["general", "sales", "support", "partnership", "feedback", "other"];
         const topic = allowedTopics.includes(topicRaw) ? topicRaw : "general";
         const subject = typeof body.subject === "string" ? body.subject.trim() : "";
         const message = typeof body.message === "string" ? body.message.trim() : "";
-        if (!name || name.length > 100) return jsonResponse({ error: "Name is required (max 100 characters)" }, 400);
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return jsonResponse({ error: "Valid email required (max 255 characters)" }, 400);
-        if (phone !== null && phone.length > 30) return jsonResponse({ error: "Phone max 30 characters" }, 400);
-        if (company !== null && company.length > 150) return jsonResponse({ error: "Company max 150 characters" }, 400);
-        if (!subject || subject.length > 200) return jsonResponse({ error: "Subject is required (max 200 characters)" }, 400);
-        if (message.length < 10 || message.length > 2000) return jsonResponse({ error: "Message must be 10–2000 characters" }, 400);
+        if (!name || name.length > 100) return json({ error: "Name is required (max 100 characters)" }, 400);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return json({ error: "Valid email required (max 255 characters)" }, 400);
+        if (phone !== null && phone.length > 30) return json({ error: "Phone max 30 characters" }, 400);
+        if (company !== null && company.length > 150) return json({ error: "Company max 150 characters" }, 400);
+        if (!subject || subject.length > 200) return json({ error: "Subject is required (max 200 characters)" }, 400);
+        if (message.length < 10 || message.length > 2000) return json({ error: "Message must be 10–2000 characters" }, 400);
         const { error: insertErr } = await supabase.from("contact_requests").insert({
           name,
           email,
           phone: phone || null,
+          phone_country_code: phoneCountryCode,
           company: company || null,
           topic,
           subject,
@@ -2196,7 +2264,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         });
         if (insertErr) {
           logError("api", "contact: insert contact_requests failed", insertErr);
-          return jsonResponse({ error: "Failed to submit. Please try again." }, 500);
+          return json({ error: "Failed to submit. Please try again." }, 500);
         }
         const CONTACT_TO_EMAIL = Deno.env.get("CONTACT_TO_EMAIL") ?? "support@shyftcut.com";
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -2216,20 +2284,20 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
               html: `<p><strong>From:</strong> ${name} &lt;${email}&gt;</p>${phoneLine}${companyLine}<p><strong>Topic:</strong> ${topicLabel}</p><p><strong>Subject:</strong> ${subject}</p><hr /><p>${message.replace(/\n/g, "<br />")}</p>`,
             }),
           });
-          if (!res.ok) return jsonResponse({ error: "Failed to send message. Please try again." }, 500);
+          if (!res.ok) return json({ error: "Failed to send message. Please try again." }, 500);
         }
-        return jsonResponse({ ok: true });
+        return json({ ok: true });
       }
 
       case "support": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-        if (!checkPublicRateLimit(`support:${user!.id}`, SUPPORT_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        if (!checkPublicRateLimit(`support:${user!.id}`, SUPPORT_RATE_LIMIT_MAX)) return json({ error: "Too many requests. Try again in 15 minutes." }, 429);
         const subject = typeof body.subject === "string" ? body.subject.trim() : "";
         const message = typeof body.message === "string" ? body.message.trim() : "";
-        if (!subject || subject.length > 200) return jsonResponse({ error: "Subject is required (max 200 characters)" }, 400);
-        if (message.length < 10 || message.length > 2000) return jsonResponse({ error: "Message must be 10–2000 characters" }, 400);
+        if (!subject || subject.length > 200) return json({ error: "Subject is required (max 200 characters)" }, 400);
+        if (message.length < 10 || message.length > 2000) return json({ error: "Message must be 10–2000 characters" }, 400);
         const email = (user!.email ?? "").trim() || "";
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: "Valid account email required" }, 400);
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Valid account email required" }, 400);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
         const priority = isPaidTier(tier) ? "premium" : "free";
@@ -2241,7 +2309,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           priority,
           status: "open",
         });
-        if (insertErr) return jsonResponse({ error: "Failed to submit support request. Please try again." }, 500);
+        if (insertErr) return json({ error: "Failed to submit support request. Please try again." }, 500);
         const CONTACT_TO_EMAIL = Deno.env.get("CONTACT_TO_EMAIL") ?? "support@shyftcut.com";
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
         const FROM_EMAIL = Deno.env.get("FROM_EMAIL") ?? "onboarding@resend.dev";
@@ -2258,18 +2326,18 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             }),
           });
         }
-        return jsonResponse({ ok: true });
+        return json({ ok: true });
       }
 
       case "newsletter": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
-        if (!checkPublicRateLimit(`newsletter:${ip}`, NEWSLETTER_RATE_LIMIT_MAX)) return jsonResponse({ error: "Too many requests. Try again in 15 minutes." }, 429);
+        if (!checkPublicRateLimit(`newsletter:${ip}`, NEWSLETTER_RATE_LIMIT_MAX)) return json({ error: "Too many requests. Try again in 15 minutes." }, 429);
         const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return jsonResponse({ error: "Valid email required" }, 400);
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 255) return json({ error: "Valid email required" }, 400);
         const { error: insertErr } = await supabase.from("newsletter_subscribers").insert({ email });
         if (insertErr) {
-          if (insertErr.code === "23505") return jsonResponse({ error: "Already subscribed" }, 400);
+          if (insertErr.code === "23505") return json({ error: "Already subscribed" }, 400);
           throw insertErr;
         }
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -2286,23 +2354,31 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             }),
           });
         }
-        return jsonResponse({ ok: true });
+        return json({ ok: true });
       }
 
       case "checkout/create": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const polarAccessToken = Deno.env.get("POLAR_ACCESS_TOKEN");
         if (!polarAccessToken) {
           logError("api", "checkout/create: POLAR_ACCESS_TOKEN not set", undefined);
-          return jsonResponse({ error: "Payment system not configured. Please try again later." }, 503);
+          return json({ error: "Payment system not configured. Please try again later." }, 503);
         }
         try {
         await ensureProfileAndSubscription(supabase, user!.id, user!.email, user!.user_metadata?.display_name as string | undefined);
         const { planId, productId, successUrl, returnUrl, metadata: bodyMetadata } = body as { planId?: string; productId?: string; priceId?: string; successUrl?: string; returnUrl?: string; cancelUrl?: string; metadata?: Record<string, string> };
         const productIdStr = typeof productId === "string" && productId.trim() ? productId.trim() : null;
-        if (!productIdStr) return jsonResponse({ error: "productId is required" }, 400);
+        if (!productIdStr) return json({ error: "productId is required" }, 400);
         const origin = req.headers.get("origin") || req.headers.get("referer") || "";
-        const baseUrl = origin ? new URL(origin).origin : "https://shyftcut.com";
+        let baseUrl = "https://shyftcut.com";
+        if (origin) {
+          try {
+            baseUrl = new URL(origin).origin;
+          } catch {
+            // Invalid origin/referer, use default
+            baseUrl = "https://shyftcut.com";
+          }
+        }
         const isSameOrigin = (urlStr: string): boolean => {
           try {
             const u = new URL(urlStr);
@@ -2323,7 +2399,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         const { data: sub, error: subSelectErr } = await supabase.from("subscriptions").select("polar_customer_id").eq("user_id", user!.id).single();
         if (subSelectErr && subSelectErr.code !== "PGRST116") {
           logError("api", "checkout/create: subscriptions select failed", new Error(subSelectErr.message));
-          return jsonResponse({ error: "Unable to load subscription. Please try again." }, 500);
+          return json({ error: "Unable to load subscription. Please try again." }, 500);
         }
         let polarCustomerId = sub?.polar_customer_id ?? null;
         const userEmail = user!.email?.trim() || undefined;
@@ -2350,7 +2426,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           }
         }
         if (!polarCustomerId && !userEmail) {
-          return jsonResponse({ error: "Email required for checkout. Add an email to your account." }, 400);
+          return json({ error: "Email required for checkout. Add an email to your account." }, 400);
         }
         const checkoutMetadata: Record<string, unknown> = { user_id: user!.id, plan_id: planId ?? undefined };
         if (bodyMetadata?.from) checkoutMetadata.from = bodyMetadata.from;
@@ -2368,12 +2444,29 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         }
         if (polarCustomerId) checkoutPayload.customer_id = polarCustomerId;
         else checkoutPayload.customer_email = userEmail;
-        const checkoutRes = await fetch("https://api.polar.sh/v1/checkouts", {
+        
+        // Make Polar API call with timeout and error handling
+        let checkoutRes: Response;
+        let responseText: string;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+          checkoutRes = await fetch("https://api.polar.sh/v1/checkouts", {
           method: "POST",
           headers: { Authorization: `Bearer ${polarAccessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(checkoutPayload),
-        });
-        const responseText = await checkoutRes.text();
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          responseText = await checkoutRes.text();
+        } catch (fetchError) {
+          const isTimeout = fetchError instanceof Error && (fetchError.name === "AbortError" || fetchError.message.includes("timeout"));
+          logError("api", "checkout/create: Polar API fetch failed", fetchError);
+          return json(
+            { error: isTimeout ? "Request timed out. Please try again." : "Failed to connect to payment provider. Please try again." },
+            502
+          );
+        }
         if (!checkoutRes.ok) {
           let errMessage = "Failed to create checkout session";
           try {
@@ -2390,55 +2483,90 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           logError("api", "checkout/create: Polar checkouts API error", new Error(`${checkoutRes.status} ${errMessage} | ${responseText?.slice(0, 200)}`));
           const polarStatus = checkoutRes.status;
           if (polarStatus === 401 || polarStatus === 403) {
-            return jsonResponse(
+            // Return 401/403 to client, not 502, so they know it's an auth issue
+            return json(
               { error: "Payment provider authentication failed. Please try again later or contact support.", code: "polar_auth" },
-              502
+              polarStatus
             );
           }
           const status = polarStatus >= 500 ? 502 : polarStatus >= 400 ? polarStatus : 500;
-          return jsonResponse({ error: errMessage }, status);
+          return json({ error: errMessage }, status);
         }
         let checkout: { url?: string; checkout?: { url?: string } };
         try {
           checkout = responseText ? (JSON.parse(responseText) as { url?: string; checkout?: { url?: string } }) : {};
         } catch (e) {
           logError("api", "checkout/create: invalid checkout response JSON", e);
-          return jsonResponse({ error: "Invalid response from payment provider" }, 502);
+          return json({ error: "Invalid response from payment provider" }, 502);
         }
         const checkoutUrl = checkout?.url ?? checkout?.checkout?.url ?? null;
         if (!checkoutUrl) {
           logError("api", "checkout/create: Polar response missing url", new Error(responseText?.slice(0, 200)));
-          return jsonResponse({ error: "Checkout URL not returned. Please try again." }, 502);
+          return json({ error: "Checkout URL not returned. Please try again." }, 502);
         }
-        return jsonResponse({ checkoutUrl });
+          return json({ checkoutUrl });
         } catch (e) {
           logError("api", "checkout/create: unhandled error", e);
-          return jsonResponse({ error: "Failed to create checkout. Please try again." }, 502);
+          const errorMessage = e instanceof Error ? e.message : String(e);
+          console.error("[checkout/create] Unhandled error:", errorMessage, e);
+          return json({ error: "Failed to create checkout. Please try again." }, 502);
         }
       }
 
       case "checkout/portal": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const polarAccessToken = Deno.env.get("POLAR_ACCESS_TOKEN");
-        if (!polarAccessToken) return jsonResponse({ error: "Payment system not configured" }, 500);
+        if (!polarAccessToken) return json({ error: "Payment system not configured" }, 500);
         const returnUrl = url.searchParams.get("returnUrl") ?? req.headers.get("referer") ?? "/profile";
         const { data: sub } = await supabase.from("subscriptions").select("polar_customer_id").eq("user_id", user!.id).single();
         const polarCustomerId = sub?.polar_customer_id;
-        if (!polarCustomerId) return jsonResponse({ error: "No subscription found. Subscribe first to manage your plan." }, 404);
+        if (!polarCustomerId) return json({ error: "No subscription found. Subscribe first to manage your plan." }, 404);
         const sessionRes = await fetch("https://api.polar.sh/v1/customer-sessions", {
           method: "POST",
           headers: { Authorization: `Bearer ${polarAccessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({ customer_id: polarCustomerId, return_url: returnUrl }),
         });
-        if (!sessionRes.ok) return jsonResponse({ error: "Failed to create customer portal session" }, 500);
+        if (!sessionRes.ok) return json({ error: "Failed to create customer portal session" }, 500);
         const session = (await sessionRes.json()) as { customer_portal_url?: string };
-        return jsonResponse({ url: session.customer_portal_url });
+        return json({ url: session.customer_portal_url });
+      }
+
+      case "courses/refresh-metadata": {
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { course_id } = body as { course_id?: string };
+        if (!course_id) return json({ error: "course_id required" }, 400);
+        
+        // Get course with URL
+        const { data: course, error: fetchError } = await supabase
+          .from("course_recommendations")
+          .select("id, url")
+          .eq("id", course_id)
+          .eq("user_id", user!.id)
+          .single();
+        
+        if (fetchError || !course) return json({ error: "Course not found" }, 404);
+        if (!course.url || !isValidCourseUrl(course.url) || !isAllowedCourseHost(course.url)) {
+          return json({ error: "Course URL is invalid or not from an allowed platform" }, 400);
+        }
+        
+        // Enrich metadata
+        await enrichCourseMetadata(supabase, course.id, course.url);
+        
+        // Return updated course
+        const { data: updatedCourse } = await supabase
+          .from("course_recommendations")
+          .select("*")
+          .eq("id", course_id)
+          .eq("user_id", user!.id)
+          .single();
+        
+        return json(updatedCourse || course);
       }
 
       case "courses/id": {
-        if (req.method !== "PATCH") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "PATCH") return json({ error: "Method not allowed" }, 405);
         const id = pathSegments[1] ?? url.searchParams.get("id") ?? (body.id as string);
-        if (!id) return jsonResponse({ error: "id required" }, 400);
+        if (!id) return json({ error: "id required" }, 400);
         const { is_saved, is_completed } = body as { is_saved?: boolean; is_completed?: boolean };
         const updates: Record<string, unknown> = {};
         if (is_saved !== undefined) updates.is_saved = is_saved;
@@ -2447,7 +2575,9 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           const { error } = await supabase.from("course_recommendations").update(updates).eq("id", id).eq("user_id", user!.id);
           if (error) throw error;
         }
-        return jsonResponse({ success: true });
+        const { data: course } = await supabase.from("course_recommendations").select("*").eq("id", id).eq("user_id", user!.id).single();
+        if (!course) return json({ error: "Course not found" }, 404);
+        return json(course);
       }
 
       case "notes": {
@@ -2457,7 +2587,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (roadmapWeekId) q = q.eq("roadmap_week_id", roadmapWeekId);
           const { data, error } = await q;
           if (error) throw error;
-          return jsonResponse(data ?? []);
+          return json(data ?? []);
         }
         if (req.method === "POST") {
           const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
@@ -2465,7 +2595,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (!isPaidTier(tier)) {
             const { count: notesCount } = await supabase.from("notes").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
             if ((notesCount ?? 0) >= NOTES_LIMIT_FREE) {
-              return jsonResponse({ error: "Notes limit reached. Upgrade for unlimited notes.", limit_code: "notes_limit" }, 402);
+              return json({ error: "Notes limit reached. Upgrade for unlimited notes.", limit_code: "notes_limit" }, 402);
             }
           }
           const { roadmap_week_id, course_recommendation_id, title, content } = body as { roadmap_week_id?: string; course_recommendation_id?: string; title?: string; content?: string };
@@ -2482,14 +2612,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             .select()
             .single();
           if (error) throw error;
-          return jsonResponse(data);
+          return json(data);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "notes/id": {
         const noteId = pathSegments[1];
-        if (!noteId) return jsonResponse({ error: "Note id required" }, 400);
+        if (!noteId) return json({ error: "Note id required" }, 400);
         if (req.method === "PATCH") {
           const { title, content, roadmap_week_id, course_recommendation_id } = body as { title?: string; content?: string; roadmap_week_id?: string; course_recommendation_id?: string };
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -2499,14 +2629,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (course_recommendation_id !== undefined) updates.course_recommendation_id = course_recommendation_id || null;
           const { data, error } = await supabase.from("notes").update(updates).eq("id", noteId).eq("user_id", user!.id).select().single();
           if (error) throw error;
-          return jsonResponse(data);
+          return json(data);
         }
         if (req.method === "DELETE") {
           const { error } = await supabase.from("notes").delete().eq("id", noteId).eq("user_id", user!.id);
           if (error) throw error;
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "tasks": {
@@ -2516,7 +2646,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (roadmapWeekId) q = q.eq("roadmap_week_id", roadmapWeekId);
           const { data, error } = await q;
           if (error) throw error;
-          return jsonResponse(data ?? []);
+          return json(data ?? []);
         }
         if (req.method === "POST") {
           const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
@@ -2524,12 +2654,12 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (!isPaidTier(tier)) {
             const { count: tasksCount } = await supabase.from("tasks").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
             if ((tasksCount ?? 0) >= TASKS_LIMIT_FREE) {
-              return jsonResponse({ error: "Tasks limit reached. Upgrade for unlimited tasks.", limit_code: "tasks_limit" }, 402);
+              return json({ error: "Tasks limit reached. Upgrade for unlimited tasks.", limit_code: "tasks_limit" }, 402);
             }
           }
           const { roadmap_week_id, course_recommendation_id, title, notes, due_date, source } = body as { roadmap_week_id?: string; course_recommendation_id?: string; title?: string; notes?: string; due_date?: string; source?: "user" | "ai" };
           const titleStr = trimStr(title ?? "", 500);
-          if (!titleStr) return jsonResponse({ error: "title required" }, 400);
+          if (!titleStr) return json({ error: "title required" }, 400);
           const taskSource = source === "ai" ? "ai" : "user";
           const { data, error } = await supabase
             .from("tasks")
@@ -2545,14 +2675,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             .select()
             .single();
           if (error) throw error;
-          return jsonResponse(data);
+          return json(data);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "tasks/id": {
         const taskId = pathSegments[1];
-        if (!taskId) return jsonResponse({ error: "Task id required" }, 400);
+        if (!taskId) return json({ error: "Task id required" }, 400);
         if (req.method === "PATCH") {
           const { title, notes, due_date, completed, roadmap_week_id, course_recommendation_id } = body as { title?: string; notes?: string; due_date?: string | null; completed?: boolean; roadmap_week_id?: string; course_recommendation_id?: string };
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -2567,22 +2697,22 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           if (course_recommendation_id !== undefined) updates.course_recommendation_id = course_recommendation_id || null;
           const { data, error } = await supabase.from("tasks").update(updates).eq("id", taskId).eq("user_id", user!.id).select().single();
           if (error) throw error;
-          return jsonResponse(data);
+          return json(data);
         }
         if (req.method === "DELETE") {
           const { error } = await supabase.from("tasks").delete().eq("id", taskId).eq("user_id", user!.id);
           if (error) throw error;
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "tasks/suggest": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { roadmap_week_id } = body as { roadmap_week_id?: string };
-        if (!roadmap_week_id || typeof roadmap_week_id !== "string") return jsonResponse({ error: "roadmap_week_id required" }, 400);
+        if (!roadmap_week_id || typeof roadmap_week_id !== "string") return json({ error: "roadmap_week_id required" }, 400);
         const weekIdSanitized = roadmap_week_id.trim().slice(0, 36);
-        if (!UUID_REGEX.test(weekIdSanitized)) return jsonResponse({ error: "Invalid roadmap_week_id" }, 400);
+        if (!UUID_REGEX.test(weekIdSanitized)) return json({ error: "Invalid roadmap_week_id" }, 400);
         const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (sub?.tier ?? "free") as string;
         if (!isPaidTier(tier)) {
@@ -2595,7 +2725,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
             .eq("user_id", user!.id)
             .gte("created_at", todayIso);
           if ((aiSuggestionsToday ?? 0) >= AI_SUGGEST_PER_DAY_FREE) {
-            return jsonResponse({ error: "Daily AI suggestions limit reached. Upgrade for unlimited.", limit_code: "ai_suggestions_limit" }, 402);
+            return json({ error: "Daily AI suggestions limit reached. Upgrade for unlimited.", limit_code: "ai_suggestions_limit" }, 402);
           }
         }
         const { data: week, error: weekError } = await supabase
@@ -2604,7 +2734,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .eq("id", weekIdSanitized)
           .eq("user_id", user!.id)
           .single();
-        if (weekError || !week) return jsonResponse({ error: "Week not found" }, 404);
+        if (weekError || !week) return json({ error: "Week not found" }, 404);
         const { data: courses } = await supabase
           .from("course_recommendations")
           .select("title")
@@ -2612,7 +2742,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .eq("user_id", user!.id);
         const courseTitles = (courses ?? []).map((c: { title: string }) => c.title);
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const systemPrompt = `You are a study coach. Given a learning week from a career roadmap, suggest 3 to 5 concrete, actionable tasks the learner can do this week. Be specific and tie tasks to the week's skills, deliverables, and courses.`;
         const userPrompt = `<context>
 Week: ${(week as { title: string }).title}
@@ -2648,42 +2778,168 @@ Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1
             generationConfig: { thinkingConfig: { thinkingLevel: "low" }, temperature: 1.0, maxOutputTokens: 1024 },
           }),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Try again later." }, 429);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Try again later." }, 429);
         if (!aiRes.ok) {
           console.error("tasks/suggest AI error:", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "Failed to suggest tasks" }, 500);
+          return json({ error: "Failed to suggest tasks" }, 500);
         }
         const aiJson = (await aiRes.json()) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ functionCall?: { name?: string; args?: string } }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
         const taskCands = aiJson.candidates ?? [];
         const taskFinishCheck = checkGeminiFinishReason(taskCands, taskCands[0]?.finishReason);
         if (!taskFinishCheck.ok) {
           console.error("tasks/suggest: blocked finish reason", taskFinishCheck.finishReason);
-          return jsonResponse({ error: taskFinishCheck.userMessage ?? "Task suggestion was blocked. Please try again." }, 400);
+          return json({ error: taskFinishCheck.userMessage ?? "Task suggestion was blocked. Please try again." }, 400);
         }
         if (!isOkFinishReasonForFunctionCall(taskCands[0]?.finishReason)) {
-          return jsonResponse({ error: "Invalid AI response format" }, 500);
+          return json({ error: "Invalid AI response format" }, 500);
         }
         logGeminiUsage(aiJson.usageMetadata, "tasks/suggest");
         const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
         const fnPart = parts.find((p: { functionCall?: { name?: string } }) => p.functionCall?.name === "suggest_tasks");
         const argsStr = fnPart?.functionCall?.args;
-        if (!argsStr) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (!argsStr) return json({ error: "Invalid AI response format" }, 500);
         const argsStrEnc = typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr);
-        if (new TextEncoder().encode(argsStrEnc).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (new TextEncoder().encode(argsStrEnc).length > MAX_FC_ARGS_BYTES) return json({ error: "Invalid AI response format" }, 500);
         const parsed = JSON.parse(typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr)) as { tasks?: Array<{ title?: string; description?: string }> };
         const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
         const suggestions = rawTasks
           .filter((t) => t && typeof t.title === "string" && (t.title as string).trim())
           .map((t) => ({ title: trimStr((t.title as string).trim(), 500), description: trimStr((t.description as string) ?? "", 1000) }));
         await supabase.from("ai_suggest_calls").insert({ user_id: user!.id });
-        return jsonResponse({ suggestions });
+        return json({ suggestions });
+      }
+
+      case "tasks/auto-generate": {
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { roadmap_week_id } = body as { roadmap_week_id?: string };
+        if (!roadmap_week_id || typeof roadmap_week_id !== "string") return json({ error: "roadmap_week_id required" }, 400);
+        const weekIdSanitized = roadmap_week_id.trim().slice(0, 36);
+        if (!UUID_REGEX.test(weekIdSanitized)) return json({ error: "Invalid roadmap_week_id" }, 400);
+        
+        // Check if user is paid
+        const { data: sub } = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
+        const tier = (sub?.tier ?? "free") as string;
+        if (!isPaidTier(tier)) {
+          return json({ error: "Auto-generation is only available for paid users" }, 403);
+        }
+
+        // Check if tasks already exist for this week
+        const { count: existingTasks } = await supabase
+          .from("tasks")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("roadmap_week_id", weekIdSanitized)
+          .eq("source", "ai");
+        if ((existingTasks ?? 0) > 0) {
+          return json({ error: "Tasks already generated for this week" }, 400);
+        }
+
+        // Get week data
+        const { data: week, error: weekError } = await supabase
+          .from("roadmap_weeks")
+          .select("id, title, description, skills_to_learn, deliverables")
+          .eq("id", weekIdSanitized)
+          .eq("user_id", user!.id)
+          .single();
+        if (weekError || !week) return json({ error: "Week not found" }, 404);
+
+        // Get courses
+        const { data: courses } = await supabase
+          .from("course_recommendations")
+          .select("title")
+          .eq("roadmap_week_id", weekIdSanitized)
+          .eq("user_id", user!.id);
+        const courseTitles = (courses ?? []).map((c: { title: string }) => c.title);
+
+        // Generate tasks using AI (same logic as suggest)
+        const config = getGeminiConfig();
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        const systemPrompt = `You are a study coach. Given a learning week from a career roadmap, generate 4 to 6 concrete, actionable tasks the learner should do this week. Be specific and tie tasks to the week's skills, deliverables, and courses. Make tasks actionable and time-bound.`;
+        const userPrompt = `<context>
+Week: ${(week as { title: string }).title}
+Description: ${(week as { description?: string }).description ?? ""}
+Skills to learn: ${((week as { skills_to_learn?: string[] }).skills_to_learn ?? []).join(", ")}
+Deliverables: ${((week as { deliverables?: string[] }).deliverables ?? []).join(", ")}
+Courses: ${courseTitles.join(", ")}
+</context>
+
+Based on the context above, generate 4-6 specific tasks (e.g. "Complete section 1-3 of [Course X]", "Draft initial outline for [deliverable]", "Practice [skill] with exercises"). Return only the list of tasks.`;
+        const suggestParams = {
+          type: "object",
+          properties: {
+            tasks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { title: { type: "string" }, description: { type: "string" } },
+                required: ["title"],
+              },
+            },
+          },
+          required: ["tasks"],
+        };
+        const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
+          method: "POST",
+          headers: getGeminiHeaders(config.apiKey),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            tools: [{ functionDeclarations: [openAiFunctionToGeminiDeclaration("suggest_tasks", "Generate study tasks for this week", suggestParams)] }],
+            toolConfig: { functionCallingConfig: { mode: "ANY", allowedFunctionNames: ["suggest_tasks"] } },
+            generationConfig: { thinkingConfig: { thinkingLevel: "low" }, temperature: 1.0, maxOutputTokens: 1024 },
+          }),
+        });
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Try again later." }, 429);
+        if (!aiRes.ok) {
+          console.error("tasks/auto-generate AI error:", aiRes.status, await aiRes.text());
+          return json({ error: "Failed to generate tasks" }, 500);
+        }
+        const aiJson = (await aiRes.json()) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ functionCall?: { name?: string; args?: string } }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
+        const taskCands = aiJson.candidates ?? [];
+        const taskFinishCheck = checkGeminiFinishReason(taskCands, taskCands[0]?.finishReason);
+        if (!taskFinishCheck.ok) {
+          console.error("tasks/auto-generate: blocked finish reason", taskFinishCheck.finishReason);
+          return json({ error: taskFinishCheck.userMessage ?? "Task generation was blocked. Please try again." }, 400);
+        }
+        if (!isOkFinishReasonForFunctionCall(taskCands[0]?.finishReason)) {
+          return json({ error: "Invalid AI response format" }, 500);
+        }
+        logGeminiUsage(aiJson.usageMetadata, "tasks/auto-generate");
+        const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+        const fnPart = parts.find((p: { functionCall?: { name?: string } }) => p.functionCall?.name === "suggest_tasks");
+        const argsStr = fnPart?.functionCall?.args;
+        if (!argsStr) return json({ error: "Invalid AI response format" }, 500);
+        const argsStrEnc = typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr);
+        if (new TextEncoder().encode(argsStrEnc).length > MAX_FC_ARGS_BYTES) return json({ error: "Invalid AI response format" }, 500);
+        const parsed = JSON.parse(typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr)) as { tasks?: Array<{ title?: string; description?: string }> };
+        const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+        const tasksToCreate = rawTasks
+          .filter((t) => t && typeof t.title === "string" && (t.title as string).trim())
+          .map((t) => ({
+            user_id: user!.id,
+            roadmap_week_id: weekIdSanitized,
+            title: trimStr((t.title as string).trim(), 500),
+            notes: trimStr((t.description as string) ?? "", 5000),
+            source: "ai" as const,
+          }));
+
+        // Batch insert tasks
+        if (tasksToCreate.length > 0) {
+          const { error: insertError } = await supabase.from("tasks").insert(tasksToCreate);
+          if (insertError) {
+            console.error("tasks/auto-generate: insert error", insertError);
+            return json({ error: "Failed to create tasks" }, 500);
+          }
+        }
+
+        return json({ success: true, count: tasksToCreate.length });
       }
 
       case "chat/history": {
-        if (req.method !== "GET" && req.method !== "DELETE") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET" && req.method !== "DELETE") return json({ error: "Method not allowed" }, 405);
         if (req.method === "DELETE") {
           await supabase.from("chat_history").delete().eq("user_id", user!.id);
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         const { data: list } = await supabase
           .from("chat_history")
@@ -2691,14 +2947,14 @@ Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1
           .eq("user_id", user!.id)
           .order("created_at", { ascending: true })
           .limit(50);
-        return jsonResponse(list ?? []);
+        return json(list ?? []);
       }
 
       case "chat/messages": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { role, content, metadata } = body as { role?: string; content?: string; metadata?: { thoughtSignature?: string } };
-        if (!role || content === undefined) return jsonResponse({ error: "role and content required" }, 400);
-        if (!["user", "assistant", "system"].includes(role)) return jsonResponse({ error: "role must be user, assistant, or system" }, 400);
+        if (!role || content === undefined) return json({ error: "role and content required" }, 400);
+        if (!["user", "assistant", "system"].includes(role)) return json({ error: "role must be user, assistant, or system" }, 400);
         const sanitizedContent = sanitizeUserText(content, MAX_CHAT_HISTORY_MESSAGE_LEN);
         const row: { user_id: string; role: string; content: string; metadata?: Record<string, unknown> } = { user_id: user!.id, role, content: sanitizedContent };
         if (metadata && typeof metadata === "object" && metadata.thoughtSignature) {
@@ -2706,13 +2962,13 @@ Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1
         }
         const { error } = await supabase.from("chat_history").insert(row);
         if (error) throw error;
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "quiz/results": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { roadmap_week_id, score, total_questions, answers, feedback } = body as { roadmap_week_id?: string; score?: number; total_questions?: number; answers?: unknown; feedback?: string };
-        if (!roadmap_week_id || score === undefined || total_questions === undefined) return jsonResponse({ error: "roadmap_week_id, score, total_questions required" }, 400);
+        if (!roadmap_week_id || score === undefined || total_questions === undefined) return json({ error: "roadmap_week_id, score, total_questions required" }, 400);
         const { error } = await supabase.from("quiz_results").insert({
           user_id: user!.id,
           roadmap_week_id,
@@ -2722,15 +2978,15 @@ Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1
           feedback: feedback ?? null,
         });
         if (error) throw error;
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "roadmap/generate": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
-        if (!profileData?.targetCareer) return jsonResponse({ error: "profileData is required" }, 400);
+        if (!profileData?.targetCareer) return json({ error: "profileData is required" }, 400);
         const targetCareer = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
-        if (!targetCareer) return jsonResponse({ error: "targetCareer is required" }, 400);
+        if (!targetCareer) return json({ error: "targetCareer is required" }, 400);
         const safeProfile = {
           ...profileData,
           targetCareer,
@@ -2753,15 +3009,15 @@ Based on the context above, suggest 3-5 specific tasks (e.g. "Complete section 1
         const tier = (sub?.tier ?? "free") as string;
         if (!isPaidTier(tier)) {
           const { count: roadmapsCreated } = await supabase.from("roadmaps").select("*", { count: "exact", head: true }).eq("user_id", user!.id);
-          if ((roadmapsCreated ?? 0) >= 1) return jsonResponse({ error: "Roadmap limit reached. Upgrade for unlimited roadmaps." }, 402);
+          if ((roadmapsCreated ?? 0) >= 1) return json({ error: "Roadmap limit reached. Upgrade for unlimited roadmaps." }, 402);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const roadmapThinkingLevel = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
         const useGrounding = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
         const careerReasonLine = safeProfile.careerReason && String(safeProfile.careerReason).trim() ? `\nUser's motivation: ${String(safeProfile.careerReason).trim()}` : "";
         const languageInstruction = roadmapLang === "ar"
-          ? "\n<language>Output the entire roadmap in Arabic (العربية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic.</language>"
+          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
           : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
         const groundingTaskLine = useGrounding
           ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
@@ -2795,24 +3051,24 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           headers: getGeminiHeaders(config.apiKey),
           body: JSON.stringify(roadmapBody),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
-        if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return json({ error: "Payment required. Please add credits to continue." }, 402);
         if (!aiRes.ok) {
           console.error("AI gateway error:", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+          return json({ error: "Failed to generate roadmap" }, 500);
         }
         let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
         try {
           aiJson = (await aiRes.json()) as typeof aiJson;
         } catch {
           console.error("AI response was not valid JSON");
-          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+          return json({ error: "Failed to generate roadmap" }, 500);
         }
         const cands = aiJson.candidates ?? [];
         const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
         if (!finishCheck.ok) {
           console.error("roadmap generate: blocked finish reason", finishCheck.finishReason);
-          return jsonResponse({ error: finishCheck.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
+          return json({ error: finishCheck.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
         }
         logGeminiUsage(aiJson.usageMetadata, "roadmap/generate");
         const groundingAuth = extractGroundingFromCandidate(cands[0]);
@@ -2821,26 +3077,26 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
         }
         const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
         const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
-        if (!jsonText.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
-        if (new TextEncoder().encode(jsonText).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (!jsonText.trim()) return json({ error: "Invalid AI response format" }, 500);
+        if (new TextEncoder().encode(jsonText).length > MAX_FC_ARGS_BYTES) return json({ error: "Invalid AI response format" }, 500);
         let roadmapData: Record<string, unknown>;
         try {
           roadmapData = JSON.parse(jsonText) as Record<string, unknown>;
         } catch {
-          return jsonResponse({ error: "Invalid AI response format" }, 500);
+          return json({ error: "Invalid AI response format" }, 500);
         }
-        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return json({ error: "Invalid roadmap structure from AI" }, 500);
         const weeksArr = Array.isArray(roadmapData.weeks) ? roadmapData.weeks : [];
-        if (weeksArr.length < 1) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        if (weeksArr.length < 1) return json({ error: "Invalid roadmap structure from AI" }, 500);
         for (const w of weeksArr) {
           const week = w as Record<string, unknown>;
           if (typeof week?.week_number !== "number" || typeof week?.title !== "string" || !Array.isArray(week?.skills_to_learn) || !Array.isArray(week?.deliverables) || typeof week?.estimated_hours !== "number" || !Array.isArray(week?.courses)) {
-            return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+            return json({ error: "Invalid roadmap structure from AI" }, 500);
           }
           if (!isPaidTier(tier)) (week as Record<string, unknown>).courses = (Array.isArray(week.courses) ? week.courses : []).slice(0, 1);
         }
         cleanRoadmapOutput(roadmapData);
-        if (!roadmapData.title) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        if (!roadmapData.title) return json({ error: "Invalid roadmap structure from AI" }, 500);
         const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
         const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
         await fillMissingCourseUrls(roadmapData, roadmapLang, supabaseUrl, anonKey, 15);
@@ -2866,7 +3122,7 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           status: "active",
           progress_percentage: 0,
         }).select("id, title").single();
-        if (roadmapErr || !roadmapRow?.id) return jsonResponse({ error: "Failed to save roadmap" }, 500);
+        if (roadmapErr || !roadmapRow?.id) return json({ error: "Failed to save roadmap" }, 500);
         await supabase.from("roadmaps").update({ status: "inactive" }).eq("user_id", user!.id).neq("id", roadmapRow.id);
         const weeks = weeksArr as Array<Record<string, unknown>>;
         for (const week of weeks) {
@@ -2883,14 +3139,16 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           }).select("id").single();
           if (weekErr || !weekRow?.id) continue;
           const courses = Array.isArray(week.courses) ? week.courses : [];
+          const courseIds: string[] = [];
           for (let i = 0; i < courses.length; i++) {
             const c = courses[i] as Record<string, unknown>;
-            await supabase.from("course_recommendations").insert({
+            const courseUrl = (typeof c.url === "string" && c.url) ? c.url : null;
+            const { data: courseRow, error: courseErr } = await supabase.from("course_recommendations").insert({
               roadmap_week_id: weekRow.id,
               user_id: user!.id,
               title: c.title ?? "",
               platform: trimStr(c.platform, MAX_STRING_ITEM_LEN),
-              url: (typeof c.url === "string" && c.url) ? c.url : null,
+              url: courseUrl,
               instructor: (c.instructor ?? null) as string | null,
               duration: (c.duration ?? null) as string | null,
               difficulty_level: (c.difficulty_level ?? null) as string | null,
@@ -2899,22 +3157,31 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
               relevance_score: 100 - i * 10,
               is_saved: false,
               is_completed: false,
-            });
+            }).select("id").single();
+            
+            // Enrich course metadata from URL (async, fire-and-forget)
+            if (courseRow?.id && courseUrl && isValidCourseUrl(courseUrl) && isAllowedCourseHost(courseUrl)) {
+              courseIds.push(courseRow.id);
+              // Don't await - let it run in background
+              enrichCourseMetadata(supabase, courseRow.id, courseUrl).catch((err) => {
+                console.warn("[roadmap/generate] Failed to enrich course metadata:", courseUrl, err);
+              });
+            }
           }
         }
         const responsePayload: { success: true; roadmapId: string; title: string; grounding?: { queries: string[]; citations: Array<{ uri: string; title?: string }> } } = { success: true, roadmapId: roadmapRow.id, title: roadmapRow.title };
         if (groundingAuth) responsePayload.grounding = groundingAuth;
-        return jsonResponse(responsePayload);
+        return json(responsePayload);
       }
 
       case "roadmap/generate-guest": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
-        if (!checkGuestRateLimit(ip)) return jsonResponse({ error: "Too many previews. Try again in an hour." }, 429);
+        if (!checkGuestRateLimit(ip)) return json({ error: "Too many previews. Try again in an hour." }, 429);
         const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
-        if (!profileData?.targetCareer) return jsonResponse({ error: "profileData is required" }, 400);
+        if (!profileData?.targetCareer) return json({ error: "profileData is required" }, 400);
         const targetCareerGuest = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
-        if (!targetCareerGuest) return jsonResponse({ error: "targetCareer is required" }, 400);
+        if (!targetCareerGuest) return json({ error: "targetCareer is required" }, 400);
         const preferredLangGuest = (profileData?.preferredLanguage ?? "en").trim().toLowerCase();
         const roadmapLangGuest = preferredLangGuest === "ar" ? "ar" : "en";
         const safeProfileGuest = {
@@ -2932,12 +3199,12 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           careerReason: sanitizeUserText(profileData.careerReason, MAX_DESCRIPTION_LEN) || undefined,
         };
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const roadmapThinkingLevelGuest = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
         const useGroundingGuest = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
         const careerReasonLineGuest = safeProfileGuest.careerReason && String(safeProfileGuest.careerReason).trim() ? `\nUser's motivation: ${String(safeProfileGuest.careerReason).trim()}` : "";
         const languageInstructionGuest = roadmapLangGuest === "ar"
-          ? "\n<language>Output the entire roadmap in Arabic (العربية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic.</language>"
+          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
           : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
         const groundingTaskLineGuest = useGroundingGuest
           ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
@@ -2971,24 +3238,24 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
           headers: getGeminiHeaders(config.apiKey),
           body: JSON.stringify(roadmapBodyGuest),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
-        if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return json({ error: "Payment required. Please add credits to continue." }, 402);
         if (!aiRes.ok) {
           console.error("AI gateway error (guest):", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+          return json({ error: "Failed to generate roadmap" }, 500);
         }
         let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
         try {
           aiJson = (await aiRes.json()) as typeof aiJson;
         } catch {
           console.error("AI response (guest) was not valid JSON");
-          return jsonResponse({ error: "Failed to generate roadmap" }, 500);
+          return json({ error: "Failed to generate roadmap" }, 500);
         }
         const candsGuest = aiJson.candidates ?? [];
         const finishCheckGuest = checkGeminiFinishReason(candsGuest, candsGuest[0]?.finishReason);
         if (!finishCheckGuest.ok) {
           console.error("roadmap generate-guest: blocked finish reason", finishCheckGuest.finishReason);
-          return jsonResponse({ error: finishCheckGuest.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
+          return json({ error: finishCheckGuest.userMessage ?? "Roadmap generation was blocked. Please try again." }, 400);
         }
         logGeminiUsage(aiJson.usageMetadata, "roadmap/generate-guest");
         const groundingGuest = extractGroundingFromCandidate(candsGuest[0]);
@@ -2997,17 +3264,17 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
         }
         const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
         const jsonTextGuest = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
-        if (!jsonTextGuest.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
-        if (new TextEncoder().encode(jsonTextGuest).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (!jsonTextGuest.trim()) return json({ error: "Invalid AI response format" }, 500);
+        if (new TextEncoder().encode(jsonTextGuest).length > MAX_FC_ARGS_BYTES) return json({ error: "Invalid AI response format" }, 500);
         let roadmapData: Record<string, unknown>;
         try {
           roadmapData = JSON.parse(jsonTextGuest) as Record<string, unknown>;
         } catch {
-          return jsonResponse({ error: "Invalid AI response format" }, 500);
+          return json({ error: "Invalid AI response format" }, 500);
         }
-        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        if (typeof roadmapData?.title !== "string" || !roadmapData.title.trim()) return json({ error: "Invalid roadmap structure from AI" }, 500);
         const weeksArr = Array.isArray(roadmapData.weeks) ? roadmapData.weeks : [];
-        if (weeksArr.length < 1) return jsonResponse({ error: "Invalid roadmap structure from AI" }, 500);
+        if (weeksArr.length < 1) return json({ error: "Invalid roadmap structure from AI" }, 500);
         cleanRoadmapOutput(roadmapData);
         const supabaseUrlGuest = Deno.env.get("SUPABASE_URL") ?? "";
         const anonKeyGuest = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -3029,13 +3296,13 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
           weeks,
         };
         if (groundingGuest) guestPayload.grounding = groundingGuest;
-        return jsonResponse(guestPayload);
+        return json(guestPayload);
       }
 
       case "career-dna/analyze": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
-        if (!checkCareerDnaRateLimit(ip)) return jsonResponse({ error: "Too many quiz attempts. Try again in an hour." }, 429);
+        if (!checkCareerDnaRateLimit(ip)) return json({ error: "Too many quiz attempts. Try again in an hour." }, 429);
         const { answers, currentField, isStudent, language, sessionId, squadSlug, displayName } = body as {
           answers?: Record<string, string | number>;
           currentField?: string;
@@ -3046,10 +3313,10 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
           displayName?: string;
         };
         if (!answers || typeof answers !== "object" || !currentField || typeof currentField !== "string" || !currentField.trim()) {
-          return jsonResponse({ error: "answers and currentField are required" }, 400);
+          return json({ error: "answers and currentField are required" }, 400);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const lang = (language ?? "en").toString().trim().toLowerCase() === "ar" ? "ar" : "en";
         const allowedCareers = [
           "Software Engineer", "Data Scientist", "Product Manager", "UX Designer",
@@ -3060,16 +3327,23 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
         ];
         const careersList = allowedCareers.join(", ");
         const langInstr = lang === "ar"
-          ? "\n<language>Output all user-facing string fields in natural, native Arabic (العربية). Use warm, encouraging tone. Avoid stiff or bureaucratic phrasing. Write as a native Arabic speaker would, not as a translation.</language>"
+          ? "\n<language>Output all user-facing string fields (archetype, description, superpower, hiddenTalent, shareableQuote, suggested career reasons) in Egyptian modern professional Arabic (فصحى عصرية مصرية). Warm, encouraging tone. Avoid stiff phrasing. Write as a native Egyptian professional would.</language>"
           : "\n<language>Output all string fields in English.</language>";
         const systemPrompt = `<role>You are a career psychologist AI. Analyze the user's quiz answers to determine how well their personality fits their declared field, and suggest better-fit careers.</role>
+<psychology>
+Use career psychology principles: Holland's RIASEC (Realistic, Investigative, Artistic, Social, Enterprising, Conventional), work-style dimensions (analytical, creative, collaborative, independent, structured, adaptive), and job-fit signals.
+- q6 (1-10 engagement/flow): Low (1-4) suggests poor fit or burnout; mid (5-7) mixed; high (8-10) strong engagement. Weight this heavily for match score.
+- q7 (would choose again): career regret/satisfaction signal.
+- q8 (worries): growth mindset and anxiety type.
+Frame low scores as exploration opportunity, not failure.
+</psychology>
 <task>
 1. Map the answers to work-style dimensions (analytical, creative, collaborative, independent, structured, adaptive).
-2. Compute a match score (0-100) between their personality and their current field.
+2. Compute a match score (0-100) between their personality and their current field. Weight q6 strongly: low engagement = lower fit score.
 3. Assign exactly one score tier by score: visionaries (90-100), naturals (75-89), explorers (60-74), shifters (45-59), awakeners (30-44), misfits (0-29).
 4. Pick one persona character ID for that tier (best fits their answers): visionaries→v1|v2|v3|v4, naturals→n1|n2|n3|n4, explorers→e1|e2|e3|e4, shifters→s1|s2|s3|s4, awakeners→a1|a2|a3|a4, misfits→m1|m2|m3|m4.
-5. Give a personality archetype (e.g. "Strategic Empath", "Ambitious Realist") and brief description.
-6. Identify one superpower (strongest trait) with a rarity stat (e.g. "only 17% of people have this trait").
+5. Give a personality archetype: specific and resonant (e.g. "Strategic Empath", "Quiet Builder"), not generic. Brief description.
+6. Identify one superpower (strongest trait) that derives from their answers. Rarity stat should feel plausible (e.g. 10-25%).
 7. Identify one hidden talent and which career it suits.
 8. Suggest exactly 3 alternative careers from this list only: ${careersList}. For each: career name, matchPercent (0-100), short reason.
 9. Write a shareable quote for social: "I'm a {score}% match for my {field}. What's yours?" in the output language.
@@ -3098,30 +3372,30 @@ Analyze and return the structured response.`;
           headers: getGeminiHeaders(config.apiKey),
           body: JSON.stringify(aiBody),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
-        if (aiRes.status === 402) return jsonResponse({ error: "Payment required." }, 402);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return json({ error: "Payment required." }, 402);
         if (!aiRes.ok) {
           console.error("career-dna analyze AI error:", aiRes.status, await aiRes.text());
-          return jsonResponse({ error: "Failed to analyze. Please try again." }, 500);
+          return json({ error: "Failed to analyze. Please try again." }, 500);
         }
         let aiJson: { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: { promptTokenCount?: number } };
         try {
           aiJson = (await aiRes.json()) as typeof aiJson;
         } catch {
-          return jsonResponse({ error: "Invalid AI response" }, 500);
+          return json({ error: "Invalid AI response" }, 500);
         }
         const cands = aiJson.candidates ?? [];
         const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
-        if (!finishCheck.ok) return jsonResponse({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
+        if (!finishCheck.ok) return json({ error: finishCheck.userMessage ?? "Analysis was blocked. Please try again." }, 400);
         logGeminiUsage(aiJson.usageMetadata, "career-dna/analyze");
         const parts = cands[0]?.content?.parts ?? [];
         const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
-        if (!jsonText.trim()) return jsonResponse({ error: "Invalid AI response format" }, 500);
+        if (!jsonText.trim()) return json({ error: "Invalid AI response format" }, 500);
         let data: Record<string, unknown>;
         try {
           data = JSON.parse(jsonText) as Record<string, unknown>;
         } catch {
-          return jsonResponse({ error: "Invalid AI response format" }, 500);
+          return json({ error: "Invalid AI response format" }, 500);
         }
         const matchScore = typeof data.matchScore === "number" ? Math.round(Math.max(0, Math.min(100, data.matchScore))) : 50;
         const validTiers = ["visionaries", "naturals", "explorers", "shifters", "awakeners", "misfits"];
@@ -3164,13 +3438,13 @@ Analyze and return the structured response.`;
           .single();
         if (insertErr || !inserted) {
           console.error("career-dna insert error:", insertErr);
-          return jsonResponse({ error: "Failed to save result" }, 500);
+          return json({ error: "Failed to save result" }, 500);
         }
         const resultId = (inserted as { id: string }).id;
         if (squadId) {
           await supabase.from("career_dna_squad_members").upsert({ squad_id: squadId, result_id: resultId }, { onConflict: "squad_id,result_id" });
         }
-        return jsonResponse({
+        return json({
           resultId,
           matchScore,
           scoreTier,
@@ -3189,17 +3463,17 @@ Analyze and return the structured response.`;
       }
 
       case "career-dna/result": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const resultId = pathSegments[2];
-        if (!resultId) return jsonResponse({ error: "Result ID required" }, 400);
+        if (!resultId) return json({ error: "Result ID required" }, 400);
         const { data: row, error } = await supabase
           .from("career_dna_results")
           .select("*")
           .eq("id", resultId)
           .single();
-        if (error || !row) return jsonResponse({ error: "Result not found" }, 404);
+        if (error || !row) return json({ error: "Result not found" }, 404);
         const r = row as Record<string, unknown>;
-        return jsonResponse({
+        return json({
           resultId: r.id,
           matchScore: r.match_score,
           personalityArchetype: r.personality_archetype,
@@ -3218,51 +3492,53 @@ Analyze and return the structured response.`;
       }
 
       case "career-dna/lead": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-        const { phone, source, sourceId, consentMarketing } = body as { phone?: string; source?: string; sourceId?: string; consentMarketing?: boolean };
-        if (!phone || typeof phone !== "string" || !phone.trim()) return jsonResponse({ error: "Phone is required" }, 400);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { phone, source, sourceId, consentMarketing, countryCode } = body as { phone?: string; source?: string; sourceId?: string; consentMarketing?: boolean; countryCode?: string };
+        if (!phone || typeof phone !== "string" || !phone.trim()) return json({ error: "Phone is required" }, 400);
         const cleaned = phone.replace(/\D/g, "");
-        if (cleaned.length < 8) return jsonResponse({ error: "Invalid phone number" }, 400);
+        if (cleaned.length < 8) return json({ error: "Invalid phone number" }, 400);
         const src = source === "squad" || source === "result" ? source : "result";
         const sid = typeof sourceId === "string" && sourceId.trim() ? sourceId.trim().slice(0, 100) : "";
-        if (!sid) return jsonResponse({ error: "sourceId is required" }, 400);
+        if (!sid) return json({ error: "sourceId is required" }, 400);
+        const cc = typeof countryCode === "string" && /^[A-Z]{2}$/i.test(countryCode.trim()) ? countryCode.trim().toUpperCase().slice(0, 2) : null;
         const { error: leadErr } = await supabase.from("career_dna_leads").insert({
-          phone: cleaned,
+          phone: `+${cleaned}`,
+          country_code: cc,
           source: src,
           source_id: sid,
           consent_marketing: consentMarketing === true,
         });
-        if (leadErr) return jsonResponse({ error: "Failed to save" }, 500);
-        return jsonResponse({ ok: true });
+        if (leadErr) return json({ error: "Failed to save" }, 500);
+        return json({ ok: true });
       }
 
       case "career-dna/squad/create": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { resultId } = body as { resultId?: string };
-        if (!resultId || typeof resultId !== "string") return jsonResponse({ error: "resultId is required" }, 400);
+        if (!resultId || typeof resultId !== "string") return json({ error: "resultId is required" }, 400);
         const { data: existing } = await supabase.from("career_dna_results").select("id, squad_id").eq("id", resultId).single();
-        if (!existing) return jsonResponse({ error: "Result not found" }, 404);
-        if ((existing as { squad_id?: string }).squad_id) return jsonResponse({ error: "Result already in a squad" }, 400);
+        if (!existing) return json({ error: "Result not found" }, 404);
+        if ((existing as { squad_id?: string }).squad_id) return json({ error: "Result already in a squad" }, 400);
         const slug = crypto.randomUUID().slice(0, 8).replace(/-/g, "");
         const { data: squad, error: squadErr } = await supabase.from("career_dna_squads").insert({ slug }).select("id").single();
-        if (squadErr || !squad) return jsonResponse({ error: "Failed to create squad" }, 500);
+        if (squadErr || !squad) return json({ error: "Failed to create squad" }, 500);
         const sid = (squad as { id: string }).id;
         await supabase.from("career_dna_results").update({ squad_id: sid }).eq("id", resultId);
         await supabase.from("career_dna_squad_members").insert({ squad_id: sid, result_id: resultId });
         const baseUrl = (Deno.env.get("SITE_URL") ?? Deno.env.get("VITE_APP_ORIGIN") ?? "https://shyftcut.com").replace(/\/$/, "");
-        return jsonResponse({ slug, squadId: sid, url: `${baseUrl}/career-dna/squad/${slug}` });
+        return json({ slug, squadId: sid, url: `${baseUrl}/career-dna/squad/${slug}` });
       }
 
       case "career-dna/squad/get": {
-        if (req.method !== "GET") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "GET") return json({ error: "Method not allowed" }, 405);
         const slug = pathSegments[2];
-        if (!slug) return jsonResponse({ error: "Squad slug required" }, 400);
+        if (!slug) return json({ error: "Squad slug required" }, 400);
         const { data: squad, error: squadErr } = await supabase.from("career_dna_squads").select("id").eq("slug", slug).single();
-        if (squadErr || !squad) return jsonResponse({ error: "Squad not found" }, 404);
+        if (squadErr || !squad) return json({ error: "Squad not found" }, 404);
         const sid = (squad as { id: string }).id;
         const { data: members } = await supabase.from("career_dna_squad_members").select("result_id").eq("squad_id", sid);
         const resultIds = ((members ?? []) as Array<{ result_id: string }>).map((m) => m.result_id);
-        if (resultIds.length === 0) return jsonResponse({ slug, results: [] });
+        if (resultIds.length === 0) return json({ slug, results: [] });
         const { data: results } = await supabase.from("career_dna_results").select("*").in("id", resultIds).order("match_score", { ascending: false });
         const formatted = (results ?? []).map((r: Record<string, unknown>) => ({
           resultId: r.id,
@@ -3281,11 +3557,11 @@ Analyze and return the structured response.`;
           currentField: r.current_field,
           isStudent: r.is_student,
         }));
-        return jsonResponse({ slug, results: formatted });
+        return json({ slug, results: formatted });
       }
 
       case "chat": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { messages, useSearch } = body as { messages?: { role: string; content: string; metadata?: { thoughtSignature?: string } }[]; useSearch?: boolean };
         const subscription = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
         const tier = (subscription?.data?.tier ?? "free") as string;
@@ -3294,10 +3570,10 @@ Analyze and return the structured response.`;
           startOfMonth.setDate(1);
           startOfMonth.setHours(0, 0, 0, 0);
           const { count: chatMessagesThisMonth } = await supabase.from("chat_history").select("*", { count: "exact", head: true }).eq("user_id", user!.id).eq("role", "user").gte("created_at", startOfMonth.toISOString());
-          if ((chatMessagesThisMonth ?? 0) >= 10) return jsonResponse({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
+          if ((chatMessagesThisMonth ?? 0) >= 10) return json({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
         }
         const config = getGeminiConfig();
-        if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+        if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", user!.id).single();
         const { data: roadmap } = await supabase.from("roadmaps").select("*").eq("user_id", user!.id).eq("status", "active").order("created_at", { ascending: false }).limit(1).single();
         let currentWeekTitle = "No roadmap";
@@ -3313,7 +3589,7 @@ ${profile ? `User: ${(profile as { job_title?: string }).job_title ?? "Not speci
 ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roadmap as { progress_percentage?: number }).progress_percentage}%, Current week: ${currentWeekTitle}` : ""}
 </context>`;
         const preferredLang = (profile as { preferred_language?: string })?.preferred_language;
-        const languageInstruction = preferredLang === "ar" ? "\n<language>Respond in natural, conversational Arabic (العربية) unless the user writes in another language. Be warm and encouraging. Write like a native speaker, not a translator.</language>" : "";
+        const languageInstruction = preferredLang === "ar" ? "\n<language>Respond in Egyptian modern professional Arabic (فصحى عصرية مصرية) unless the user writes in another language. Warm, conversational, professional. Write like a native Egyptian career coach.</language>" : "";
         const systemPrompt = systemPromptBase + languageInstruction;
         const rawList = Array.isArray(messages) ? messages.slice(-MAX_CHAT_MESSAGES) : [];
         let totalChars = 0;
@@ -3330,12 +3606,12 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
         for (const m of trimmedMessages) {
           totalChars += m.content.length;
           if (totalChars > MAX_CHAT_TOTAL_CHARS) {
-            return jsonResponse({ error: "Conversation is too long. Please start a new chat or shorten messages." }, 400);
+            return json({ error: "Conversation is too long. Please start a new chat or shorten messages." }, 400);
           }
         }
         const hasThoughtSigs = trimmedMessages.some((m) => (m as { metadata?: { thoughtSignature?: string } }).metadata?.thoughtSignature);
         const contents = hasThoughtSigs ? contentsFromChatMessages(trimmedMessages as { role: string; content: string; metadata?: { thoughtSignature?: string } }[]) : messagesToGeminiContents(trimmedMessages);
-        if (contents.length === 0) return jsonResponse({ error: "At least one message required" }, 400);
+        if (contents.length === 0) return json({ error: "At least one message required" }, 400);
         const bodyPayload: Record<string, unknown> = {
           contents,
           generationConfig: { thinkingConfig: { thinkingLevel: "low" }, temperature: 1.0, maxOutputTokens: 2048 },
@@ -3351,8 +3627,8 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
           headers: getGeminiHeaders(config.apiKey),
           body: JSON.stringify(bodyPayload),
         });
-        if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
-        if (aiRes.status === 402) return jsonResponse({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
+        if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
+        if (aiRes.status === 402) return json({ error: "Message limit reached. Upgrade for unlimited AI coaching." }, 402);
         if (!aiRes.ok) {
           const errBody = await aiRes.text();
           console.error("chat AI error:", aiRes.status, errBody);
@@ -3367,10 +3643,10 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
           } catch {
             /* use default */
           }
-          return jsonResponse({ error: userMsg }, 500);
+          return json({ error: userMsg }, 500);
         }
         const stream = aiRes.body;
-        if (!stream) return jsonResponse({ error: "No response body" }, 500);
+        if (!stream) return json({ error: "No response body" }, 500);
         let sseBuffer = "";
         let streamBlocked = false;
         let lastThoughtSignature: string | null = null;
@@ -3492,7 +3768,7 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
       }
 
       case "quiz/generate": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         try {
           const { weekId, skills, weekTitle } = body as { weekId?: string; skills?: string[]; weekTitle?: string };
           const safeWeekTitle = sanitizeUserText(weekTitle, MAX_QUIZ_WEEK_TITLE_LEN) || "General";
@@ -3504,10 +3780,10 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
             startOfMonth.setDate(1);
             startOfMonth.setHours(0, 0, 0, 0);
             const { count: quizzesThisMonth } = await supabase.from("quiz_results").select("*", { count: "exact", head: true }).eq("user_id", user!.id).gte("completed_at", startOfMonth.toISOString());
-            if ((quizzesThisMonth ?? 0) >= 3) return jsonResponse({ error: "Quiz limit reached. Upgrade for unlimited quizzes." }, 402);
+            if ((quizzesThisMonth ?? 0) >= 3) return json({ error: "Quiz limit reached. Upgrade for unlimited quizzes." }, 402);
           }
           const config = getGeminiConfig();
-          if (!config) return jsonResponse({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
+          if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
           const systemPrompt = `<role>You are a career education expert. Create a quiz from the provided context.</role>
 <context>
 Week Topic: ${safeWeekTitle}
@@ -3539,45 +3815,45 @@ Skills: ${skillList.join(", ")}
               generationConfig: { thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "minimal" : "low" }, temperature: 1.0, maxOutputTokens: 4096 },
             }),
           });
-          if (aiRes.status === 429) return jsonResponse({ error: "Rate limit exceeded. Please try again later." }, 429);
-          if (aiRes.status === 402) return jsonResponse({ error: "Payment required. Please add credits to continue." }, 402);
+          if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
+          if (aiRes.status === 402) return json({ error: "Payment required. Please add credits to continue." }, 402);
           if (!aiRes.ok) {
             console.error("quiz generate AI error:", aiRes.status, await aiRes.text());
-            return jsonResponse({ error: "Failed to generate quiz" }, 500);
+            return json({ error: "Failed to generate quiz" }, 500);
           }
           const aiJson = (await aiRes.json()) as { candidates?: Array<{ finishReason?: string; content?: { parts?: Array<{ functionCall?: { name?: string; args?: string } }> } }>; usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number } };
           const quizCands = aiJson.candidates ?? [];
           const quizFinishCheck = checkGeminiFinishReason(quizCands, quizCands[0]?.finishReason);
           if (!quizFinishCheck.ok) {
             console.error("quiz/generate: blocked finish reason", quizFinishCheck.finishReason);
-            return jsonResponse({ error: quizFinishCheck.userMessage ?? "Quiz generation was blocked. Please try again." }, 400);
+            return json({ error: quizFinishCheck.userMessage ?? "Quiz generation was blocked. Please try again." }, 400);
           }
           if (!isOkFinishReasonForFunctionCall(quizCands[0]?.finishReason)) {
-            return jsonResponse({ error: "Invalid AI response format" }, 500);
+            return json({ error: "Invalid AI response format" }, 500);
           }
           logGeminiUsage(aiJson.usageMetadata, "quiz/generate");
           const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
           const fnPart = parts.find((p: { functionCall?: { name?: string } }) => p.functionCall?.name === "create_quiz");
           const argsStr = fnPart?.functionCall?.args;
-          if (!argsStr) return jsonResponse({ error: "Invalid AI response format" }, 500);
+          if (!argsStr) return json({ error: "Invalid AI response format" }, 500);
           const quizArgsEnc = typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr);
-          if (new TextEncoder().encode(quizArgsEnc).length > MAX_FC_ARGS_BYTES) return jsonResponse({ error: "Invalid AI response format" }, 500);
+          if (new TextEncoder().encode(quizArgsEnc).length > MAX_FC_ARGS_BYTES) return json({ error: "Invalid AI response format" }, 500);
           const rawQuizData = JSON.parse(typeof argsStr === "string" ? argsStr : JSON.stringify(argsStr)) as Record<string, unknown>;
           const { questions: cleanedQuestions } = cleanQuizOutput(rawQuizData);
-          if (cleanedQuestions.length === 0) return jsonResponse({ error: "Invalid quiz structure from AI" }, 500);
-          return jsonResponse({ success: true, weekId: weekId ?? null, questions: cleanedQuestions });
+          if (cleanedQuestions.length === 0) return json({ error: "Invalid quiz structure from AI" }, 500);
+          return json({ success: true, weekId: weekId ?? null, questions: cleanedQuestions });
         } catch (err) {
           logError("quiz/generate", "unexpected error", err);
-          return jsonResponse({ error: "Quiz generation failed. Please try again." }, 500);
+          return json({ error: "Quiz generation failed. Please try again." }, 500);
         }
       }
 
       case "auth/sync": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { displayName } = body as { displayName?: string };
         const name = (displayName ?? user!.user_metadata?.display_name ?? user!.email?.split("@")[0] ?? "User") as string;
         await ensureProfileAndSubscription(supabase, user!.id, user!.email, typeof name === "string" ? name : undefined);
-        return jsonResponse({ success: true });
+        return json({ success: true });
       }
 
       case "auth/account": {
@@ -3586,7 +3862,7 @@ Skills: ${skillList.join(", ")}
           const identities = authUserData?.user?.identities ?? [];
           const has_password = identities.some((i: { provider?: string }) => i.provider === "email");
           const has_google = identities.some((i: { provider?: string }) => i.provider === "google");
-          return jsonResponse({ has_password, has_google });
+          return json({ has_password, has_google });
         }
         if (req.method === "DELETE") {
           const { password, confirm } = body as { password?: string; confirm?: string };
@@ -3594,14 +3870,14 @@ Skills: ${skillList.join(", ")}
           const identities = authUserData?.user?.identities ?? [];
           const hasPassword = identities.some((i: { provider?: string }) => i.provider === "email");
           if (hasPassword) {
-            if (!password) return jsonResponse({ error: "Password required to delete account" }, 400);
+            if (!password) return json({ error: "Password required to delete account" }, 400);
             const { data: profileRow } = await supabase.from("profiles").select("email").eq("user_id", user!.id).single();
             const email = (profileRow?.email ?? user!.email) ?? "";
             const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
             const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-            if (!email || !(await verifyPassword(supabaseUrl, anonKey, email, password))) return jsonResponse({ error: "Invalid password" }, 401);
+            if (!email || !(await verifyPassword(supabaseUrl, anonKey, email, password))) return json({ error: "Invalid password" }, 401);
           } else {
-            if (confirm !== "DELETE") return jsonResponse({ error: "Type DELETE to confirm account deletion" }, 400);
+            if (confirm !== "DELETE") return json({ error: "Type DELETE to confirm account deletion" }, 400);
           }
           await supabase.from("chat_history").delete().eq("user_id", user!.id);
           const { data: weekRows } = await supabase.from("roadmap_weeks").select("id").eq("user_id", user!.id);
@@ -3614,36 +3890,36 @@ Skills: ${skillList.join(", ")}
           await supabase.from("subscriptions").delete().eq("user_id", user!.id);
           await supabase.from("profiles").delete().eq("user_id", user!.id);
           await supabase.auth.admin.deleteUser(user!.id);
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "auth/set-password": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { newPassword } = body as { newPassword?: string };
         const pwdValidation = validatePasswordStrong(newPassword ?? "");
-        if (!pwdValidation.valid) return jsonResponse({ error: pwdValidation.error }, 400);
+        if (!pwdValidation.valid) return json({ error: pwdValidation.error }, 400);
         const { error: updateErr } = await supabase.auth.admin.updateUserById(user!.id, { password: newPassword });
-        if (updateErr) return jsonResponse({ error: updateErr.message }, 400);
-        return jsonResponse({ success: true });
+        if (updateErr) return json({ error: updateErr.message }, 400);
+        return json({ success: true });
       }
 
       case "auth/change-password": {
-        if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const { currentPassword, newPassword } = body as { currentPassword?: string; newPassword?: string };
-        if (!currentPassword || !newPassword) return jsonResponse({ error: "Current password and new password required" }, 400);
+        if (!currentPassword || !newPassword) return json({ error: "Current password and new password required" }, 400);
         const pwdValidation = validatePasswordStrong(newPassword);
-        if (!pwdValidation.valid) return jsonResponse({ error: pwdValidation.error }, 400);
+        if (!pwdValidation.valid) return json({ error: pwdValidation.error }, 400);
         const { data: profileRow } = await supabase.from("profiles").select("email").eq("user_id", user!.id).single();
         const email = (profileRow?.email ?? user!.email) ?? "";
-        if (!email) return jsonResponse({ error: "User email not found" }, 400);
+        if (!email) return json({ error: "User email not found" }, 400);
         const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
         const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-        if (!(await verifyPassword(supabaseUrl, anonKey, email, currentPassword))) return jsonResponse({ error: "Invalid current password" }, 401);
+        if (!(await verifyPassword(supabaseUrl, anonKey, email, currentPassword))) return json({ error: "Invalid current password" }, 401);
         const { error: updateErr } = await supabase.auth.admin.updateUserById(user!.id, { password: newPassword });
-        if (updateErr) return jsonResponse({ error: updateErr.message }, 400);
-        return jsonResponse({ success: true });
+        if (updateErr) return json({ error: updateErr.message }, 400);
+        return json({ success: true });
       }
 
       case "admin/users": {
@@ -3785,16 +4061,16 @@ Skills: ${skillList.join(", ")}
           const total = filtered.length;
           const paginated = filtered.slice(offset, offset + limit);
           try {
-            await logAdminAction(supabase, user!.id, "list_users", "users", undefined, { filters: { search, role, tier, status } }, req);
+          await logAdminAction(supabase, user!.id, "list_users", "users", undefined, { filters: { search, role, tier, status } }, req);
           } catch (logErr) {
             logError("api", "admin/users: failed to log action", logErr);
           }
-          return jsonResponse({
+          return json({
             users: paginated,
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/stats": {
@@ -3820,14 +4096,14 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "view_user_stats", "users", undefined, {}, req);
           
-          return jsonResponse({
+          return json({
             total: totalUsers ?? 0,
             byTier: { free: freeUsers ?? 0, premium: premiumUsers ?? 0, pro: proUsers ?? 0 },
             newUsersLast30Days: newUsers ?? 0,
             activeUsersLast7Days: activeUsers ?? 0,
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/id": {
@@ -3835,11 +4111,11 @@ Skills: ${skillList.join(", ")}
         if (!authCheck.authorized) return authCheck.error!;
         
         const userId = pathSegments[2];
-        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
         
         if (req.method === "GET") {
           const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", userId).single();
-          if (!profile) return jsonResponse({ error: "User not found" }, 404);
+          if (!profile) return json({ error: "User not found" }, 404);
           
           const { data: subscription } = await supabase.from("subscriptions").select("*").eq("user_id", userId).single();
           const { data: roadmaps } = await supabase.from("roadmaps").select("id, title, created_at, progress_percentage").eq("user_id", userId).order("created_at", { ascending: false });
@@ -3847,7 +4123,7 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "view_user", "users", userId, {}, req);
           
-          return jsonResponse({ profile, subscription, roadmaps: roadmaps ?? [], activity: activity ?? [] });
+          return json({ profile, subscription, roadmaps: roadmaps ?? [], activity: activity ?? [] });
         }
         
         if (req.method === "PATCH") {
@@ -3866,7 +4142,7 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "update_user", "users", userId, { fields: Object.keys(updatePayload) }, req);
           
-          return jsonResponse(data);
+          return json(data);
         }
         
         if (req.method === "DELETE") {
@@ -3889,10 +4165,10 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "delete_user", "users", userId, { cascade: !!cascade }, req);
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/impersonate": {
@@ -3901,10 +4177,10 @@ Skills: ${skillList.join(", ")}
         
         if (req.method === "POST") {
           const userId = pathSegments[2];
-          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
           
           const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-          if (!authUser.user) return jsonResponse({ error: "User not found" }, 404);
+          if (!authUser.user) return json({ error: "User not found" }, 404);
           
           const { data: session } = await supabase.auth.admin.generateLink({
             type: "magiclink",
@@ -3913,9 +4189,9 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "impersonate_user", "users", userId, {}, req);
           
-          return jsonResponse({ impersonationLink: session.properties?.action_link });
+          return json({ impersonationLink: session.properties?.action_link });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/ban": {
@@ -3924,7 +4200,7 @@ Skills: ${skillList.join(", ")}
         
         if (req.method === "POST") {
           const userId = pathSegments[2];
-          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
           const { banned } = body as { banned?: boolean };
           
           if (banned === true) {
@@ -3935,9 +4211,9 @@ Skills: ${skillList.join(", ")}
             await logAdminAction(supabase, user!.id, "unban_user", "users", userId, {}, req);
           }
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/journey": {
@@ -3946,7 +4222,7 @@ Skills: ${skillList.join(", ")}
         
         if (req.method === "GET") {
           const userId = pathSegments[3];
-          if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+          if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
           
           // Get user events
           const { data: events } = await supabase
@@ -4049,7 +4325,7 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/users/journey: failed to log action", logErr);
           }
           
-          return jsonResponse({
+          return json({
             timeline,
             events: events ?? [],
             sessions: sessions ?? [],
@@ -4058,7 +4334,7 @@ Skills: ${skillList.join(", ")}
             subscriptionEvents: subscriptionEvents ?? [],
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/bulk": {
@@ -4073,11 +4349,11 @@ Skills: ${skillList.join(", ")}
           };
           
           if (!Array.isArray(user_ids) || user_ids.length === 0) {
-            return jsonResponse({ error: "user_ids array required" }, 400);
+            return json({ error: "user_ids array required" }, 400);
           }
           
           if (!action) {
-            return jsonResponse({ error: "action required" }, 400);
+            return json({ error: "action required" }, 400);
           }
           
           const results: Array<{ user_id: string; success: boolean; error?: string }> = [];
@@ -4153,9 +4429,9 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/users/bulk: failed to log action", logErr);
           }
           
-          return jsonResponse({ results });
+          return json({ results });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/notes": {
@@ -4163,7 +4439,7 @@ Skills: ${skillList.join(", ")}
         if (!authCheck.authorized) return authCheck.error!;
         
         const userId = pathSegments[2];
-        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
         
         if (req.method === "GET") {
           const { data: profile } = await supabase
@@ -4171,7 +4447,7 @@ Skills: ${skillList.join(", ")}
             .select("user_notes")
             .eq("user_id", userId)
             .single();
-          return jsonResponse({ notes: profile?.user_notes || "" });
+          return json({ notes: profile?.user_notes || "" });
         }
         
         if (req.method === "POST") {
@@ -4187,10 +4463,10 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/users/notes: failed to log action", logErr);
           }
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/tags": {
@@ -4198,7 +4474,7 @@ Skills: ${skillList.join(", ")}
         if (!authCheck.authorized) return authCheck.error!;
         
         const userId = pathSegments[2];
-        if (!userId || !UUID_REGEX.test(userId)) return jsonResponse({ error: "Invalid user ID" }, 400);
+        if (!userId || !UUID_REGEX.test(userId)) return json({ error: "Invalid user ID" }, 400);
         
         if (req.method === "GET") {
           const { data: profile } = await supabase
@@ -4206,14 +4482,14 @@ Skills: ${skillList.join(", ")}
             .select("user_tags")
             .eq("user_id", userId)
             .single();
-          return jsonResponse({ tags: (profile?.user_tags as string[]) || [] });
+          return json({ tags: (profile?.user_tags as string[]) || [] });
         }
         
         if (req.method === "POST") {
           const { action, tags } = body as { action?: "add" | "remove"; tags?: string[] };
           
           if (!action || !Array.isArray(tags)) {
-            return jsonResponse({ error: "action and tags array required" }, 400);
+            return json({ error: "action and tags array required" }, 400);
           }
           
           const { data: profile } = await supabase
@@ -4242,10 +4518,10 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/users/tags: failed to log action", logErr);
           }
           
-          return jsonResponse({ success: true, tags: newTags });
+          return json({ success: true, tags: newTags });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/users/export": {
@@ -4342,9 +4618,9 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/users/export: failed to log action", logErr);
           }
           
-          return jsonResponse({ users: filtered, count: filtered.length });
+          return json({ users: filtered, count: filtered.length });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions": {
@@ -4386,12 +4662,12 @@ Skills: ${skillList.join(", ")}
             profiles: profilesByUser[s.user_id] ?? {},
           }));
           await logAdminAction(supabase, user!.id, "list_subscriptions", "subscriptions", undefined, { filters: { tier, status } }, req);
-          return jsonResponse({
+          return json({
             subscriptions: withProfiles,
             pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/revenue": {
@@ -4426,13 +4702,13 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "view_revenue", "subscriptions", undefined, {}, req);
           
-          return jsonResponse({
+          return json({
             mrr: Math.round(mrr * 100) / 100,
             arr: Math.round(arr * 100) / 100,
             activeSubscriptions: (premiumSubs?.length ?? 0) + (proSubs?.length ?? 0),
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/id": {
@@ -4440,16 +4716,16 @@ Skills: ${skillList.join(", ")}
         if (!authCheck.authorized) return authCheck.error!;
         
         const subscriptionId = pathSegments[2];
-        if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) return jsonResponse({ error: "Invalid subscription ID" }, 400);
+        if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) return json({ error: "Invalid subscription ID" }, 400);
         
         if (req.method === "GET") {
           const { data: sub, error } = await supabase.from("subscriptions").select("*").eq("id", subscriptionId).single();
           if (error) throw error;
-          if (!sub) return jsonResponse({ error: "Subscription not found" }, 404);
+          if (!sub) return json({ error: "Subscription not found" }, 404);
           const { data: prof } = await supabase.from("profiles").select("display_name, email").eq("user_id", sub.user_id).single();
           const data = { ...sub, profiles: prof ?? {} };
           await logAdminAction(supabase, user!.id, "view_subscription", "subscriptions", subscriptionId, {}, req);
-          return jsonResponse(data);
+          return json(data);
         }
         
         if (req.method === "PATCH") {
@@ -4468,10 +4744,10 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "update_subscription", "subscriptions", subscriptionId, { fields: Object.keys(updatePayload) }, req);
           
-          return jsonResponse(data);
+          return json(data);
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/events": {
@@ -4481,7 +4757,7 @@ Skills: ${skillList.join(", ")}
         if (req.method === "GET") {
           const subscriptionId = pathSegments[2];
           if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) {
-            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+            return json({ error: "Invalid subscription ID" }, 400);
           }
           
           const { data: events } = await supabase
@@ -4496,9 +4772,9 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/subscriptions/events: failed to log action", logErr);
           }
           
-          return jsonResponse({ events: events ?? [] });
+          return json({ events: events ?? [] });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/manual-update": {
@@ -4508,7 +4784,7 @@ Skills: ${skillList.join(", ")}
         if (req.method === "POST") {
           const subscriptionId = pathSegments[2];
           if (!subscriptionId || !UUID_REGEX.test(subscriptionId)) {
-            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+            return json({ error: "Invalid subscription ID" }, 400);
           }
           
           const { tier, status, current_period_start, current_period_end, reason } = body as {
@@ -4527,7 +4803,7 @@ Skills: ${skillList.join(", ")}
             .single();
           
           if (!currentSub) {
-            return jsonResponse({ error: "Subscription not found" }, 404);
+            return json({ error: "Subscription not found" }, 404);
           }
           
           const updates: Record<string, unknown> = {};
@@ -4566,9 +4842,9 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/subscriptions/manual-update: failed to log action", logErr);
           }
           
-          return jsonResponse({ subscription: updatedSub });
+          return json({ subscription: updatedSub });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/churn-analysis": {
@@ -4661,7 +4937,7 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/subscriptions/churn-analysis: failed to log action", logErr);
           }
           
-          return jsonResponse({
+          return json({
             period: periodDays,
             churned,
             churnRate,
@@ -4672,7 +4948,7 @@ Skills: ${skillList.join(", ")}
             retentionCohorts,
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/subscriptions/refunds": {
@@ -4693,7 +4969,7 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/subscriptions/refunds: failed to log action", logErr);
           }
           
-          return jsonResponse({ refunds: refundEvents ?? [] });
+          return json({ refunds: refundEvents ?? [] });
         }
         
         if (req.method === "POST") {
@@ -4704,7 +4980,7 @@ Skills: ${skillList.join(", ")}
           };
           
           if (!subscription_id || !UUID_REGEX.test(subscription_id)) {
-            return jsonResponse({ error: "Invalid subscription ID" }, 400);
+            return json({ error: "Invalid subscription ID" }, 400);
           }
           
           const { data: sub } = await supabase
@@ -4714,7 +4990,7 @@ Skills: ${skillList.join(", ")}
             .single();
           
           if (!sub) {
-            return jsonResponse({ error: "Subscription not found" }, 404);
+            return json({ error: "Subscription not found" }, 404);
           }
           
           // Create refund event
@@ -4741,10 +5017,10 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/subscriptions/refunds: failed to log action", logErr);
           }
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/analytics": {
@@ -4889,7 +5165,7 @@ Skills: ${skillList.join(", ")}
           
           await logAdminAction(supabase, user!.id, "view_analytics", "analytics", undefined, {}, req);
           
-          return jsonResponse({
+          return json({
             users: { total: totalUsers ?? 0, newLast30Days: newUsers ?? 0, dau: dau ?? 0 },
             subscriptions: { active: activeSubs ?? 0, distribution: tierDistribution },
             content: { roadmaps: totalRoadmaps ?? 0, chatMessages: totalChatMessages ?? 0 },
@@ -4900,7 +5176,7 @@ Skills: ${skillList.join(", ")}
             },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/analytics/traffic": {
@@ -5071,7 +5347,7 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/analytics/traffic: failed to log action", logErr);
           }
           
-          return jsonResponse({
+          return json({
             timeSeries: timeSeriesData,
             topPages: topPagesData,
             referrers: referrersData,
@@ -5089,7 +5365,7 @@ Skills: ${skillList.join(", ")}
             },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/analytics/conversions": {
@@ -5232,7 +5508,7 @@ Skills: ${skillList.join(", ")}
             logError("api", "admin/analytics/conversions: failed to log action", logErr);
           }
           
-          return jsonResponse({
+          return json({
             funnel: funnelDataArray,
             conversionsByType: conversionsByTypeData,
             conversionsByStage: conversionsByStageData,
@@ -5245,7 +5521,7 @@ Skills: ${skillList.join(", ")}
             },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/analytics/insights": {
@@ -5281,7 +5557,7 @@ Skills: ${skillList.join(", ")}
           
           if (cached) {
             await logAdminAction(supabase, user!.id, "view_insights", "analytics", undefined, { cached: true }, req);
-            return jsonResponse({ insights: cached.insights, cached: true });
+            return json({ insights: cached.insights, cached: true });
           }
           
           // Fetch current week metrics
@@ -5401,7 +5677,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           
           const config = getGeminiConfig();
           if (!config) {
-            return jsonResponse({ error: "AI not configured" }, 500);
+            return json({ error: "AI not configured" }, 500);
           }
           
           const insightsSchema = {
@@ -5476,7 +5752,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             
             if (!aiRes.ok) {
               console.error("Gemini insights error:", aiRes.status);
-              return jsonResponse({ error: "Failed to generate insights" }, 500);
+              return json({ error: "Failed to generate insights" }, 500);
             }
             
             const aiJson = (await aiRes.json()) as {
@@ -5490,14 +5766,14 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             const jsonText = parts.map((p) => p.text ?? "").join("").trim();
             
             if (!jsonText) {
-              return jsonResponse({ error: "Invalid AI response" }, 500);
+              return json({ error: "Invalid AI response" }, 500);
             }
             
             let insights: Record<string, unknown>;
             try {
               insights = JSON.parse(jsonText) as Record<string, unknown>;
             } catch {
-              return jsonResponse({ error: "Failed to parse insights" }, 500);
+              return json({ error: "Failed to parse insights" }, 500);
             }
             
             // Cache insights for 1 hour
@@ -5515,13 +5791,13 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             
             await logAdminAction(supabase, user!.id, "view_insights", "analytics", undefined, { cached: false }, req);
             
-            return jsonResponse({ insights, cached: false });
+            return json({ insights, cached: false });
           } catch (error) {
             console.error("Insights generation error:", error);
-            return jsonResponse({ error: "Failed to generate insights" }, 500);
+            return json({ error: "Failed to generate insights" }, 500);
           }
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/content/roadmaps": {
@@ -5530,42 +5806,42 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         
         if (req.method === "GET") {
           try {
-            const search = url.searchParams.get("search") ?? "";
-            const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-            const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
-            const offset = (page - 1) * limit;
-            
+          const search = url.searchParams.get("search") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
             let query = supabase.from("roadmaps").select("id, title, description, user_id, created_at, updated_at, profiles(display_name, email)", { count: "exact" });
-            
-            if (search) {
-              query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-            }
-            
-            const { data, error, count } = await query
-              .order("created_at", { ascending: false })
-              .range(offset, offset + limit - 1);
-            
+          
+          if (search) {
+            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
             if (error) {
               logError("api", "admin/content/roadmaps: query error", error);
               throw error;
             }
-            
+          
             try {
-              await logAdminAction(supabase, user!.id, "list_roadmaps", "roadmaps", undefined, { search }, req);
+          await logAdminAction(supabase, user!.id, "list_roadmaps", "roadmaps", undefined, { search }, req);
             } catch (logErr) {
               logError("api", "admin/content/roadmaps: failed to log action", logErr);
             }
-            
-            return jsonResponse({
-              roadmaps: data ?? [],
+          
+            return json({
+            roadmaps: data ?? [],
               pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
-            });
+          });
           } catch (err) {
             logError("api", "admin/content/roadmaps: handler error", err);
             throw err;
-          }
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        }
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/content/roadmaps/id": {
@@ -5573,16 +5849,16 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (!authCheck.authorized) return authCheck.error!;
         
         const roadmapId = pathSegments[3];
-        if (!roadmapId || !UUID_REGEX.test(roadmapId)) return jsonResponse({ error: "Invalid roadmap ID" }, 400);
+        if (!roadmapId || !UUID_REGEX.test(roadmapId)) return json({ error: "Invalid roadmap ID" }, 400);
         
         if (req.method === "DELETE") {
           await supabase.from("roadmaps").delete().eq("id", roadmapId);
           
           await logAdminAction(supabase, user!.id, "delete_roadmap", "roadmaps", roadmapId, {}, req);
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/content/chat": {
@@ -5591,46 +5867,46 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         
         if (req.method === "GET") {
           try {
-            const userId = url.searchParams.get("user_id");
-            const search = url.searchParams.get("search") ?? "";
-            const page = parseInt(url.searchParams.get("page") ?? "1", 10);
-            const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
-            const offset = (page - 1) * limit;
-            
+          const userId = url.searchParams.get("user_id");
+          const search = url.searchParams.get("search") ?? "";
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          
             let query = supabase.from("chat_history").select("id, user_id, content, created_at, profiles(display_name, email)", { count: "exact" });
-            
-            if (userId && UUID_REGEX.test(userId)) {
-              query = query.eq("user_id", userId);
-            }
-            if (search) {
-              query = query.ilike("content", `%${search}%`);
-            }
-            
-            const { data, error, count } = await query
-              .order("created_at", { ascending: false })
-              .range(offset, offset + limit - 1);
-            
+          
+          if (userId && UUID_REGEX.test(userId)) {
+            query = query.eq("user_id", userId);
+          }
+          if (search) {
+            query = query.ilike("content", `%${search}%`);
+          }
+          
+          const { data, error, count } = await query
+            .order("created_at", { ascending: false })
+            .range(offset, offset + limit - 1);
+          
             if (error) {
               logError("api", "admin/content/chat: query error", error);
               throw error;
             }
-            
+          
             try {
-              await logAdminAction(supabase, user!.id, "list_chat", "chat_history", undefined, { userId, search }, req);
+          await logAdminAction(supabase, user!.id, "list_chat", "chat_history", undefined, { userId, search }, req);
             } catch (logErr) {
               logError("api", "admin/content/chat: failed to log action", logErr);
             }
-            
-            return jsonResponse({
-              messages: data ?? [],
+          
+            return json({
+            messages: data ?? [],
               pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
-            });
+          });
           } catch (err) {
             logError("api", "admin/content/chat: handler error", err);
             throw err;
-          }
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        }
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/content/chat/id": {
@@ -5638,16 +5914,16 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (!authCheck.authorized) return authCheck.error!;
         
         const messageId = pathSegments[3];
-        if (!messageId || !UUID_REGEX.test(messageId)) return jsonResponse({ error: "Invalid message ID" }, 400);
+        if (!messageId || !UUID_REGEX.test(messageId)) return json({ error: "Invalid message ID" }, 400);
         
         if (req.method === "DELETE") {
           await supabase.from("chat_history").delete().eq("id", messageId);
           
           await logAdminAction(supabase, user!.id, "delete_chat_message", "chat_history", messageId, {}, req);
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/content/community": {
@@ -5660,9 +5936,9 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           
           await logAdminAction(supabase, user!.id, "view_community", "community", undefined, {}, req);
           
-          return jsonResponse({ groups: groups ?? [], messages: messages ?? [] });
+          return json({ groups: groups ?? [], messages: messages ?? [] });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/settings": {
@@ -5675,9 +5951,9 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           
           await logAdminAction(supabase, user!.id, "view_settings", "settings", undefined, {}, req);
           
-          return jsonResponse({ settings: data ?? [] });
+          return json({ settings: data ?? [] });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/settings/key": {
@@ -5685,11 +5961,11 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (!authCheck.authorized) return authCheck.error!;
         
         const key = pathSegments[2];
-        if (!key) return jsonResponse({ error: "Setting key required" }, 400);
+        if (!key) return json({ error: "Setting key required" }, 400);
         
         if (req.method === "PATCH") {
           const { value, description } = body as { value?: unknown; description?: string };
-          if (value === undefined) return jsonResponse({ error: "Value required" }, 400);
+          if (value === undefined) return json({ error: "Value required" }, 400);
           
           const { data, error } = await supabase
             .from("admin_settings")
@@ -5701,9 +5977,9 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           
           await logAdminAction(supabase, user!.id, "update_setting", "settings", key, { value }, req);
           
-          return jsonResponse(data);
+          return json(data);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/settings/feature-flags": {
@@ -5713,12 +5989,12 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (req.method === "GET") {
           const { data } = await supabase.from("admin_settings").select("value").eq("key", "feature_flags").single();
           await logAdminAction(supabase, user!.id, "view_feature_flags", "settings", undefined, {}, req);
-          return jsonResponse({ featureFlags: (data?.value as Record<string, unknown>) ?? {} });
+          return json({ featureFlags: (data?.value as Record<string, unknown>) ?? {} });
         }
         
         if (req.method === "PATCH") {
           const { featureFlags } = body as { featureFlags?: Record<string, unknown> };
-          if (!featureFlags) return jsonResponse({ error: "featureFlags required" }, 400);
+          if (!featureFlags) return json({ error: "featureFlags required" }, 400);
           
           const { data, error } = await supabase
             .from("admin_settings")
@@ -5730,9 +6006,9 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           
           await logAdminAction(supabase, user!.id, "update_feature_flags", "settings", undefined, { featureFlags }, req);
           
-          return jsonResponse(data);
+          return json(data);
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/audit-log": {
@@ -5780,12 +6056,102 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             ...l,
             profiles: profilesByUser[l.admin_user_id] ?? {},
           }));
-          return jsonResponse({
+          return json({
             logs: logsWithProfiles,
             pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/leads": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+
+        if (req.method === "GET") {
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          const source = url.searchParams.get("source") ?? "";
+          const startDate = url.searchParams.get("start_date") ?? "";
+          const endDate = url.searchParams.get("end_date") ?? "";
+          const countryCode = url.searchParams.get("country_code") ?? "";
+
+          let query = supabase.from("career_dna_leads").select("id, phone, country_code, source, source_id, consent_marketing, created_at", { count: "exact" });
+          if (source === "squad" || source === "result") {
+            query = query.eq("source", source);
+          }
+          if (countryCode && /^[A-Z]{2}$/i.test(countryCode)) {
+            query = query.eq("country_code", countryCode.toUpperCase());
+          }
+          if (startDate) {
+            query = query.gte("created_at", startDate);
+          }
+          if (endDate) {
+            query = query.lte("created_at", endDate);
+          }
+          const { data: leadsData, error, count } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+          if (error) throw error;
+          const leads = (leadsData ?? []).map((l: Record<string, unknown>) => ({
+            id: l.id,
+            phone: l.phone,
+            countryCode: l.country_code ?? null,
+            source: l.source,
+            sourceId: l.source_id,
+            consentMarketing: l.consent_marketing,
+            createdAt: l.created_at,
+          }));
+          return json({
+            leads,
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+          });
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/contact-requests": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+
+        if (req.method === "GET") {
+          const page = parseInt(url.searchParams.get("page") ?? "1", 10);
+          const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 100);
+          const offset = (page - 1) * limit;
+          const topic = url.searchParams.get("topic") ?? "";
+          const startDate = url.searchParams.get("start_date") ?? "";
+          const endDate = url.searchParams.get("end_date") ?? "";
+
+          let query = supabase.from("contact_requests").select("id, name, email, phone, phone_country_code, company, topic, subject, message, created_at", { count: "exact" });
+          const allowedTopics = ["general", "sales", "support", "partnership", "feedback", "other"];
+          if (topic && allowedTopics.includes(topic)) {
+            query = query.eq("topic", topic);
+          }
+          if (startDate) {
+            query = query.gte("created_at", startDate);
+          }
+          if (endDate) {
+            query = query.lte("created_at", endDate);
+          }
+          const { data: requestsData, error, count } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+          if (error) throw error;
+          const requests = (requestsData ?? []).map((r: Record<string, unknown>) => ({
+            id: r.id,
+            name: r.name,
+            email: r.email,
+            phone: r.phone ?? null,
+            phoneCountryCode: r.phone_country_code ?? null,
+            company: r.company ?? null,
+            topic: r.topic,
+            subject: r.subject,
+            message: r.message,
+            createdAt: r.created_at,
+          }));
+          return json({
+            requests,
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+          });
+        }
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/analytics/user-journeys": {
@@ -5888,13 +6254,13 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/analytics/user-journeys: failed to log action", logErr);
           }
           
-          return jsonResponse({
+          return json({
             flow: flowData,
             dropOffPoints: dropOffData,
             funnel: funnelData,
           });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/themes": {
@@ -5914,7 +6280,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/themes: failed to log action", logErr);
           }
           
-          return jsonResponse({ themes: themes ?? [] });
+          return json({ themes: themes ?? [] });
         }
         
         if (req.method === "POST") {
@@ -5925,7 +6291,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           };
           
           if (!name || !colors) {
-            return jsonResponse({ error: "name and colors required" }, 400);
+            return json({ error: "name and colors required" }, 400);
           }
           
           const { data: theme, error: insertError } = await supabase
@@ -5948,10 +6314,10 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/themes: failed to log action", logErr);
           }
           
-          return jsonResponse({ theme });
+          return json({ theme });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/themes/id": {
@@ -5960,7 +6326,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         
         const themeId = pathSegments[2];
         if (!themeId || !UUID_REGEX.test(themeId)) {
-          return jsonResponse({ error: "Invalid theme ID" }, 400);
+          return json({ error: "Invalid theme ID" }, 400);
         }
         
         if (req.method === "GET") {
@@ -5971,9 +6337,9 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             .single();
           
           if (error) throw error;
-          if (!theme) return jsonResponse({ error: "Theme not found" }, 404);
+          if (!theme) return json({ error: "Theme not found" }, 404);
           
-          return jsonResponse({ theme });
+          return json({ theme });
         }
         
         if (req.method === "PATCH") {
@@ -6003,7 +6369,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/themes/id: failed to log action", logErr);
           }
           
-          return jsonResponse({ theme });
+          return json({ theme });
         }
         
         if (req.method === "DELETE") {
@@ -6015,7 +6381,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             .single();
           
           if (theme?.is_default) {
-            return jsonResponse({ error: "Cannot delete default theme" }, 400);
+            return json({ error: "Cannot delete default theme" }, 400);
           }
           
           await supabase.from("theme_settings").delete().eq("id", themeId);
@@ -6026,10 +6392,10 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/themes/id: failed to log action", logErr);
           }
           
-          return jsonResponse({ success: true });
+          return json({ success: true });
         }
         
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/themes/set-default": {
@@ -6039,7 +6405,7 @@ Be concise and actionable. Focus on what matters most for platform growth and us
         if (req.method === "POST") {
           const themeId = pathSegments[2];
           if (!themeId || !UUID_REGEX.test(themeId)) {
-            return jsonResponse({ error: "Invalid theme ID" }, 400);
+            return json({ error: "Invalid theme ID" }, 400);
           }
           
           // Unset current default
@@ -6064,28 +6430,28 @@ Be concise and actionable. Focus on what matters most for platform growth and us
             logError("api", "admin/themes/set-default: failed to log action", logErr);
           }
           
-          return jsonResponse({ theme });
+          return json({ theme });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       case "admin/batch": {
-        if (!checkAdminSecret()) return jsonResponse({ error: "Unauthorized", code: "admin_required" }, 401);
+        if (!checkAdminSecret()) return json({ error: "Unauthorized", code: "admin_required" }, 401);
         const batchId = pathSegments[2];
         if (req.method === "GET" && batchId) {
           const config = getGeminiConfig();
-          if (!config) return jsonResponse({ error: "AI not configured" }, 500);
+          if (!config) return json({ error: "AI not configured" }, 500);
           const name = batchId.startsWith("batches/") ? batchId : `batches/${batchId}`;
           const status = await getBatchStatus(config.apiKey, name);
-          if (!status) return jsonResponse({ error: "Batch not found or failed to fetch" }, 404);
-          return jsonResponse({ name, ...status });
+          if (!status) return json({ error: "Batch not found or failed to fetch" }, 404);
+          return json({ name, ...status });
         }
         if (req.method === "POST") {
           const config = getGeminiConfig();
-          if (!config) return jsonResponse({ error: "AI not configured. Set GEMINI_API_KEY." }, 500);
+          if (!config) return json({ error: "AI not configured. Set GEMINI_API_KEY." }, 500);
           const { items } = body as { items?: Array<{ weekTitle?: string; skills?: string[] }> };
           const list = Array.isArray(items) ? items.slice(0, 50) : [];
-          if (list.length === 0) return jsonResponse({ error: "body.items required (array of { weekTitle, skills })" }, 400);
+          if (list.length === 0) return json({ error: "body.items required (array of { weekTitle, skills })" }, 400);
           const createQuizParams = {
             type: "object",
             properties: {
@@ -6118,18 +6484,18 @@ Skills: ${skillList.join(", ")}
             };
           });
           const batchName = await submitBatchGenerateContent(config.apiKey, config.model, requests, "shyftcut-quiz-batch");
-          if (!batchName) return jsonResponse({ error: "Failed to submit batch" }, 500);
-          return jsonResponse({ batchName, message: "Poll GET /api/admin/batch/" + batchName.replace(/^batches\//, "") + " for status." });
+          if (!batchName) return json({ error: "Failed to submit batch" }, 500);
+          return json({ batchName, message: "Poll GET /api/admin/batch/" + batchName.replace(/^batches\//, "") + " for status." });
         }
-        return jsonResponse({ error: "Method not allowed" }, 405);
+        return json({ error: "Method not allowed" }, 405);
       }
 
       default:
-        return jsonResponse({ error: "Not implemented" }, 501);
+        return json({ error: "Not implemented" }, 501);
     }
   } catch (err) {
     logError("api", `route ${routeKey} failed`, err);
     const message = safeErrorMessage(err);
-    return jsonResponse({ error: message }, 500);
+    return json({ error: message }, 500);
   }
 });

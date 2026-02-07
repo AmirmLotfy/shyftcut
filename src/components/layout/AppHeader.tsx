@@ -1,26 +1,17 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import {
-  IconList,
-  IconUser,
+  IconMenu,
   IconSignOut,
   IconMapTrifold,
   IconBookOpen,
   IconMessageSquare,
   IconUserCircle,
-  IconCaretDown,
   IconHouse,
   IconGlobe,
 } from '@/lib/icons';
 import { LOGO_PATH } from '@/lib/seo';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Sheet,
   SheetContent,
@@ -28,8 +19,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { dashboardPaths } from '@/lib/dashboard-routes';
 
@@ -38,8 +36,9 @@ export { isDashboardPath as isAppPath } from '@/lib/dashboard-routes';
 
 export function AppHeader() {
   const [isOpen, setIsOpen] = useState(false);
-  const { t, direction } = useLanguage();
+  const { t } = useLanguage();
   const { user, signOut } = useAuth();
+  const { profile } = useProfile();
   const navigate = useNavigate();
 
   const appNavItems = [
@@ -98,50 +97,57 @@ export function AppHeader() {
           </Link>
         </div>
 
-        {/* Right: theme, language, user menu */}
-        <div className="flex items-center gap-0.5">
+        {/* Right: theme, language, profile, logout */}
+        <div className="flex items-center gap-1">
           <ThemeToggle />
           <LanguageToggleButton />
           {user && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="hidden gap-1.5 sm:flex"
-                  data-testid="user-menu-trigger"
-                >
-                  <IconUser className="h-4 w-4" />
-                  <span className="hidden max-w-[100px] truncate sm:inline">
-                    {user.user_metadata?.display_name ?? user.email?.split('@')[0]}
-                  </span>
-                  <IconCaretDown className="h-3.5 w-3.5 opacity-70" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'}>
-                <DropdownMenuItem asChild>
-                  <Link to={dashboardPaths.profile} className="flex items-center gap-2">
-                    <IconUser className="h-4 w-4" />
-                    {t('nav.profile')}
+            <>
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    to={dashboardPaths.profile}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground min-touch"
+                    data-testid="nav-link-profile"
+                  >
+                    <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/50">
+                      {(profile as { avatar_url?: string })?.avatar_url ? (
+                        <AvatarImage src={(profile as { avatar_url?: string }).avatar_url} alt="" />
+                      ) : null}
+                      <AvatarFallback className="text-xs font-medium">
+                        {(user.user_metadata?.display_name ?? user.email ?? 'U').charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden max-w-[90px] truncate sm:inline md:max-w-[120px]">
+                      {user.user_metadata?.display_name ?? user.email?.split('@')[0]}
+                    </span>
                   </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="flex items-center gap-2 text-destructive"
-                  data-testid="logout-button"
-                >
-                  <IconSignOut className="h-4 w-4" />
-                  {t('nav.logout')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('nav.profile')}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleSignOut}
+                    className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                    data-testid="logout-button"
+                    aria-label={t('nav.logout')}
+                  >
+                    <IconSignOut className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t('nav.logout')}</TooltipContent>
+              </Tooltip>
+            </>
           )}
 
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="min-touch h-8 w-8 md:hidden" aria-label="Menu">
-                <IconList className="h-5 w-5" />
+                <IconMenu className="h-5 w-5" />
                 <span className="sr-only">Menu</span>
               </Button>
             </SheetTrigger>

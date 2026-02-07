@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -47,7 +48,7 @@ import {
   budgetOptions,
   experienceLevels,
 } from '@/lib/profile-options';
-import { COUNTRY_CODES, parsePhone, buildPhone, validatePhone } from '@/lib/country-codes';
+import { COUNTRY_CODES, flagEmoji, parsePhone, buildPhone, validatePhone } from '@/lib/country-codes';
 
 export default function Profile() {
   const { language, setLanguage, t } = useLanguage();
@@ -441,6 +442,7 @@ export default function Profile() {
   if (isLoading) {
     return (
       <>
+        <Helmet><title>Profile | Shyftcut</title></Helmet>
         <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
           <Skeleton className="mb-6 h-9 w-48" />
           <Skeleton className="mb-8 h-5 w-64" />
@@ -459,6 +461,7 @@ export default function Profile() {
   if (profileError) {
     return (
       <>
+        <Helmet><title>Profile | Shyftcut</title></Helmet>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -485,6 +488,7 @@ export default function Profile() {
 
   return (
     <>
+      <Helmet><title>Profile | Shyftcut</title></Helmet>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -643,7 +647,10 @@ export default function Profile() {
                           <SelectContent>
                             {COUNTRY_CODES.map((c) => (
                               <SelectItem key={c.code} value={c.dial}>
-                                {c.dial} {c.code}
+                                <span className="flex items-center gap-2">
+                                  <span aria-hidden>{flagEmoji(c.code)}</span>
+                                  <span>{c.dial} {c.code}</span>
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>

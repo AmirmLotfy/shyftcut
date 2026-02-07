@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Users, CreditCard, BarChart3, FileText, Settings, Shield, LogOut, Menu, TrendingUp, Route as RouteIcon, Palette } from 'lucide-react';
+import { Users, CreditCard, BarChart3, Settings, Shield, LogOut, Menu, TrendingUp, Route as RouteIcon, MessageSquare, Phone, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -15,8 +15,9 @@ const adminNavItems = [
   { href: '/admin/traffic', label: { en: 'Traffic', ar: 'حركة المرور' }, icon: TrendingUp },
   { href: '/admin/conversions', label: { en: 'Conversions', ar: 'التحويلات' }, icon: BarChart3 },
   { href: '/admin/user-journey', label: { en: 'User Journeys', ar: 'رحلات المستخدم' }, icon: RouteIcon },
-  { href: '/admin/themes', label: { en: 'Themes', ar: 'السمات' }, icon: Palette },
-  { href: '/admin/content', label: { en: 'Content', ar: 'المحتوى' }, icon: FileText },
+  { href: '/admin/tickets', label: { en: 'Tickets', ar: 'التذاكر' }, icon: MessageSquare },
+  { href: '/admin/leads', label: { en: 'Career DNA Leads', ar: 'عملاء Career DNA' }, icon: Phone },
+  { href: '/admin/contact-requests', label: { en: 'Contact Submissions', ar: 'طلبات التواصل' }, icon: Mail },
   { href: '/admin/settings', label: { en: 'Settings', ar: 'الإعدادات' }, icon: Settings },
   { href: '/admin/audit-log', label: { en: 'Audit Log', ar: 'سجل التدقيق' }, icon: Shield },
 ];
@@ -63,7 +64,7 @@ const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => {
           className="w-full justify-start gap-3 min-h-[44px]"
           onClick={() => {
             signOut();
-            window.location.href = '/dashboard';
+            window.location.href = '/';
           }}
         >
           <LogOut className="h-5 w-5 shrink-0" />

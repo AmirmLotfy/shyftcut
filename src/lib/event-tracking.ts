@@ -118,14 +118,10 @@ export async function trackEvent(options: TrackEventOptions): Promise<void> {
     }
     
     // Build headers - Supabase Edge Functions gateway requires Authorization header
-    // even for anonymous endpoints, so we send empty Bearer to satisfy gateway
+    // For anonymous requests, use anon key as Bearer token (gateway requirement)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    
-    // Always include Authorization header (gateway requirement)
-    // Empty Bearer will fail getAuthUser validation but endpoint allows anonymous
-    headers['Authorization'] = token ? `Bearer ${token}` : 'Bearer';
     
     // Add Supabase Edge Function headers (required for routing)
     if (typeof import.meta.env.VITE_API_URL === 'string' && import.meta.env.VITE_API_URL.includes('supabase.co/functions')) {
@@ -133,7 +129,15 @@ export async function trackEvent(options: TrackEventOptions): Promise<void> {
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
       if (anonKey) {
         headers['apikey'] = anonKey;
+        // Use anon key as Bearer token for anonymous requests (gateway requirement)
+        headers['Authorization'] = token ? `Bearer ${token}` : `Bearer ${anonKey}`;
+      } else {
+        // Fallback to empty Bearer if anon key not available (shouldn't happen in production)
+        headers['Authorization'] = token ? `Bearer ${token}` : 'Bearer';
       }
+    } else {
+      // For non-Supabase APIs, only include Authorization if token is provided
+      if (token) headers['Authorization'] = `Bearer ${token}`;
     }
     
     // Send to database via API (fire and forget - don't block UI)

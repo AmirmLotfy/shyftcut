@@ -33,6 +33,7 @@ import { POLAR_PRODUCTS } from '@/lib/polar-config';
 import { dashboardPaths } from '@/lib/dashboard-routes';
 import { BASE_URL } from '@/lib/seo';
 import { captureShareCard } from '@/lib/share-card';
+import { debugError } from '@/lib/debug';
 import { ShareCard } from '@/components/career-dna/ShareCard';
 import { getTierDef, getPersonaCharacter, type PersonaTier } from '@/data/career-dna-personas';
 import { getCareerFieldLabel } from '@/data/career-dna-questions';
@@ -178,6 +179,8 @@ export default function CareerDNAResult() {
     if (!el || !data) return;
     setIsCapturing(true);
     try {
+      // Wait for next paint so the ShareCard (including images) is fully rendered
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const blob = await captureShareCard(el);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -191,8 +194,14 @@ export default function CareerDNAResult() {
         return URL.createObjectURL(blob);
       });
       setShowSaveModal(true);
-    } catch {
-      toast({ title: t('common.error'), variant: 'destructive' });
+    } catch (err) {
+      debugError('CareerDNAResult', 'handleSave capture failed', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({
+        title: t('common.errorTitle'),
+        description: msg || t('common.error'),
+        variant: 'destructive',
+      });
     } finally {
       setIsCapturing(false);
     }
@@ -268,9 +277,10 @@ export default function CareerDNAResult() {
 
   return (
     <Layout>
-      {/* Hidden share card for image capture - off-screen but rendered for html-to-image */}
+      {/* Hidden share card for image capture - in-viewport but invisible so browser paints it reliably */}
       <div
-        className="pointer-events-none fixed left-[-9999px] top-0 z-[-1]"
+        className="pointer-events-none fixed left-0 top-0 z-[-1] opacity-0"
+        style={{ width: 337.5, height: 600 }}
         aria-hidden
       >
         <ShareCard

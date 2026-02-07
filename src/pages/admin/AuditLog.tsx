@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-export function AuditLog() {
+export default function AuditLog() {
   const { language } = useLanguage();
   const [actionFilter, setActionFilter] = useState('');
   const [resourceTypeFilter, setResourceTypeFilter] = useState('');

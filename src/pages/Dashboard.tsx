@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { BarChart3, BookOpen, Clock, Target, ArrowRight, Loader2, Brain, Calendar, TrendingUp, AlertCircle, RefreshCw, MessageSquare, HelpCircle, Map, Star, Gauge, CreditCard, Flame, Trash2, Lock } from 'lucide-react';
@@ -23,7 +24,7 @@ import { CheckoutButton } from '@/components/pricing/CheckoutButton';
 import { FreePlanBanner } from '@/components/common/FreePlanBanner';
 import { POLAR_PRODUCTS } from '@/lib/polar-config';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
-import { dashboardPaths } from '@/lib/dashboard-routes';
+import { dashboardPaths, roadmapPath } from '@/lib/dashboard-routes';
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { WeekTasks } from '@/components/study/WeekTasks';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -70,6 +71,8 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
+      <>
+        <Helmet><title>Dashboard | Shyftcut</title></Helmet>
       <div className="container mx-auto max-w-app-content px-4 py-8">
           <Skeleton className="mb-6 h-9 w-64" />
           <Skeleton className="mb-6 h-5 w-72" />
@@ -85,11 +88,14 @@ export default function Dashboard() {
             <Skeleton className="h-24 w-full sm:w-[220px] rounded-xl" />
           </div>
         </div>
+      </>
     );
   }
 
   if (isError) {
     return (
+      <>
+        <Helmet><title>Dashboard | Shyftcut</title></Helmet>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -125,6 +131,7 @@ export default function Dashboard() {
             </div>
           </motion.div>
         </div>
+      </>
     );
   }
 
@@ -132,6 +139,8 @@ export default function Dashboard() {
   if (!activeRoadmap) {
     const canCreate = usageLimits.canCreateRoadmap();
     return (
+      <>
+        <Helmet><title>Dashboard | Shyftcut</title></Helmet>
       <div
         data-testid="dashboard-content"
         className="min-h-full bg-gradient-to-b from-background via-background to-muted/20"
@@ -192,16 +201,16 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6"
           >
-            <Card className="dashboard-card overflow-hidden">
+            <Card className="dashboard-card overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 glass-card">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 sm:h-12 sm:w-12 sm:rounded-xl">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-orange-500/20 to-yellow-500/20 sm:h-12 sm:w-12 sm:rounded-xl">
                       <Flame className="h-7 w-7 text-primary sm:h-6 sm:w-6" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-semibold sm:text-base">{t('dashboard.streak')}</h3>
-                      <p className="text-2xl font-bold tabular-nums text-primary sm:text-2xl">
+                      <p className="text-2xl font-bold tabular-nums bg-gradient-to-r from-primary via-orange-500 to-yellow-500 bg-clip-text text-transparent sm:text-2xl">
                         {streak.current_streak > 0
                           ? t('dashboard.streakDays').replace('{{count}}', String(streak.current_streak))
                           : t('dashboard.streakDaysZero')}
@@ -211,11 +220,23 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  {streak.activity_dates.length > 0 && (
+                  {streak.activity_dates.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5 sm:gap-1">
                       {streak.activity_dates.slice(0, 28).map((d) => (
                         <div key={d} className="h-6 w-6 rounded-md bg-primary/20 sm:h-5 sm:w-5 sm:rounded-sm" title={d} aria-hidden />
                       ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto rounded-xl border border-dashed border-primary/20 bg-primary/5 px-4 py-3">
+                      <p className="text-sm text-muted-foreground">
+                        {language === 'ar' ? 'ادرس اليوم لبدء سلسلتك الأولى!' : 'Study today to start your first streak!'}
+                      </p>
+                      <Button asChild variant="outline" size="sm" className="shrink-0 border-primary/30 hover:bg-primary/10">
+                        <Link to={dashboardPaths.study}>
+                          <Target className="h-4 w-4 mr-1.5" />
+                          {t('dashboard.thisWeek')}
+                        </Link>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -283,6 +304,7 @@ export default function Dashboard() {
                 planId="premium"
                 productId={POLAR_PRODUCTS.premium.yearly.productId}
                 returnTo={dashboardPaths.index}
+                redirectToUpgrade={true}
                 size="lg"
                 className="btn-glow min-h-[48px] gap-2"
               >
@@ -301,6 +323,7 @@ export default function Dashboard() {
           </motion.div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -340,6 +363,7 @@ export default function Dashboard() {
 
   return (
     <>
+      <Helmet><title>Dashboard | Shyftcut</title></Helmet>
       <OnboardingTour />
       <div
         data-testid="dashboard-content"
@@ -368,21 +392,28 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Welcome hero — 2026 refined */}
+        {/* Welcome Hero — Enhanced with larger typography and better gradients */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 rounded-2xl border border-border/40 bg-card/50 px-6 py-6 sm:px-8 sm:py-7 backdrop-blur-sm"
+            className="relative mb-8 overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 px-6 py-8 sm:px-8 sm:py-10 md:px-12 md:py-12 backdrop-blur-2xl shadow-2xl shadow-primary/5 hover:shadow-primary/10 transition-shadow duration-300 glass-card"
         >
-          <h1 className="min-w-0 text-xl font-semibold tracking-tight sm:text-2xl md:text-[1.75rem]">
+          {/* Animated gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-500/5 to-pink-500/5 opacity-50" />
+          <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/10 blur-3xl animate-pulse" />
+          <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          
+          <div className="relative">
+            <h1 className="min-w-0 text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl bg-gradient-to-r from-foreground via-primary to-purple-500 bg-clip-text text-transparent">
             <span className="block truncate">{t('dashboard.welcome')}, {(profile as { display_name?: string })?.display_name || user?.email?.split('@')[0]}</span>
           </h1>
-          <p className="mt-2 text-[15px] text-muted-foreground leading-relaxed">
+            <p className="mt-4 text-base text-muted-foreground leading-relaxed sm:text-lg md:text-xl">
             {language === 'ar'
               ? `الأسبوع ${currentWeek?.week_number || 1} من ${weeks.length} · ${currentWeek?.estimated_hours ?? 0} ساعة هذا الأسبوع`
               : `Week ${currentWeek?.week_number || 1} of ${weeks.length} · ${currentWeek?.estimated_hours ?? 0}h left this week`}
             {progress > 0 && (language === 'ar' ? ` · ${progress}% من الخريطة` : ` · ${t('dashboard.percentThrough').replace('{{percent}}', String(progress))}`)}
           </p>
+          </div>
         </motion.div>
 
         {/* Free plan: slim inline bar */}
@@ -403,103 +434,335 @@ export default function Dashboard() {
           />
         )}
 
-        {/* Study streak - stacked on mobile, horizontal on desktop */}
+        {/* Primary Actions: Study Streak + Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-8 grid gap-4 lg:grid-cols-[1fr,auto] w-full"
         >
-          <Card className="dashboard-card overflow-hidden">
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 sm:h-12 sm:w-12 sm:rounded-xl">
-                    <Flame className="h-7 w-7 text-primary sm:h-6 sm:w-6" />
+          {/* Study Streak - Compact horizontal layout */}
+          <Card className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl shadow-lg shadow-primary/5 hover:shadow-primary/10 hover:border-primary/30 transition-all duration-300 w-full min-w-0 max-w-full glass-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-orange-500/5 to-yellow-500/5" />
+            <CardContent className="relative p-4 sm:p-5 w-full">
+              <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+                <div className="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-orange-500/20 to-yellow-500/20 shadow-lg shadow-primary/20">
+                  <Flame className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold sm:text-base">{t('dashboard.streak')}</h3>
-                    <p className="text-2xl font-bold tabular-nums text-primary sm:text-2xl">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <h3 className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 truncate">{t('dashboard.streak')}</h3>
+                  <p className="text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums bg-gradient-to-r from-primary via-orange-500 to-yellow-500 bg-clip-text text-transparent break-words">
                       {streak.current_streak > 0
                         ? t('dashboard.streakDays').replace('{{count}}', String(streak.current_streak))
                         : t('dashboard.streakDaysZero')}
                     </p>
-                    <p className="text-sm text-muted-foreground sm:text-xs">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                       {t('dashboard.longestStreak')}: {streak.longest_streak} {language === 'ar' ? 'أيام' : 'days'}
                     </p>
                   </div>
                 </div>
-                {!studiedToday && (
-                  <p className="text-sm text-muted-foreground sm:shrink-0 sm:max-w-[200px]">
-                    {streak.current_streak > 0 ? t('dashboard.studyTodayToKeepStreak') : t('dashboard.studyTodayStart')}
-                  </p>
-                )}
-              </div>
-              {streak.activity_dates.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-1">
-                  {(() => {
-                    const dates = streak.activity_dates.slice(0, 28);
-                    return dates.map((d) => (
+              {streak.activity_dates.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-1 w-full overflow-hidden">
+                  {streak.activity_dates.slice(0, 28).map((d) => (
                       <div
                         key={d}
-                        className="h-6 w-6 rounded-md bg-primary/20 sm:h-5 sm:w-5 sm:rounded-sm"
+                      className="h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-md bg-gradient-to-br from-primary/30 to-orange-500/30 shadow-sm"
                         title={d}
                         aria-hidden
                       />
-                    ));
-                  })()}
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-dashed border-primary/20 bg-primary/5 px-4 py-3">
+                  <p className="text-sm text-muted-foreground flex-1">
+                    {language === 'ar' ? 'ادرس اليوم لبدء سلسلتك الأولى!' : 'Study today to start your first streak!'}
+                  </p>
+                  <Button asChild variant="outline" size="sm" className="shrink-0 border-primary/30 hover:bg-primary/10">
+                    <Link to={dashboardPaths.study}>
+                      <Target className="h-4 w-4 mr-1.5" />
+                      {t('dashboard.thisWeek')}
+                    </Link>
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Quick Actions - Horizontal row on desktop */}
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full min-w-0">
+            <Card className="group relative overflow-hidden flex-1 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-purple-500/10 to-pink-500/10 backdrop-blur-xl transition-all duration-300 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/20 hover:scale-[1.02] w-full min-w-0 glass-card">
+              <Link to={dashboardPaths.roadmap} className="flex items-center gap-3 p-4 min-h-[44px] w-full">
+                <Target className="h-5 w-5 shrink-0 text-primary" />
+                <span className="text-sm font-semibold truncate">{t('dashboard.continueRoadmap')}</span>
+              </Link>
+            </Card>
+            <Card className="group relative overflow-hidden flex-1 rounded-xl border border-accent/20 bg-gradient-to-br from-card/80 via-card/60 to-card/40 backdrop-blur-xl transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:scale-[1.02] w-full min-w-0 glass-card">
+              <Link to={currentWeek?.week_number ? `${dashboardPaths.courses}?week=${currentWeek.week_number}` : dashboardPaths.courses} className="flex items-center gap-3 p-4 min-h-[44px] w-full">
+                <BookOpen className="h-5 w-5 shrink-0 text-accent" />
+                <span className="text-sm font-semibold truncate">{t('dashboard.browseCourses')}</span>
+              </Link>
+            </Card>
+            <Card className="group relative overflow-hidden flex-1 rounded-xl border border-warning/20 bg-gradient-to-br from-card/80 via-card/60 to-card/40 backdrop-blur-xl transition-all duration-300 hover:border-warning/50 hover:shadow-lg hover:scale-[1.02] w-full min-w-0 glass-card">
+              <Link to={dashboardPaths.chat} className="flex items-center gap-3 p-4 min-h-[44px] w-full">
+                <Brain className="h-5 w-5 shrink-0 text-warning" />
+                <span className="text-sm font-semibold truncate">{t('dashboard.talkToCoach')}</span>
+              </Link>
+            </Card>
+          </div>
         </motion.div>
 
-        {/* Roadmaps: card with icon, title, progress bar, Active/Set active */}
-        {roadmaps.length > 0 && (
+        {/* Main Content Grid: Current Week (hero) + Progress Overview */}
+        <div className="grid gap-4 sm:gap-6 mb-8 lg:grid-cols-3">
+          {/* Current Week: Hero of the dashboard - Larger, more prominent */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+            className="lg:col-span-2 w-full min-w-0"
+          >
+            <Card className="relative overflow-hidden h-full rounded-2xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl shadow-xl shadow-primary/5 w-full max-w-full glass-card">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-purple-500/5 to-pink-500/5" />
+              <CardHeader className="relative flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4 pb-4 px-4 sm:px-6 pt-4 sm:pt-6">
+                <div className="flex-1 min-w-0 w-full">
+                  <Badge className="mb-3 bg-gradient-to-r from-primary to-purple-500 text-white border-0 shadow-md">
+                    {`${t('roadmap.week')} ${currentWeek?.week_number}`}
+                  </Badge>
+                  <CardTitle className="text-lg sm:text-xl md:text-2xl font-bold mb-2 break-words">{currentWeek?.title}</CardTitle>
+                  <CardDescription className="text-sm sm:text-base break-words">{currentWeek?.description}</CardDescription>
+                </div>
+                <Button asChild variant="outline" size="sm" className="shrink-0 hover:bg-primary/10 hover:border-primary/50 w-full sm:w-auto">
+                  <Link to={dashboardPaths.roadmap} className="text-center">
+                    {t('dashboard.viewFullRoadmap')}
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="relative px-4 sm:px-6 pb-4 sm:pb-6 space-y-6">
+                {/* Recommended Courses - prominent, first section */}
+                {currentWeek?.course_recommendations && currentWeek.course_recommendations.length > 0 && (
+                  <section className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4">
+                    <h4 className="mb-3 text-sm font-semibold text-foreground flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-primary shrink-0" />
+                      {t('roadmap.recommendedCourses')}
+                    </h4>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {currentWeek.course_recommendations.slice(0, 4).map((course: any) => {
+                        const courseUrl = hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '');
+                        return (
+                          <a
+                            key={course.id}
+                            href={courseUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex items-center gap-3 rounded-lg border border-primary/20 bg-background/80 p-3 transition-all hover:border-primary/50 hover:bg-primary/10 hover:shadow-md"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15">
+                              <BookOpen className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <p className="font-semibold text-sm text-primary truncate group-hover:underline">{course.title}</p>
+                              <p className="text-xs text-muted-foreground truncate">{course.platform}</p>
+                            </div>
+                            <span className="shrink-0 text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                              {language === 'ar' ? 'فتح' : 'Open'}
+                            </span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                {/* Skills */}
+                {currentWeek?.skills_to_learn && currentWeek.skills_to_learn.length > 0 && (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t('roadmap.skillsToLearn')}
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentWeek.skills_to_learn.map((skill: string, i: number) => (
+                        <Badge key={i} variant="secondary" className="text-xs font-normal">{skill}</Badge>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Deliverables */}
+                {currentWeek?.deliverables && currentWeek.deliverables.length > 0 && (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t('roadmap.deliverables')}
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {currentWeek.deliverables.map((item: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2 text-sm break-words">
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+                          <span className="text-muted-foreground">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* Tasks */}
+                <section>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('dashboard.thisWeekTasks')}
+                  </h4>
+                  {currentWeek?.id ? (
+                    <WeekTasks roadmapWeekId={currentWeek.id} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('dashboard.noTasksYet')}</p>
+                  )}
+                </section>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Progress Overview: Sidebar */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 }}
+            className="w-full min-w-0"
+          >
+            <Card className="relative overflow-hidden h-full rounded-2xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl shadow-xl shadow-primary/5 w-full max-w-full glass-card">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-purple-500/5 to-pink-500/5" />
+              <CardHeader className="relative px-4 sm:px-6 pt-4 sm:pt-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+                  <BarChart3 className="h-5 w-5 text-primary shrink-0" />
+                  <span className="truncate">{t('dashboard.progressOverview')}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative px-4 sm:px-6 pb-4 sm:pb-6">
+                <div className="flex h-32 sm:h-40 min-h-[128px] w-full items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={progressData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={35}
+                        outerRadius={50}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {progressData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-4 text-center">
+                  <p className="text-2xl sm:text-3xl font-bold tabular-nums">{progress}%</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    {t('dashboard.complete')}
+                  </p>
+                </div>
+                <div className="mt-4 flex gap-1 w-full overflow-hidden">
+                  {weeks.slice(0, 12).map((w: any, i: number) => (
+                    <div
+                      key={i}
+                      className="h-5 sm:h-6 flex-1 rounded-sm min-w-0"
+                      style={{
+                        backgroundColor: w.is_completed ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                      }}
+                      title={`${t('roadmap.week')} ${w.week_number}`}
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Roadmaps: Secondary priority - Only show if multiple */}
+        {roadmaps.length > 1 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
             className="mb-8"
           >
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-              <Map className="h-5 w-5 text-primary" />
+            <h2 className="mb-4 flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent sm:text-2xl">
+              <Map className="h-6 w-6 text-primary" />
               {t('dashboard.yourRoadmaps')}
             </h2>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 w-full">
               {roadmaps
                 .filter((r: { status?: string }) => r.status !== 'archived')
-                .map((r: { id: string; title?: string; progress_percentage?: number; status?: string }) => (
-                  <Card key={r.id} className="dashboard-card flex min-w-0 w-full flex-col sm:min-w-[220px] sm:flex-1">
-                    <div className="flex items-start gap-3 p-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                        <Map className="h-5 w-5 text-primary" />
+                .map((r: { id: string; title?: string; progress_percentage?: number; status?: string; difficulty_level?: string }) => {
+                  const progress = typeof r.progress_percentage === 'number' ? r.progress_percentage : 0;
+                  const isActive = r.status === 'active';
+                  return (
+                    <motion.div
+                      key={r.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ duration: 0.2 }}
+                      className="w-full min-w-0 max-w-full"
+                    >
+                      <Card className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 w-full max-w-full glass-card ${
+                        isActive 
+                          ? 'border-primary/50 bg-gradient-to-br from-primary/10 via-purple-500/5 to-pink-500/5 shadow-lg shadow-primary/10' 
+                          : 'border-border/40 bg-gradient-to-br from-card/80 via-card/60 to-card/40 backdrop-blur-xl hover:border-primary/30'
+                      }`}>
+                        {/* Gradient overlay */}
+                        <div className={`absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 ${
+                          isActive 
+                            ? 'from-primary/5 via-purple-500/5 to-pink-500/5 opacity-100' 
+                            : 'from-primary/5 via-purple-500/5 to-pink-500/5 group-hover:opacity-100'
+                        }`} />
+                        
+                        <div className="relative p-4 sm:p-5 w-full min-w-0 max-w-full overflow-hidden">
+                          {/* Header with icon and actions */}
+                          <div className="mb-4 flex items-start justify-between gap-2 sm:gap-3 w-full min-w-0">
+                            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
+                              <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl transition-all ${
+                                isActive 
+                                  ? 'bg-gradient-to-br from-primary/20 to-purple-500/20 shadow-lg shadow-primary/20' 
+                                  : 'bg-gradient-to-br from-muted/50 to-muted/30 group-hover:from-primary/10 group-hover:to-purple-500/10'
+                              }`}>
+                                <Map className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors ${
+                                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'
+                                }`} />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <Link to={`/roadmap/${r.id}`} className="font-medium hover:underline">
-                          <span className="truncate block">{r.title || t('dashboard.roadmap')}</span>
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <Link to={roadmapPath(r.id)} className="block min-w-0">
+                                  <h3 className="font-bold text-sm sm:text-base leading-tight break-words mb-1 group-hover:text-primary transition-colors">
+                                    {r.title || t('dashboard.roadmap')}
+                                  </h3>
                         </Link>
-                        <Progress value={typeof r.progress_percentage === 'number' ? r.progress_percentage : 0} className="mt-2 h-1.5" />
+                                {r.difficulty_level && (
+                                  <Badge variant="outline" className="text-xs capitalize mt-1">
+                                    {r.difficulty_level}
+                                  </Badge>
+                                )}
+                              </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        {r.status === 'active' ? (
-                          <Badge variant="default" className="text-xs">
-                            {t('dashboard.active')}
+                              {isActive ? (
+                                <Badge className="text-xs bg-gradient-to-r from-primary to-purple-500 text-white border-0 shadow-md shadow-primary/30 whitespace-nowrap">
+                                  <Star className="h-3 w-3 mr-1 fill-current rtl:mr-0 rtl:ml-1 shrink-0" />
+                                  <span className="hidden sm:inline">{t('dashboard.active')}</span>
+                                  <span className="sm:hidden">★</span>
                           </Badge>
                         ) : (
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="min-h-[44px] min-w-[44px] gap-1 text-xs"
+                                  className="h-8 px-2 gap-1 text-xs hover:bg-primary/10 shrink-0"
                             disabled={isUpdatingRoadmap}
                             onClick={() => updateRoadmap({ roadmapId: r.id, payload: { status: 'active' } })}
                           >
-                            <Star className="h-3 w-3" />
-                            {t('dashboard.setActive')}
+                                  <Star className="h-3 w-3 shrink-0" />
+                                  <span className="hidden sm:inline">{t('dashboard.setActive')}</span>
                           </Button>
                         )}
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           disabled={isDeletingRoadmap}
                           onClick={() => setDeleteConfirmRoadmapId(r.id)}
                           aria-label={language === 'ar' ? 'حذف' : 'Delete'}
@@ -507,9 +770,41 @@ export default function Dashboard() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+                          </div>
+
+                          {/* Progress section */}
+                          <div className="space-y-2 w-full min-w-0">
+                            <div className="flex items-center justify-between text-xs sm:text-sm">
+                              <span className="text-muted-foreground font-medium truncate">{t('dashboard.progress')}</span>
+                              <span className="font-bold text-primary tabular-nums shrink-0 ml-2">{progress}%</span>
+                            </div>
+                            <div className="relative h-2.5 sm:h-3 overflow-hidden rounded-full bg-muted/50 backdrop-blur-sm w-full">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progress}%` }}
+                                transition={{ duration: 0.8, ease: "easeOut" }}
+                                className={`h-full rounded-full bg-gradient-to-r ${
+                                  isActive
+                                    ? 'from-primary via-purple-500 to-pink-500 shadow-lg shadow-primary/30'
+                                    : 'from-primary/60 to-purple-500/60 group-hover:from-primary group-hover:to-purple-500'
+                                }`}
+                              />
+                            </div>
+                          </div>
+
+                          {/* View link */}
+                          <Link 
+                            to={roadmapPath(r.id)}
+                            className="mt-4 flex items-center gap-2 text-xs sm:text-sm font-medium text-primary hover:text-primary/80 transition-colors group/link w-full min-w-0"
+                          >
+                            <span className="truncate">{language === 'ar' ? 'عرض التفاصيل' : 'View Details'}</span>
+                            <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 shrink-0 transition-transform group-hover/link:translate-x-1 rtl:rotate-180" />
+                          </Link>
                     </div>
                   </Card>
-                ))}
+                    </motion.div>
+                  );
+                })}
             </div>
             {roadmaps.some((r: { status?: string }) => r.status === 'archived') && (
               <div className="mt-4 border-t border-border pt-4">
@@ -522,7 +817,7 @@ export default function Dashboard() {
                     .map((r: { id: string; title?: string; progress_percentage?: number }) => (
                       <Link
                         key={r.id}
-                        to={`/roadmap/${r.id}`}
+                        to={roadmapPath(r.id)}
                         className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         {r.title || t('dashboard.roadmap')}
@@ -537,200 +832,77 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {/* Subscription & Billing - compact card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+        {/* Stats Grid: 4 uniform cards - Progress %, Weeks, Courses, Hours */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 w-full"
         >
-          <Card className="dashboard-card">
-            <CardHeader className="py-4 sm:py-6">
-              <CardTitle className="text-base sm:text-lg">
-                {t('dashboard.subscriptionBilling')}
-              </CardTitle>
-              <CardDescription className="text-sm">
-                {t('dashboard.subscriptionDescription')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-0">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {t('dashboard.currentPlan')}
-                  </p>
-                  <Badge className="mt-1 capitalize">{tier ?? 'free'}</Badge>
-                </div>
-                {isPremium && periodEnd && (
-                  <p className="text-sm text-muted-foreground">
-                    {language === 'ar'
-                      ? `تجديد في ${new Date(periodEnd).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}`
-                      : `Renews ${new Date(periodEnd).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`}
-                  </p>
-                )}
-              </div>
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {t('dashboard.usageThisMonth')}
-                </p>
-                <ul className="space-y-1 text-sm">
-                  <li>
-                    {t('dashboard.roadmapsLabel')}{' '}
-                    {isUnlimitedRoadmaps ? '∞' : `${usage?.roadmapsCreated ?? 0}/${limits.roadmaps}`}
-                  </li>
-                  <li>
-                    {t('dashboard.chatMessages')}{' '}
-                    {isUnlimitedChat ? '∞' : `${usage?.chatMessagesThisMonth ?? 0}/${limits.chatMessages}`}
-                  </li>
-                  <li>
-                    {t('dashboard.quizzesLabel')}{' '}
-                    {isUnlimitedQuizzes ? '∞' : `${usage?.quizzesTakenThisMonth ?? 0}/${limits.quizzes}`}
-                  </li>
-                </ul>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {!isPremium && (
-                  <CheckoutButton
-                    planId="premium"
-                    productId={POLAR_PRODUCTS.premium.yearly.productId}
-                    returnTo={dashboardPaths.index}
-                    variant="default"
-                    size="sm"
-                    className="min-h-[44px] gap-2"
-                  >
-                    {t('dashboard.upgrade')}
-                  </CheckoutButton>
-                )}
-                {isPremium && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="min-h-[44px] gap-2"
-                    disabled={portalLoading}
-                    onClick={async () => {
-                      const token = await getAccessToken();
-                      if (!token) return;
-                      setPortalLoading(true);
-                      try {
-                        const data = await apiFetch<{ url?: string }>(
-                          `/api/checkout/portal?returnUrl=${encodeURIComponent(window.location.href)}`,
-                          { token, skipUnauthorizedLogout: true }
-                        );
-                        if (data?.url) window.location.href = data.url;
-                        else throw new Error('No portal URL');
-                      } catch {
-                        toast({
-                          title: t('common.errorTitle'),
-                          description: t('profile.couldNotOpenSubscription'),
-                          variant: 'destructive',
-                        });
-                      } finally {
-                        setPortalLoading(false);
-                      }
-                    }}
-                  >
-                    {portalLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CreditCard className="h-4 w-4" />
-                    )}
-                    {t('profile.manageSubscription')}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Stats: hero stat + compact pills */}
-        <div className="mb-8 flex flex-col gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="dashboard-card">
-              <CardContent className="p-6 sm:p-8">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                      <Gauge className="h-7 w-7 text-primary" />
+          <Card className="group relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl hover:border-primary/40 hover:shadow-lg hover:scale-[1.02] transition-all w-full min-w-0 glass-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-purple-500/5 to-pink-500/5" />
+            <CardContent className="relative flex flex-col items-center justify-center gap-2 p-4 sm:p-5 text-center w-full">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-purple-500/20 to-pink-500/20 shadow-md">
+                <Gauge className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                     </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      {t('dashboard.overallProgress')}
-                    </p>
-                      <p className="text-4xl font-bold text-primary tabular-nums">{progress}%</p>
+              <p className="text-xs font-medium text-muted-foreground">{t('dashboard.overallProgress')}</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent tabular-nums">{progress}%</p>
+              </CardContent>
+            </Card>
+          <Card className="group relative overflow-hidden rounded-xl border border-success/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl hover:border-success/40 hover:shadow-lg hover:scale-[1.02] transition-all w-full min-w-0 glass-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-success/5 to-green-500/5" />
+            <CardContent className="relative flex flex-col items-center justify-center gap-2 p-4 sm:p-5 text-center w-full">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-success/20 to-green-500/20 shadow-md">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-success" />
                   </div>
+              <p className="text-xs font-medium text-muted-foreground">{t('dashboard.weeksCompleted')}</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums text-success">{completedWeeks}/{weeks.length}</p>
+              </CardContent>
+            </Card>
+          <Card className="group relative overflow-hidden rounded-xl border border-accent/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl hover:border-accent/40 hover:shadow-lg hover:scale-[1.02] transition-all w-full min-w-0 glass-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-blue-500/5" />
+            <CardContent className="relative flex flex-col items-center justify-center gap-2 p-4 sm:p-5 text-center w-full">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent/20 to-blue-500/20 shadow-md">
+                <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-accent" />
                   </div>
-                </div>
+              <p className="text-xs font-medium text-muted-foreground">{t('dashboard.coursesCompleted')}</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums text-accent">{coursesCompleted}/{totalCourses}</p>
+              </CardContent>
+            </Card>
+          <Card className="group relative overflow-hidden rounded-xl border border-warning/20 bg-gradient-to-br from-card/90 via-card/70 to-card/50 backdrop-blur-xl hover:border-warning/40 hover:shadow-lg hover:scale-[1.02] transition-all w-full min-w-0 glass-card">
+            <div className="absolute inset-0 bg-gradient-to-br from-warning/5 to-orange-500/5" />
+            <CardContent className="relative flex flex-col items-center justify-center gap-2 p-4 sm:p-5 text-center w-full">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-warning/20 to-orange-500/20 shadow-md">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-warning" />
+                  </div>
+              <p className="text-xs font-medium text-muted-foreground">{t('dashboard.thisWeekFocus')}</p>
+              <p className="text-2xl sm:text-3xl lg:text-4xl font-bold tabular-nums text-warning">{currentWeek?.estimated_hours || 0}h</p>
               </CardContent>
             </Card>
           </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-          >
-            <Card className="dashboard-card">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success/10">
-                  <Calendar className="h-5 w-5 text-success" />
-                  </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">{t('dashboard.weeksCompleted')}</p>
-                  <p className="text-xl font-bold tabular-nums">{completedWeeks}/{weeks.length}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="dashboard-card">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10">
-                  <BookOpen className="h-5 w-5 text-accent" />
-                  </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">{t('dashboard.coursesCompleted')}</p>
-                  <p className="text-xl font-bold tabular-nums">{coursesCompleted}/{totalCourses}</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="dashboard-card">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10">
-                  <Clock className="h-5 w-5 text-warning" />
-                  </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">{t('dashboard.thisWeekFocus')}</p>
-                  <p className="text-xl font-bold tabular-nums">{currentWeek?.estimated_hours || 0}h</p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
 
-        {/* Activity this month — 2x2 grid + context line */}
+        {/* Activity & Analytics: More compact, better chart integration */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          className="mb-8"
+          transition={{ delay: 0.3 }}
+          className="mb-8 grid gap-6 lg:grid-cols-2"
         >
-          <h2 className="mb-2 text-lg font-semibold">
-            {t('dashboard.activityThisMonth')}
-          </h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            {t('dashboard.progressAtGlance')}
-          </p>
+          {/* Activity This Month */}
           <Card className="dashboard-card">
-            <CardContent className="p-6">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold">{t('dashboard.activityThisMonth')}</CardTitle>
+              <CardDescription className="text-sm">{t('dashboard.progressAtGlance')}</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
               {isLoadingAnalytics ? (
                 <div className="flex items-center justify-center py-6">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="flex items-center gap-3 border-b border-border pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4 last:border-0 rtl:border-r-0 rtl:border-l rtl:pr-0 rtl:pl-4 rtl:last:border-0">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                         <HelpCircle className="h-5 w-5 text-primary" />
                       </div>
@@ -739,7 +911,7 @@ export default function Dashboard() {
                         <p className="text-xl font-semibold tabular-nums">{analytics?.quizzesTaken ?? 0}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 border-b border-border pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4 last:border-0 rtl:border-r-0 rtl:border-l rtl:pr-0 rtl:pl-4 rtl:last:border-0">
+                    <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-success/10">
                         <TrendingUp className="h-5 w-5 text-success" />
                       </div>
@@ -750,7 +922,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 border-b border-border pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4 last:border-0 rtl:border-r-0 rtl:border-l rtl:pr-0 rtl:pl-4 rtl:last:border-0">
+                    <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10">
                         <MessageSquare className="h-5 w-5 text-accent" />
                       </div>
@@ -770,17 +942,15 @@ export default function Dashboard() {
                     </div>
                   </div>
                   {(analytics?.lastQuizAt || analytics?.lastActiveAt) && (
-                    <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4 text-sm text-muted-foreground">
+                    <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4 text-xs text-muted-foreground">
                       {analytics?.lastQuizAt && (
                         <span>
-                          {t('dashboard.lastQuiz')}
-                          {new Date(analytics.lastQuizAt).toLocaleDateString(language === 'ar' ? 'ar' : undefined)}
+                          {t('dashboard.lastQuiz')} {new Date(analytics.lastQuizAt).toLocaleDateString(language === 'ar' ? 'ar' : undefined)}
                         </span>
                       )}
                       {analytics?.lastActiveAt && (
                         <span>
-                          {t('dashboard.lastActivity')}
-                          {formatRelative(analytics.lastActiveAt)}
+                          {t('dashboard.lastActivity')} {formatRelative(analytics.lastActiveAt)}
                         </span>
                       )}
                     </div>
@@ -789,174 +959,14 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
-        </motion.div>
-
-        {/* Main Content Grid: Current Week two-column + Progress overview */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Current Week: left = title/skills/deliverables, right = courses */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-            className="lg:col-span-2"
-          >
-            <Card className="dashboard-card h-full">
-              <CardHeader className="flex flex-row items-start justify-between gap-4">
-                  <div>
-                    <Badge className="mb-2">
-                      {`${t('roadmap.week')} ${currentWeek?.week_number}`}
-                    </Badge>
-                    <CardTitle>{currentWeek?.title}</CardTitle>
-                    <CardDescription>{currentWeek?.description}</CardDescription>
-                  </div>
-                <Button asChild variant="outline" size="sm">
-                    <Link to={dashboardPaths.roadmap}>
-                    {t('dashboard.viewFullRoadmap')}
-                    </Link>
-                  </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-6 md:grid-cols-[1fr,auto]">
-                  <div>
-                <div className="mb-4">
-                  <h4 className="mb-2 text-sm font-medium">
-                    {t('roadmap.skillsToLearn')}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {currentWeek?.skills_to_learn?.map((skill: string, i: number) => (
-                      <Badge key={i} variant="secondary">{skill}</Badge>
-                    ))}
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <h4 className="mb-2 text-sm font-medium">
-                        {t('dashboard.thisWeekTasks')}
-                      </h4>
-                      {currentWeek?.id ? (
-                        <WeekTasks roadmapWeekId={currentWeek.id} />
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t('dashboard.noTasksYet')}</p>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="mb-2 text-sm font-medium">
-                        {t('roadmap.deliverables')}
-                  </h4>
-                  <ul className="space-y-2">
-                    {currentWeek?.deliverables?.map((item: string, i: number) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                            <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                  </div>
-                {currentWeek?.course_recommendations && currentWeek.course_recommendations.length > 0 && (
-                    <div className="md:min-w-[240px]">
-                    <h4 className="mb-2 text-sm font-medium">
-                      {t('roadmap.recommendedCourses')}
-                    </h4>
-                      <div className="space-y-2">
-                      {currentWeek.course_recommendations.slice(0, 4).map((course: any) => {
-                        const courseUrl = hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '');
-                        return (
-                        <a
-                          key={course.id}
-                          href={courseUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50"
-                        >
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                            <BookOpen className="h-5 w-5 text-primary" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{course.title}</p>
-                            <p className="text-xs text-muted-foreground">{course.platform}</p>
-                          </div>
-                        </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Progress Overview: smaller chart, big %, week bars */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <Card className="dashboard-card h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <BarChart3 className="h-4 w-4" />
-                  {t('dashboard.progressOverview')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex h-32 min-h-[128px] w-full items-center justify-center">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={progressData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={55}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {progressData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-4 text-center">
-                  <p className="text-3xl font-bold tabular-nums">{progress}%</p>
-                  <p className="text-sm text-muted-foreground">
-                    {t('dashboard.complete')}
-                  </p>
-                </div>
-                <div className="mt-4 flex gap-1">
-                  {weeks.slice(0, 12).map((w: any, i: number) => (
-                    <div
-                      key={i}
-                      className="h-6 flex-1 rounded-sm min-w-0"
-                      style={{
-                        backgroundColor: w.is_completed ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
-                      }}
-                      title={`${t('roadmap.week')} ${w.week_number}`}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
 
         {/* Weekly Trend Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-          className="mt-6"
-        >
           <Card className="dashboard-card">
-            <CardHeader>
-              <CardTitle>
-                {t('dashboard.weeklySchedule')}
-              </CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-bold">{t('dashboard.weeklySchedule')}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="h-48 min-h-[192px] w-full sm:h-64">
+            <CardContent className="pt-0">
+              <div className="h-48 min-h-[192px] w-full sm:h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData}>
                     <defs>
@@ -988,42 +998,55 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* Quick Actions: primary CTA + two secondary */}
+        {/* Subscription & Billing - Less prominent, bottom placement */}
+        {!isPremium && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-stretch"
-        >
-          <Card className="dashboard-card flex-1 transition-all card-glow">
-            <Link to={dashboardPaths.roadmap} className="flex items-center gap-4 p-6">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                <Target className="h-6 w-6 text-primary" />
-              </div>
+            transition={{ delay: 0.35 }}
+            className="mb-6"
+          >
+            <Card className="dashboard-card border-primary/10">
+              <CardHeader className="py-4">
+                <CardTitle className="text-base">{t('dashboard.subscriptionBilling')}</CardTitle>
+                <CardDescription className="text-sm">{t('dashboard.subscriptionDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 className="font-semibold">{t('dashboard.continueRoadmap')}</h3>
-              <p className="text-sm text-muted-foreground">
-                {t('dashboard.trackWeekly')}
-              </p>
+                    <p className="text-sm text-muted-foreground">{t('dashboard.currentPlan')}</p>
+                    <Badge className="mt-1 capitalize">{tier ?? 'free'}</Badge>
               </div>
-              <ArrowRight className="ml-auto h-5 w-5 shrink-0 text-muted-foreground rtl:mr-auto rtl:ml-0" />
-            </Link>
-          </Card>
-          <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:max-w-[200px] lg:flex-col">
-            <Card className="dashboard-card flex-1 min-w-0 transition-all">
-              <Link to={currentWeek?.week_number ? `${dashboardPaths.courses}?week=${currentWeek.week_number}` : dashboardPaths.courses} className="flex min-touch items-center gap-3 p-4">
-                <BookOpen className="h-5 w-5 shrink-0 text-accent" />
-                <span className="font-medium text-sm">{t('dashboard.browseCourses')}</span>
-              </Link>
-            </Card>
-            <Card className="dashboard-card flex-1 min-w-0 transition-all">
-              <Link to={dashboardPaths.chat} className="flex min-touch items-center gap-3 p-4">
-                <Brain className="h-5 w-5 shrink-0 text-warning" />
-                <span className="font-medium text-sm">{t('dashboard.talkToCoach')}</span>
-              </Link>
-            </Card>
           </div>
+                <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">{t('dashboard.usageThisMonth')}</p>
+                  <ul className="space-y-1 text-sm">
+                    <li>
+                      {t('dashboard.roadmapsLabel')} {isUnlimitedRoadmaps ? '∞' : `${usage?.roadmapsCreated ?? 0}/${limits.roadmaps}`}
+                    </li>
+                    <li>
+                      {t('dashboard.chatMessages')} {isUnlimitedChat ? '∞' : `${usage?.chatMessagesThisMonth ?? 0}/${limits.chatMessages}`}
+                    </li>
+                    <li>
+                      {t('dashboard.quizzesLabel')} {isUnlimitedQuizzes ? '∞' : `${usage?.quizzesTakenThisMonth ?? 0}/${limits.quizzes}`}
+                    </li>
+                  </ul>
+                </div>
+                <CheckoutButton
+                  planId="premium"
+                  productId={POLAR_PRODUCTS.premium.yearly.productId}
+                  returnTo={dashboardPaths.index}
+                  redirectToUpgrade={true}
+                  variant="default"
+                  size="sm"
+                  className="w-full min-h-[44px] gap-2"
+                >
+                  {t('dashboard.upgrade')}
+                </CheckoutButton>
+              </CardContent>
+            </Card>
         </motion.div>
+        )}
         </div>
       </div>
 

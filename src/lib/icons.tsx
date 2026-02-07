@@ -38,6 +38,11 @@ import {
   Wand2,
   Dna,
   Gift,
+  AlignJustify,
+  LayoutDashboard,
+  GraduationCap,
+  HelpCircle,
+  Ticket,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -75,6 +80,7 @@ export const IconMapTrifold = iconWrapper(Map, 'IconMapTrifold');
 export const IconUserCircle = iconWrapper(CircleUser, 'IconUserCircle');
 export const IconGlobe = iconWrapper(Globe, 'IconGlobe');
 export const IconList = iconWrapper(List, 'IconList');
+export const IconMenu = iconWrapper(AlignJustify, 'IconMenu');
 export const IconCaretDown = iconWrapper(ChevronDown, 'IconCaretDown');
 export const IconCalendar = iconWrapper(Calendar, 'IconCalendar');
 export const IconMagnifyingGlass = iconWrapper(Search, 'IconMagnifyingGlass');
@@ -92,3 +98,7 @@ export const IconClockTabler = iconWrapper(Clock, 'IconClockTabler');
 export const IconChartBar = iconWrapper(BarChart3, 'IconChartBar');
 export const IconClock = iconWrapper(Clock, 'IconClock');
 export const IconGift = iconWrapper(Gift, 'IconGift');
+export const IconLayoutDashboard = iconWrapper(LayoutDashboard, 'IconLayoutDashboard');
+export const IconGraduationCap = iconWrapper(GraduationCap, 'IconGraduationCap');
+export const IconHelpCircle = iconWrapper(HelpCircle, 'IconHelpCircle');
+export const IconTicket = iconWrapper(Ticket, 'IconTicket');

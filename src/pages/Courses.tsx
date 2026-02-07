@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BookOpen, ExternalLink, Filter, Search, Star, Clock, DollarSign, Check, Bookmark, Loader2, AlertCircle } from 'lucide-react';
+import { BookOpen, ExternalLink, Filter, Search, Star, Clock, DollarSign, Check, Bookmark, Loader2, AlertCircle, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,15 +53,16 @@ export default function Courses() {
 
   const unlockedSet = useMemo(() => new Set(unlockedWeekNumbers), [unlockedWeekNumbers]);
 
-  // Only courses from unlocked weeks (matches Roadmap progression)
+  // All courses from all weeks (locked courses will be dimmed)
   const allCourses = useMemo(() => {
     return weeks.flatMap((week: any) =>
       (week.course_recommendations || []).map((course: any) => ({
         ...course,
         weekNumber: week.week_number,
         weekTitle: week.title,
+        isUnlocked: unlockedSet.has(week.week_number),
       }))
-    ).filter((c: any) => unlockedSet.has(c.weekNumber));
+    );
   }, [weeks, unlockedSet]);
 
   // Total courses (all weeks) for locked-week hint
@@ -85,8 +87,8 @@ export default function Courses() {
     }
   }, [weekFilter, unlockedSet]);
 
-  // Week numbers for filter (only unlocked)
-  const weekNumbers = useMemo(() => [...unlockedWeekNumbers], [unlockedWeekNumbers]);
+  // Week numbers for filter (all weeks)
+  const weekNumbers = useMemo(() => weeks.map((w: any) => w.week_number), [weeks]);
 
   // Unique platforms from unlocked courses
   const platforms = useMemo(() => {
@@ -211,6 +213,7 @@ export default function Courses() {
   if (isLoading) {
     return (
       <>
+        <Helmet><title>Courses | Shyftcut</title></Helmet>
         <div className="flex min-h-[60vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -221,6 +224,7 @@ export default function Courses() {
   if (isError) {
     return (
       <>
+        <Helmet><title>Courses | Shyftcut</title></Helmet>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -247,6 +251,7 @@ export default function Courses() {
 
   return (
     <>
+      <Helmet><title>Courses | Shyftcut</title></Helmet>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         {/* Header */}
         <motion.div
@@ -263,16 +268,9 @@ export default function Courses() {
                 ? `عرض ${filteredCourses.length} من ${allCourses.length} دورة`
                 : `Showing ${filteredCourses.length} of ${allCourses.length} courses`)
               : (language === 'ar'
-                ? `${allCourses.length} دورة متاحة (حسب تقدمك في خريطة الطريق)`
-                : `${allCourses.length} courses available (follows your roadmap progress)`)}
+                ? `${allCourses.length} دورة متاحة (الدورات المقفلة ستظهر باهتة)`
+                : `${allCourses.length} courses available (locked courses appear dimmed)`)}
           </p>
-          {totalCourseCount > allCourses.length && (
-            <p className="mt-1 text-sm text-muted-foreground/80">
-              {language === 'ar'
-                ? `أكمل الأسابيع الحالية لفتح ${totalCourseCount - allCourses.length} دورة إضافية`
-                : `Complete current weeks to unlock ${totalCourseCount - allCourses.length} more courses`}
-            </p>
-          )}
         </motion.div>
 
         {/* Filters */}
@@ -368,31 +366,43 @@ export default function Courses() {
             >
               <Card className={`public-glass-card h-full rounded-2xl transition-all ${
                 course.is_completed ? 'opacity-60' : ''
+              } ${
+                !course.isUnlocked ? 'opacity-50 cursor-not-allowed' : ''
               }`}>
                 <CardContent className="p-5">
                   {/* Header */}
                   <div className="mb-3 flex items-start justify-between">
-                    <Badge variant="outline" className="text-xs">
-                      {language === 'ar' ? `الأسبوع ${course.weekNumber}` : `Week ${course.weekNumber}`}
-                    </Badge>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => toggleSaved(course.id, course.is_saved)}
-                      >
-                        <Bookmark className={`h-4 w-4 ${course.is_saved ? 'fill-current text-primary' : ''}`} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => toggleCompleted(course.id, course.is_completed)}
-                      >
-                        <Check className={`h-4 w-4 ${course.is_completed ? 'text-success' : ''}`} />
-                      </Button>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {language === 'ar' ? `الأسبوع ${course.weekNumber}` : `Week ${course.weekNumber}`}
+                      </Badge>
+                      {!course.isUnlocked && (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <Lock className="h-3 w-3" />
+                          {language === 'ar' ? 'مقفل' : 'Locked'}
+                        </Badge>
+                      )}
                     </div>
+                    {course.isUnlocked && (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => toggleSaved(course.id, course.is_saved)}
+                        >
+                          <Bookmark className={`h-4 w-4 ${course.is_saved ? 'fill-current text-primary' : ''}`} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => toggleCompleted(course.id, course.is_completed)}
+                        >
+                          <Check className={`h-4 w-4 ${course.is_completed ? 'text-success' : ''}`} />
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Platform badge */}
@@ -442,15 +452,22 @@ export default function Courses() {
                   )}
 
                   {/* Action */}
-                  <Button asChild className="w-full gap-2" variant={course.is_completed ? 'outline' : 'default'}>
-                    <a href={hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '')} target="_blank" rel="noopener noreferrer">
-                      <BookOpen className="h-4 w-4" />
-                      {course.is_completed 
-                        ? (language === 'ar' ? 'مراجعة' : 'Review')
-                        : (language === 'ar' ? 'بدء التعلم' : 'Start Learning')}
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
+                  {course.isUnlocked ? (
+                    <Button asChild className="w-full gap-2" variant={course.is_completed ? 'outline' : 'default'}>
+                      <a href={hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '')} target="_blank" rel="noopener noreferrer">
+                        <BookOpen className="h-4 w-4" />
+                        {course.is_completed 
+                          ? (language === 'ar' ? 'مراجعة' : 'Review')
+                          : (language === 'ar' ? 'بدء التعلم' : 'Start Learning')}
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button className="w-full gap-2" variant="outline" disabled>
+                      <Lock className="h-4 w-4" />
+                      {language === 'ar' ? 'أكمل الأسبوع السابق' : 'Complete previous week'}
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

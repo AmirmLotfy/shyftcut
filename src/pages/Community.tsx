@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -269,7 +270,9 @@ export default function Community() {
 
   if (!isPremium) {
     return (
-      <PremiumGateCard
+      <>
+        <Helmet><title>Community | Shyftcut</title></Helmet>
+        <PremiumGateCard
         variant="full"
         title={language === 'ar' ? 'المجتمع لمشتركي بريميوم' : 'Community is for Premium'}
         description={
@@ -283,11 +286,13 @@ export default function Community() {
             : ['Leaderboard & streaks', 'Study groups', 'Peer chat', 'Badges & achievements']
         }
       />
+      </>
     );
   }
 
   return (
     <>
+      <Helmet><title>Community | Shyftcut</title></Helmet>
       <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-2xl font-bold sm:text-3xl">{t('nav.community')}</h1>

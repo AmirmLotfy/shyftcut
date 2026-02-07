@@ -53,9 +53,9 @@ const targetCareers = [
 const careerReasonPresets: { value: string; labelEn: string; labelAr: string }[] = [
   { value: 'Career growth', labelEn: 'Career growth', labelAr: 'نمو مهني' },
   { value: 'Switch industry', labelEn: 'Switch industry', labelAr: 'تغيير المجال' },
-  { value: 'Upskill', labelEn: 'Upskill', labelAr: 'تطوير المهارات' },
-  { value: 'New challenge', labelEn: 'New challenge', labelAr: 'تحدٍ جديد' },
-  { value: 'Other', labelEn: 'Other', labelAr: 'أخرى' },
+  { value: 'Upskill', labelEn: 'Upskill', labelAr: 'تطوير مهارات' },
+  { value: 'New challenge', labelEn: 'New challenge', labelAr: 'تحدي جديد' },
+  { value: 'Other', labelEn: 'Other', labelAr: 'تاني' },
 ];
 
 const learningStyles = ['video', 'reading', 'hands-on', 'mixed'];

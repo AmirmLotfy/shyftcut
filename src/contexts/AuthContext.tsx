@@ -124,11 +124,33 @@ function useAuthState() {
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
     if (!hasSupabase || !supabase) return null;
-    const { data: { session: supabaseSession } } = await supabase.auth.getSession();
-    if (supabaseSession?.access_token) return supabaseSession.access_token;
-    const { data: { session: refreshed } } = await supabase.auth.refreshSession();
-    return refreshed?.access_token ?? null;
-  }, []);
+    try {
+      const { data: { session: supabaseSession }, error } = await supabase.auth.getSession();
+      if (error) {
+        const msg = String(error?.message ?? "").toLowerCase();
+        if (msg.includes("refresh token") || msg.includes("invalid") || msg.includes("not found")) {
+          clearSession();
+          return null;
+        }
+      }
+      if (supabaseSession?.access_token) return supabaseSession.access_token;
+      const { data: { session: refreshed }, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        const msg = String(refreshError?.message ?? "").toLowerCase();
+        if (msg.includes("refresh token") || msg.includes("invalid") || msg.includes("not found")) {
+          clearSession();
+        }
+        return null;
+      }
+      return refreshed?.access_token ?? null;
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? "").toLowerCase();
+      if (msg.includes("refresh token") || msg.includes("invalid") || msg.includes("not found")) {
+        clearSession();
+      }
+      return null;
+    }
+  }, [clearSession]);
 
   const getAccessTokenFresh = useCallback(async (): Promise<string | null> => {
     if (!hasSupabase || !supabase) return null;
@@ -188,7 +210,13 @@ function useAuthState() {
       };
     }
 
-    supabase.auth.getSession().then(({ data: { session: supabaseSession } }) => {
+    supabase.auth.getSession().then(({ data: { session: supabaseSession }, error }) => {
+      if (error) {
+        const msg = String(error?.message ?? "").toLowerCase();
+        if (msg.includes("refresh token") || msg.includes("invalid") || msg.includes("not found")) {
+          clearSession();
+        }
+      }
       if (supabaseSession) {
         syncSessionFromSupabase(supabaseSession);
         setIsLoading(false);
@@ -196,6 +224,12 @@ function useAuthState() {
         clearSession();
         setIsLoading(false);
       }
+    }).catch((err) => {
+      const msg = String(err?.message ?? "").toLowerCase();
+      if (msg.includes("refresh token") || msg.includes("invalid") || msg.includes("not found")) {
+        clearSession();
+      }
+      setIsLoading(false);
     });
     const {
       data: { subscription },
@@ -368,9 +402,21 @@ function useAuthState() {
       });
       return;
     }
+    // Force Google to show account picker every time
+    // Using 'select_account' forces account selection screen
+    // Adding 'access_type: offline' requests refresh token (best practice)
+    // Note: If Google still auto-selects, it may be due to browser-level Google session cache
+    // Users can clear their Google session or use incognito mode to see all accounts
     supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin + window.location.pathname },
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        queryParams: {
+          prompt: "select_account", // Force account picker to show
+          access_type: "offline", // Request offline access (refresh token)
+        },
+        skipBrowserRedirect: false, // Ensure browser redirect happens (default)
+      },
     });
   }, [toast]);
 

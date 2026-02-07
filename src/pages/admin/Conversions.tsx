@@ -9,7 +9,7 @@ import { ConversionFunnel } from '@/components/admin/ConversionFunnel';
 import { ConversionRates } from '@/components/admin/ConversionRates';
 import { ConversionSources } from '@/components/admin/ConversionSources';
 
-export function Conversions() {
+export default function Conversions() {
   const { language } = useLanguage();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');

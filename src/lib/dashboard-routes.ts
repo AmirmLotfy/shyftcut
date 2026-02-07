@@ -15,6 +15,7 @@ export const dashboardPaths = {
   profile: `${DASHBOARD_BASE}/profile`,
   upgrade: `${DASHBOARD_BASE}/upgrade`,
   support: `${DASHBOARD_BASE}/support`,
+  tickets: `${DASHBOARD_BASE}/tickets`,
   affiliate: `${DASHBOARD_BASE}/affiliate`,
   checkoutSuccess: `${DASHBOARD_BASE}/checkout/success`,
   checkoutCancel: `${DASHBOARD_BASE}/checkout/cancel`,

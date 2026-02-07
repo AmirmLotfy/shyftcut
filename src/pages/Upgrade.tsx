@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Crown, ArrowLeft, CheckCircle } from "lucide-react";
@@ -24,17 +25,24 @@ export default function Upgrade() {
   const lang = language === "ar" ? "ar" : "en";
   const premiumFeatures = getPremiumFeaturesList(lang);
   const { isPremium } = useSubscription();
-  const [billingInterval, setBillingInterval] = useState<BillingInterval>("year");
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? searchParams.get("returnTo") ?? undefined;
   const fromCareerdna = searchParams.get("from") === "careerdna";
+  
+  // Force yearly option if interval=year or yearly=true query param is present
+  const intervalParam = searchParams.get("interval");
+  const yearlyParam = searchParams.get("yearly");
+  const forceYearly = intervalParam === "year" || yearlyParam === "true";
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>(forceYearly ? "year" : "year");
 
   const premiumOption = billingInterval === "year" ? POLAR_PRODUCTS.premium.yearly : POLAR_PRODUCTS.premium.monthly;
 
   if (isPremium) {
     return (
-      <div className={PAGE_CONTAINER} style={PAGE_PADDING}>
+      <>
+        <Helmet><title>Upgrade | Shyftcut</title></Helmet>
+        <div className={PAGE_CONTAINER} style={PAGE_PADDING}>
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -63,11 +71,14 @@ export default function Upgrade() {
           </Card>
         </motion.div>
       </div>
+      </>
     );
   }
 
   return (
-    <div className={PAGE_CONTAINER} style={PAGE_PADDING}>
+    <>
+      <Helmet><title>Upgrade | Shyftcut</title></Helmet>
+      <div className={PAGE_CONTAINER} style={PAGE_PADDING}>
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -158,5 +169,6 @@ export default function Upgrade() {
         </Card>
       </motion.div>
     </div>
+    </>
   );
 }

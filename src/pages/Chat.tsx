@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Loader2, Brain, Trash2, User, Bot, Globe, Mic, MicOff } from 'lucide-react';
+import { Send, Loader2, Trash2, User, Globe, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -14,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUsageLimits } from '@/hooks/useUsageLimits';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { UpgradePrompt } from '@/components/common/UpgradePrompt';
+import { BreathingCircle } from '@/components/common/BreathingCircle';
 import { UsageBadge } from '@/components/common/UsageBadge';
 import { getUpgradePath } from '@/lib/upgrade-link';
 import { cn } from '@/lib/utils';
@@ -509,6 +511,7 @@ export default function Chat() {
 
   return (
     <>
+      <Helmet><title>Chat | Shyftcut</title></Helmet>
       <div className={cn(
         'flex min-h-0 flex-col',
         isMobile ? 'flex-1 min-h-0' : 'h-[calc(100dvh-3.5rem)]'
@@ -520,9 +523,7 @@ export default function Chat() {
         >
           <div className="container mx-auto flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent md:h-10 md:w-10">
-                <Brain className="h-4 w-4 text-white md:h-5 md:w-5" />
-              </div>
+              <BreathingCircle size="sm" className="rounded-xl overflow-hidden" />
               <div className="min-w-0">
                 <h1 className="truncate font-semibold text-sm md:text-base">
                   {t('chat.title')}
@@ -574,10 +575,10 @@ export default function Chat() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="py-20 text-center"
+                className="py-16 md:py-20 text-center"
               >
-                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent">
-                  <Brain className="h-10 w-10 text-white" />
+                <div className="mx-auto mb-6 flex justify-center rounded-2xl p-2">
+                  <BreathingCircle size="lg" />
                 </div>
                 <h2 className="mb-2 text-2xl font-bold">
                   {t('chat.welcomeTitle')}
@@ -616,7 +617,7 @@ export default function Chat() {
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-gradient-to-br from-primary to-accent text-white'
                       }`}>
-                        {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                        {message.role === 'user' ? <User className="h-4 w-4" /> : <BreathingCircle size="sm" />}
                       </div>
                       <div
                         className={`max-w-[85%] rounded-2xl px-4 py-3 md:max-w-[80%] ${
@@ -664,8 +665,8 @@ export default function Chat() {
                     animate={{ opacity: 1 }}
                     className="flex gap-2 md:gap-3"
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-white">
-                      <Bot className="h-4 w-4" />
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                      <BreathingCircle size="sm" />
                     </div>
                     <div className="flex max-w-[85%] items-center gap-1 rounded-2xl border border-border/50 bg-muted/50 px-4 py-3 md:max-w-[80%]">
                       <span className="flex gap-1">
@@ -681,13 +682,11 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* Input: on mobile fixed above bottom nav; on desktop shrink-0 at bottom */}
+            {/* Input: floating glass pill with all controls inside */}
             <div
               className={cn(
-                'border-t border-border bg-background/80 backdrop-blur',
-                isMobile
-                  ? 'fixed inset-x-0 bottom-0 z-30 p-3'
-                  : 'shrink-0 p-4'
+                'relative flex items-end justify-center',
+                isMobile ? 'fixed inset-x-0 bottom-0 z-30 px-3' : 'shrink-0 p-4'
               )}
               style={{
                 paddingBottom: isMobile
@@ -696,86 +695,100 @@ export default function Chat() {
               }}
             >
               {!isUnlimitedChat && getChatMessagesRemaining() <= 2 && getChatMessagesRemaining() >= 0 && (
-                <p className="container mx-auto mb-2 max-w-3xl text-center text-xs text-muted-foreground">
+                <p className="absolute -top-6 left-1/2 -translate-x-1/2 text-center text-xs text-muted-foreground whitespace-nowrap">
                   {t('chat.messagesLeft').replace('{{count}}', String(getChatMessagesRemaining()))}
-                  <Link to={getUpgradePath(user)} className="text-primary hover:underline">
+                  <Link to={getUpgradePath(user)} className="text-primary hover:underline ml-1">
                     {t('chat.upgradeUnlimited')}
                   </Link>
                 </p>
               )}
               {permissionError && (
-                <div className="container mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-between gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive max-w-[90vw]">
                   <span className="min-w-0 truncate">{permissionError}</span>
-                  <Button variant="ghost" size="sm" className="h-8 shrink-0 text-destructive hover:bg-destructive/20" onClick={() => setPermissionError(null)}>
+                  <Button variant="ghost" size="sm" className="h-7 shrink-0 text-destructive hover:bg-destructive/20 rounded-full" onClick={() => setPermissionError(null)}>
                     {t('chat.dismiss')}
                   </Button>
                 </div>
               )}
-              <form onSubmit={handleSubmit} className="container mx-auto max-w-3xl">
-                {/* Search the web: chip on mobile, full row on desktop */}
-                <div className={`flex items-center gap-2 ${isMobile ? 'mb-2' : 'mb-2'}`}>
-                  <Button
-                    type="button"
-                    variant={useSearch ? 'secondary' : 'ghost'}
-                    size={isMobile ? 'sm' : 'sm'}
-                    className="h-9 gap-1.5 rounded-full px-3 text-xs md:rounded-md md:px-3"
-                    onClick={() => setUseSearch((v) => !v)}
-                    title={t('chat.useWebSearch')}
-                  >
-                    <Globe className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    {t('chat.webSearch')}
-                  </Button>
-                  {useSearch && !isMobile && (
-                    <span className="text-xs text-muted-foreground">
-                      {t('chat.webSearchNote')}
-                    </span>
-                  )}
-                </div>
-                <div className="flex min-h-[44px] items-end gap-2 rounded-2xl border border-border/50 bg-muted/30 p-2 md:rounded-xl md:border-0 md:bg-transparent md:p-0">
-                  <Textarea
-                    data-testid="chat-input"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder={t('chat.placeholder')}
-                    className="min-h-[40px] max-h-[100px] flex-1 resize-none border-0 bg-transparent px-3 py-2.5 text-[15px] shadow-none focus-visible:ring-0 md:min-h-[50px] md:max-h-[150px] md:rounded-md md:border md:bg-background"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSubmit(e);
-                      }
-                    }}
-                  />
-                  {speechSupported ? (
-                    <Button
-                      type="button"
-                      variant={isListening ? 'destructive' : 'ghost'}
-                      size="icon"
-                      className="h-10 w-10 shrink-0 rounded-full md:h-10 md:w-10"
-                      onClick={toggleVoiceInput}
-                      title={isListening ? t('chat.stopListening') : t('chat.voiceInput')}
-                      disabled={isLoading}
-                    >
-                      {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 shrink-0 rounded-full opacity-50"
-                      disabled
-                      title={t('chat.voiceNotSupported')}
-                    >
-                      <MicOff className="h-5 w-5" />
-                    </Button>
-                  )}
-                  <Button type="submit" data-testid="chat-send" disabled={!input.trim() || isLoading} className="btn-glow h-10 w-10 shrink-0 rounded-full md:h-10 md:w-10">
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <Send className="h-5 w-5" />
-                    )}
-                  </Button>
+              <form onSubmit={handleSubmit} className="relative w-full max-w-2xl">
+                <div className="rounded-[1.75rem] border border-white/10 dark:border-white/5 bg-background/70 dark:bg-background/60 backdrop-blur-2xl shadow-xl shadow-black/10 dark:shadow-black/30 p-2 md:p-2.5">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2 px-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-8 gap-1.5 rounded-full px-3 text-xs transition-colors",
+                          useSearch ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                        )}
+                        onClick={() => setUseSearch((v) => !v)}
+                        title={t('chat.useWebSearch')}
+                      >
+                        <Globe className="h-3.5 w-3.5" />
+                        {t('chat.webSearch')}
+                      </Button>
+                      {useSearch && (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {t('chat.webSearchNote')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex min-h-[44px] items-end gap-2">
+                      <Textarea
+                        data-testid="chat-input"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder={t('chat.placeholder')}
+                        className="min-h-[40px] max-h-[120px] flex-1 resize-none border-0 bg-transparent/50 rounded-2xl px-4 py-3 text-[15px] shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/70"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmit(e);
+                          }
+                        }}
+                      />
+                      {speechSupported ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className={cn(
+                            "h-10 w-10 shrink-0 rounded-full transition-colors",
+                            isListening ? "bg-destructive/20 text-destructive" : "hover:bg-muted/80"
+                          )}
+                          onClick={toggleVoiceInput}
+                          title={isListening ? t('chat.stopListening') : t('chat.voiceInput')}
+                          disabled={isLoading}
+                        >
+                          {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 shrink-0 rounded-full opacity-50"
+                          disabled
+                          title={t('chat.voiceNotSupported')}
+                        >
+                          <MicOff className="h-5 w-5" />
+                        </Button>
+                      )}
+                      <Button
+                        type="submit"
+                        data-testid="chat-send"
+                        disabled={!input.trim() || isLoading}
+                        className="h-10 w-10 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Send className="h-5 w-5" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </form>
             </div>

@@ -1,4 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { Check, Clock, BookOpen, ChevronDown, ChevronUp, ExternalLink, Loader2, GraduationCap, AlertCircle, CheckCircle2, Pencil, Archive, Trash2, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -175,6 +176,7 @@ export default function Roadmap() {
   if (isLoading) {
     return (
       <>
+        <Helmet><title>Roadmap | Shyftcut</title></Helmet>
         <div className="flex min-h-[60vh] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -185,6 +187,7 @@ export default function Roadmap() {
   if (isError) {
     return (
       <>
+        <Helmet><title>Roadmap | Shyftcut</title></Helmet>
         <div className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-20">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -212,6 +215,7 @@ export default function Roadmap() {
   if (!currentRoadmap) {
     return (
       <>
+        <Helmet><title>Roadmap | Shyftcut</title></Helmet>
         <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="mb-4 text-2xl font-bold">
             {language === 'ar' ? 'لا توجد خريطة طريق' : 'No Roadmap Found'}
@@ -238,6 +242,7 @@ export default function Roadmap() {
 
   return (
     <>
+      <Helmet><title>Roadmap | Shyftcut</title></Helmet>
       <div data-testid="roadmap-list" className="min-h-full bg-gradient-to-b from-background to-muted/20">
         {/* Compact header: sticky on mobile, clean on desktop */}
         <header className="sticky top-0 z-30 border-b border-border/50 bg-background/95 backdrop-blur-xl">
@@ -321,7 +326,7 @@ export default function Roadmap() {
                   transition={{ delay: index * 0.04 }}
                   className="mb-4 sm:mb-5"
                 >
-                  <Card className="overflow-hidden rounded-2xl border-border/60 bg-muted/30 opacity-90 backdrop-blur-xl">
+                  <Card className="overflow-hidden rounded-2xl border border-border/60 bg-muted/30 opacity-90 backdrop-blur-xl glass-card">
                     <CardHeader className="py-4 min-h-[44px] sm:py-5 cursor-default">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -410,38 +415,15 @@ export default function Roadmap() {
                       </CardHeader>
                     </CollapsibleTrigger>
                     <CollapsibleContent id={`week-content-${week.id}`} aria-labelledby={`week-trigger-${week.id}`}>
-                      <CardContent className="pt-0">
-                          <p className="mb-4 text-sm text-muted-foreground">{week.description}</p>
-                          
-                          {/* Skills */}
-                          <div className="mb-4">
-                            <h4 className="mb-2 text-sm font-medium">
-                              {language === 'ar' ? 'المهارات للتعلم' : 'Skills to Learn'}
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {week.skills_to_learn?.map((skill: string, i: number) => (
-                                <Badge key={i} variant="secondary">{skill}</Badge>
-                              ))}
-                            </div>
-                          </div>
+                      <CardContent className="pt-0 space-y-5">
+                          <p className="text-sm text-muted-foreground leading-relaxed">{week.description}</p>
 
-                          {/* Deliverables */}
-                          <div className="mb-4">
-                            <h4 className="mb-2 text-sm font-medium">
-                              {language === 'ar' ? 'المخرجات' : 'Deliverables'}
-                            </h4>
-                            <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-                              {week.deliverables?.map((item: string, i: number) => (
-                                <li key={i}>{item}</li>
-                              ))}
-                            </ul>
-                          </div>
-
-                          {/* Courses */}
+                          {/* Courses - prominent section */}
                           {week.course_recommendations && week.course_recommendations.length > 0 && (
-                            <div className="mb-4">
-                              <div className="mb-2 flex items-center justify-between">
-                                <h4 className="text-sm font-medium">
+                            <section className="rounded-xl border-2 border-primary/25 bg-primary/5 p-4">
+                              <div className="mb-3 flex items-center justify-between">
+                                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                                  <BookOpen className="h-4 w-4 text-primary shrink-0" />
                                   {language === 'ar' ? 'الدورات الموصى بها' : 'Recommended Courses'}
                                 </h4>
                                 <Link
@@ -456,52 +438,84 @@ export default function Roadmap() {
                                   const courseUrl = hasValidCourseUrl(course.url) ? course.url : getCourseSearchUrl(course.platform ?? '', course.title ?? '');
                                   const isSearchLink = !hasValidCourseUrl(course.url);
                                   return (
-                                  <div
-                                    key={course.id}
-                                    className={`flex items-center justify-between gap-2 rounded-lg border border-border p-3 transition-colors hover:bg-muted/50 ${course.is_completed ? 'opacity-75' : ''}`}
-                                  >
-                                    <a
-                                      href={courseUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="min-w-0 flex-1"
+                                    <div
+                                      key={course.id}
+                                      className={`flex items-center gap-3 rounded-lg border border-primary/20 bg-background/80 p-3 transition-all hover:border-primary/40 hover:bg-primary/5 ${course.is_completed ? 'opacity-80' : ''}`}
                                     >
-                                      <p className="font-medium text-sm">{course.title}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {course.platform} {course.duration && `• ${course.duration}`}
-                                        {isSearchLink && ` • ${language === 'ar' ? 'بحث على المنصة' : 'Find on platform'}`}
-                                      </p>
-                                    </a>
-                                    <div className="flex shrink-0 items-center gap-2">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        disabled={togglingCourseId === course.id}
-                                        onClick={() => toggleCourseCompleted(course.id, course.is_completed)}
-                                        aria-label={course.is_completed ? (language === 'ar' ? 'إلغاء الإكمال' : 'Mark incomplete') : (language === 'ar' ? 'تحديد مكتمل' : 'Mark complete')}
-                                      >
-                                        {togglingCourseId === course.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <CheckCircle2 className={`h-5 w-5 ${course.is_completed ? 'text-success' : 'text-muted-foreground'}`} />
-                                        )}
-                                      </Button>
                                       <a
                                         href={courseUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-muted-foreground hover:text-foreground"
-                                        aria-label={language === 'ar' ? 'فتح الرابط' : 'Open link'}
+                                        className="min-w-0 flex-1 group/link"
                                       >
-                                        <ExternalLink className="h-4 w-4" />
+                                        <p className="font-semibold text-sm text-primary truncate group-hover/link:underline">{course.title}</p>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                          {course.platform} {course.duration && `• ${course.duration}`}
+                                          {isSearchLink && ` • ${language === 'ar' ? 'بحث على المنصة' : 'Find on platform'}`}
+                                        </p>
                                       </a>
+                                      <div className="flex shrink-0 items-center gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          disabled={togglingCourseId === course.id}
+                                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleCourseCompleted(course.id, course.is_completed); }}
+                                          aria-label={course.is_completed ? (language === 'ar' ? 'إلغاء الإكمال' : 'Mark incomplete') : (language === 'ar' ? 'تحديد مكتمل' : 'Mark complete')}
+                                        >
+                                          {togglingCourseId === course.id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <CheckCircle2 className={`h-5 w-5 ${course.is_completed ? 'text-success' : 'text-muted-foreground'}`} />
+                                          )}
+                                        </Button>
+                                        <a
+                                          href={courseUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                                          aria-label={language === 'ar' ? 'فتح الرابط' : 'Open course'}
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                          {language === 'ar' ? 'فتح' : 'Open'}
+                                        </a>
+                                      </div>
                                     </div>
-                                  </div>
                                   );
                                 })}
                               </div>
-                            </div>
+                            </section>
+                          )}
+
+                          {/* Skills */}
+                          {week.skills_to_learn && week.skills_to_learn.length > 0 && (
+                            <section>
+                              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                {language === 'ar' ? 'المهارات للتعلم' : 'Skills to Learn'}
+                              </h4>
+                              <div className="flex flex-wrap gap-1.5">
+                                {week.skills_to_learn.map((skill: string, i: number) => (
+                                  <Badge key={i} variant="secondary" className="font-normal">{skill}</Badge>
+                                ))}
+                              </div>
+                            </section>
+                          )}
+
+                          {/* Deliverables */}
+                          {week.deliverables && week.deliverables.length > 0 && (
+                            <section>
+                              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                {language === 'ar' ? 'المخرجات' : 'Deliverables'}
+                              </h4>
+                              <ul className="space-y-1.5">
+                                {week.deliverables.map((item: string, i: number) => (
+                                  <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </section>
                           )}
 
                           {/* Notes & Tasks for this week */}

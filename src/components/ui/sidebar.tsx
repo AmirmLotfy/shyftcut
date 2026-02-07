@@ -199,13 +199,17 @@ const Sidebar = React.forwardRef<
       />
       <div
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed z-10 hidden transition-[left,right,width] duration-200 ease-linear md:flex",
+          // Floating variant: add top/bottom margins, full height minus margins
+          variant === "floating"
+            ? "inset-y-4 h-[calc(100svh-theme(spacing.8))]"
+            : "inset-y-0 h-svh",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
+            ? "p-4 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
             : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className,
         )}
@@ -214,9 +218,11 @@ const Sidebar = React.forwardRef<
         <div
           data-sidebar="sidebar"
           className={cn(
-            "flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow",
+            "flex h-full w-full flex-col",
+            variant === "floating" && "rounded-3xl border border-sidebar-border/50 backdrop-blur-xl bg-sidebar/80 shadow-2xl shadow-black/20 dark:shadow-black/40",
             variant === "sidebar" && "glass-effect border-sidebar-border/80 group-data-[side=left]:border-r group-data-[side=right]:border-l",
-            variant !== "sidebar" && "bg-sidebar"
+            variant === "inset" && "rounded-xl border border-sidebar-border bg-sidebar shadow-lg",
+            variant !== "sidebar" && variant !== "floating" && variant !== "inset" && "bg-sidebar"
           )}
         >
           {children}

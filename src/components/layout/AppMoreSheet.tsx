@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   Briefcase,
@@ -7,6 +7,8 @@ import {
   CreditCard,
   HelpCircle,
   Users,
+  LogOut,
+  User,
 } from 'lucide-react';
 import {
   Sheet,
@@ -17,6 +19,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUpgradePath } from '@/lib/upgrade-link';
+import { dashboardPaths } from '@/lib/dashboard-routes';
 import { LOGO_PATH } from '@/lib/seo';
 
 interface AppMoreSheetProps {
@@ -25,21 +28,29 @@ interface AppMoreSheetProps {
 }
 
 const moreNavItems = [
-  { href: '/courses', labelKey: { en: 'Courses', ar: 'الدورات' }, icon: BookOpen },
-  { href: '/career-tools', labelKey: { en: 'Career Tools', ar: 'أدوات المهنة' }, icon: Briefcase },
-  { href: '/community', labelKey: { en: 'Community', ar: 'المجتمع' }, icon: Users },
+  { href: dashboardPaths.profile, labelKey: { en: 'Profile', ar: 'الملف' }, icon: User },
+  { href: dashboardPaths.courses, labelKey: { en: 'Courses', ar: 'الدورات' }, icon: BookOpen },
+  { href: dashboardPaths.careerTools, labelKey: { en: 'Career Tools', ar: 'أدوات المهنة' }, icon: Briefcase },
+  { href: dashboardPaths.community, labelKey: { en: 'Community', ar: 'المجتمع' }, icon: Users },
   { href: '/wizard', labelKey: { en: 'Create roadmap', ar: 'إنشاء خريطة طريق' }, icon: Wand2 },
-  { href: '/support', labelKey: { en: 'Support', ar: 'الدعم' }, icon: HelpCircle },
+  { href: dashboardPaths.tickets, labelKey: { en: 'Support', ar: 'الدعم' }, icon: HelpCircle },
   { href: '/', labelKey: { en: 'Home', ar: 'الرئيسية' }, icon: Home },
   { href: 'upgrade', labelKey: { en: 'Upgrade', ar: 'ترقية' }, icon: CreditCard, isUpgrade: true },
 ];
 
 /**
- * Bottom sheet for mobile app "More" menu — Courses, Career Tools, Create roadmap, Home, Upgrade.
+ * Bottom sheet for mobile app "More" menu — Courses, Career Tools, Create roadmap, Home, Upgrade, Logout.
  */
 export function AppMoreSheet({ open, onOpenChange }: AppMoreSheetProps) {
   const { language } = useLanguage();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    onOpenChange(false);
+    navigate('/');
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -87,6 +98,21 @@ export function AppMoreSheet({ open, onOpenChange }: AppMoreSheetProps) {
               </Link>
             );
           })}
+          
+          {user && (
+            <>
+              <div className="my-1 h-px bg-border/60" />
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="flex min-touch w-full items-center gap-3 rounded-xl px-4 py-3.5 text-start text-[15px] font-medium text-destructive transition-colors hover:bg-destructive/10 active:bg-destructive/20"
+                data-testid="logout-button"
+              >
+                <LogOut className="h-5 w-5 shrink-0" />
+                <span>{language === 'ar' ? 'تسجيل الخروج' : 'Logout'}</span>
+              </button>
+            </>
+          )}
         </nav>
       </SheetContent>
     </Sheet>

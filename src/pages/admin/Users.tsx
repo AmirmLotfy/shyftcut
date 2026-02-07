@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserDetailModal } from '@/components/admin/UserDetailModal';
 import { BulkActions } from '@/components/admin/BulkActions';
 
-export function Users() {
+export default function Users() {
   const { language } = useLanguage();
   const { toast } = useToast();
   const { getAccessToken } = useAuth();

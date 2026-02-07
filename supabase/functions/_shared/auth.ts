@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")?.trim() ?? "";
 
 export interface AuthUser {
   id: string;
@@ -36,6 +37,15 @@ export async function getAuthUser(authHeader: string | null): Promise<GetAuthUse
     console.warn("[auth] Empty token");
     return { user: null, reason: "empty_token" };
   }
+  
+  // Check if token is the anon key - if so, skip validation (anon key is not a user token)
+  // This allows anonymous endpoints to work with anon key as Bearer token
+  if (SUPABASE_ANON_KEY && token === SUPABASE_ANON_KEY) {
+    // Anon key is valid for gateway but not a user token - return null user
+    // The endpoint will check requireAuth to allow anonymous access
+    return { user: null, reason: "anon_key" };
+  }
+  
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });

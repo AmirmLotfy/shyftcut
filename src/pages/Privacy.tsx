@@ -90,6 +90,7 @@ export default function Privacy() {
                         <li>عنوان البريد الإلكتروني</li>
                         <li>الاسم (اختياري)</li>
                         <li>صورة الملف الشخصي (اختياري)</li>
+                        <li>رقم الهاتف (اختياري، في ملفك الشخصي أو عند طلب إشعارات تحدي Career DNA)</li>
                         <li>المسمى الوظيفي ومعلومات المهنة</li>
                         <li>تفضيلات التعلم</li>
                       </ul>
@@ -110,6 +111,7 @@ export default function Privacy() {
                         <li>Email address</li>
                         <li>Name (optional)</li>
                         <li>Profile picture (optional)</li>
+                        <li>Phone number (optional, in your profile or when opting in to Career DNA challenge notifications)</li>
                         <li>Job title and career information</li>
                         <li>Learning preferences</li>
                       </ul>
@@ -134,6 +136,7 @@ export default function Privacy() {
                     <>
                       <p>نستخدم بياناتك لـ:</p>
                       <ul>
+                        <li>إرسال إشعارات عند انضمام أصدقائك لتحدي Career DNA (عند الموافقة صراحةً)</li>
                         <li>إنشاء خرائط طريق مهنية مخصصة</li>
                         <li>تقديم توصيات دورات ذات صلة</li>
                         <li>تشغيل تجارب التدريب بالذكاء الاصطناعي</li>
@@ -147,6 +150,7 @@ export default function Privacy() {
                     <>
                       <p>We use your data to:</p>
                       <ul>
+                        <li>Notify you when friends join a Career DNA challenge (when you explicitly opt in)</li>
                         <li>Generate personalized career roadmaps</li>
                         <li>Provide relevant course recommendations</li>
                         <li>Power AI coaching experiences</li>

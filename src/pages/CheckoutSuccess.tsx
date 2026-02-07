@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Helmet } from 'react-helmet-async';
+import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -44,6 +46,7 @@ export default function CheckoutSuccess() {
 
   return (
     <>
+      <Helmet><title>Checkout Successful | Shyftcut</title></Helmet>
       <Confetti isActive={showConfetti} />
       <div className="container mx-auto flex min-h-[80vh] items-center justify-center px-4 py-20">
         <motion.div

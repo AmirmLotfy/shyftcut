@@ -9,7 +9,7 @@ import { UserFlowDiagram } from '@/components/admin/UserFlowDiagram';
 import { DropoffAnalysis } from '@/components/admin/DropoffAnalysis';
 import { FunnelAnalysis } from '@/components/admin/FunnelAnalysis';
 
-export function UserJourney() {
+export default function UserJourney() {
   const { language } = useLanguage();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');

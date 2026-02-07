@@ -8,7 +8,7 @@ import { SubscriptionPieChart } from '@/components/admin/SubscriptionPieChart';
 import { RevenueAreaChart } from '@/components/admin/RevenueAreaChart';
 import { EngagementBarChart } from '@/components/admin/EngagementBarChart';
 
-export function Analytics() {
+export default function Analytics() {
   const { language } = useLanguage();
   const { data, isLoading, isError, error } = useAdminAnalytics();
   const { data: insightsData, isError: insightsError } = useAdminInsights();

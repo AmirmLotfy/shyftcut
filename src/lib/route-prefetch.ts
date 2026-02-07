@@ -34,7 +34,8 @@ export function prefetchRoute(route: string): void {
       void import('../pages/Affiliate');
       break;
     case dashboardPaths.support:
-      void import('../pages/Support');
+    case dashboardPaths.tickets:
+      void import('../pages/Tickets');
       break;
     case dashboardPaths.upgrade:
       void import('../pages/Upgrade');

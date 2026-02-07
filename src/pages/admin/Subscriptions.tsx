@@ -10,7 +10,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { SubscriptionDetailModal } from '@/components/admin/SubscriptionDetailModal';
 import { ChurnAnalysis } from '@/components/admin/ChurnAnalysis';
 
-export function Subscriptions() {
+export default function Subscriptions() {
   const { language } = useLanguage();
   const [tierFilter, setTierFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');

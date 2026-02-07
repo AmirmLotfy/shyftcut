@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +21,8 @@ interface CheckoutButtonProps {
   returnTo?: string;
   /** Metadata to pass to checkout (e.g. { from: 'careerdna' } for discount). */
   metadata?: Record<string, string>;
+  /** If true, redirects to upgrade page instead of opening Polar checkout directly */
+  redirectToUpgrade?: boolean;
   children?: React.ReactNode;
 }
 
@@ -31,14 +34,24 @@ export function CheckoutButton({
   size,
   returnTo,
   metadata,
+  redirectToUpgrade = false,
   children 
 }: CheckoutButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { user, getAccessTokenFresh } = useAuth();
   const { language, t } = useLanguage();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleCheckout = async () => {
+    // If redirectToUpgrade is true, navigate to upgrade page instead
+    if (redirectToUpgrade) {
+      const upgradePath = returnTo 
+        ? `${dashboardPaths.upgrade}?returnTo=${encodeURIComponent(returnTo)}`
+        : dashboardPaths.upgrade;
+      navigate(upgradePath);
+      return;
+    }
     if (!user) {
       const guestReturnTo = metadata?.from === 'careerdna' ? `${dashboardPaths.upgrade}?from=careerdna` : undefined;
       const url = guestReturnTo

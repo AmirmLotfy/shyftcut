@@ -38,7 +38,7 @@ export const CAREER_FIELD_LABELS: Record<string, { en: string; ar: string }> = {
   'Marketing Manager': { en: 'Marketing Manager', ar: 'مدير تسويق' },
   'Sales Manager': { en: 'Sales Manager', ar: 'مدير مبيعات' },
   'HR Manager': { en: 'HR Manager', ar: 'مدير موارد بشرية' },
-  'Student': { en: 'Student', ar: 'طالب' },
+  'Student': { en: 'Student', ar: 'طالب/طالبة' },
   'Other': { en: 'Other', ar: 'أخرى' }
 };
 

@@ -8,7 +8,7 @@ import {
   IconCreditCard,
   IconBook2,
   IconMapTrifold,
-  IconList,
+  IconMenu,
 } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -177,7 +177,7 @@ export function Header() {
                 className={cn('min-touch h-9 w-9 rounded-xl md:hidden', rightActionsClass)}
                 aria-label="Menu"
               >
-                <IconList className="h-5 w-5" />
+                <IconMenu className="h-5 w-5" />
               </Button>
             }
           />

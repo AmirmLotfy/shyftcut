@@ -19,6 +19,7 @@ export default function CheckoutCancel() {
   return (
     <>
       <Helmet>
+        <title>Checkout Cancelled | Shyftcut</title>
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
       <div className="container mx-auto flex min-h-[80vh] items-center justify-center px-4 py-20">

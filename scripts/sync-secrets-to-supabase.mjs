@@ -25,8 +25,8 @@ const WHITELIST = [
   "RESEND_API_KEY",
   "FROM_EMAIL",
   "CONTACT_TO_EMAIL",
-  "POLAR_ACCESS_TOKEN",
-  "POLAR_WEBHOOK_SECRET",
+  // POLAR_* excluded: set once in Supabase Dashboard to avoid sync overwriting
+  // on every deploy. See docs/POLAR_SECRETS_DEPLOY_FIX.md
   "GEMINI_API_KEY",
   "GEMINI_API_KEY_1",
   "GEMINI_API_KEY_2",
@@ -88,15 +88,20 @@ function main() {
   const tmpPath = join(tmpdir(), `supabase-secrets-${Date.now()}.env`);
   try {
     const lines = Object.entries(filtered).map(([k, v]) => {
-      const safe = String(v).replace(/\r?\n/g, " ").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      // Trim whitespace and preserve token format (important for Polar tokens)
+      const trimmed = String(v).trim();
+      // Escape special characters but preserve token structure
+      const safe = trimmed.replace(/\r?\n/g, " ").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
       return `${k}="${safe}"`;
     });
     writeFileSync(tmpPath, lines.join("\n") + "\n", "utf8");
+
     execSync(`supabase secrets set --env-file "${tmpPath}"`, { stdio: "inherit" });
     const pushed = Object.keys(filtered).filter((k) => !k.startsWith("SUPABASE_"));
     const supabaseKeys = Object.keys(filtered).filter((k) => k.startsWith("SUPABASE_"));
     if (pushed.length) console.log("Secrets synced:", pushed.join(", "));
     if (supabaseKeys.length) console.log("(SUPABASE_* are auto-injected in production; CLI may skip them.)");
+    console.log("(POLAR_* are NOT synced — set in Supabase Dashboard once; see docs/POLAR_SECRETS_DEPLOY_FIX.md)");
   } finally {
     try {
       unlinkSync(tmpPath);

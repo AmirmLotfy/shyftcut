@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { IconList } from '@/lib/icons';
+import { IconMenu } from '@/lib/icons';
 import { Button } from '@/components/ui/button';
 import { MobileNavSheet } from '@/components/layout/MobileNavSheet';
 import { useScrollDirection } from '@/hooks/useScrollDirection';
@@ -74,7 +74,7 @@ export function MobileHeader() {
               className={cn('min-touch h-10 w-10 rounded-xl', rightActionsClass)}
               aria-label="Menu"
             >
-              <IconList className="h-5 w-5" />
+              <IconMenu className="h-5 w-5" />
             </Button>
           }
         />

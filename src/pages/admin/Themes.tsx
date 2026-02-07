@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ThemeEditor } from '@/components/admin/ThemeEditor';
 import { Plus, Edit, Trash2, Star } from 'lucide-react';
 
-export function Themes() {
+export default function Themes() {
   const { language } = useLanguage();
   const { data, isLoading, refetch } = useAdminThemes();
   const deleteTheme = useDeleteAdminTheme();

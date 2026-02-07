@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Layout } from '@/components/layout/Layout';
 import { PublicPageMeta } from '@/components/seo/PublicPageMeta';
@@ -13,6 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCareerFieldLabel } from '@/data/career-dna-questions';
 import { apiPath, apiHeaders } from '@/lib/api';
+import { COUNTRY_CODES, flagEmoji, buildPhone, getCountryCodeFromDial } from '@/lib/country-codes';
 import { getSeo } from '@/data/seo-content';
 import { useToast } from '@/hooks/use-toast';
 import { BASE_URL } from '@/lib/seo';
@@ -60,7 +62,8 @@ export default function CareerDNASquad() {
   const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<SquadData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [phone, setPhone] = useState('');
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+1');
+  const [phoneNational, setPhoneNational] = useState('');
   const [phoneConsent, setPhoneConsent] = useState(false);
   const [submittingPhone, setSubmittingPhone] = useState(false);
   const [phoneSubmitted, setPhoneSubmitted] = useState(false);
@@ -127,14 +130,16 @@ export default function CareerDNASquad() {
   };
 
   const handleSubmitPhone = async () => {
-    if (!slug || !phone.trim() || !phoneConsent) return;
+    const fullPhone = buildPhone(phoneCountryCode, phoneNational);
+    if (!slug || !fullPhone || !phoneConsent) return;
     setSubmittingPhone(true);
     try {
       const res = await fetch(apiPath('/api/career-dna/lead'), {
         method: 'POST',
         headers: apiHeaders('/api/career-dna/lead', null),
         body: JSON.stringify({
-          phone: phone.trim(),
+          phone: fullPhone,
+          countryCode: getCountryCodeFromDial(phoneCountryCode),
           source: 'squad',
           sourceId: slug,
           consentMarketing: phoneConsent,
@@ -143,7 +148,7 @@ export default function CareerDNASquad() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as { error?: string }).error);
       setPhoneSubmitted(true);
-      setPhone('');
+      setPhoneNational('');
       toast({ title: t('careerDna.squad.phoneSuccess'), duration: 3000 });
     } catch {
       toast({ title: t('common.error'), variant: 'destructive' });
@@ -366,16 +371,34 @@ export default function CareerDNASquad() {
                       <CardContent className="pt-5">
                         <Label className="text-sm">{t('careerDna.squad.phonePrompt')}</Label>
                         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                          <Input
-                            type="tel"
-                            placeholder={t('careerDna.squad.phonePlaceholder')}
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="flex-1"
-                          />
+                          <div className="flex flex-1 gap-2">
+                            <Select value={phoneCountryCode} onValueChange={setPhoneCountryCode}>
+                              <SelectTrigger className="w-[140px] shrink-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COUNTRY_CODES.map((c) => (
+                                  <SelectItem key={c.code} value={c.dial}>
+                                    <span className="flex items-center gap-2">
+                                      <span aria-hidden>{flagEmoji(c.code)}</span>
+                                      <span>{c.dial} {c.code}</span>
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="tel"
+                              inputMode="numeric"
+                              placeholder={t('careerDna.squad.phonePlaceholder')}
+                              value={phoneNational}
+                              onChange={(e) => setPhoneNational(e.target.value.replace(/\D/g, ''))}
+                              className="min-w-0 flex-1"
+                            />
+                          </div>
                           <Button
                             onClick={handleSubmitPhone}
-                            disabled={!phone.trim() || !phoneConsent || submittingPhone}
+                            disabled={!buildPhone(phoneCountryCode, phoneNational) || !phoneConsent || submittingPhone}
                             size="default"
                           >
                             {submittingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : t('careerDna.squad.phoneSubmit')}
@@ -388,7 +411,12 @@ export default function CareerDNASquad() {
                             onChange={(e) => setPhoneConsent(e.target.checked)}
                             className="mt-1"
                           />
-                          <span className="text-xs text-muted-foreground">{t('careerDna.squad.phoneConsent')}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {t('careerDna.squad.phoneConsent')}{' '}
+                            <Link to="/privacy" className="underline hover:text-foreground">
+                              {language === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}
+                            </Link>
+                          </span>
                         </label>
                       </CardContent>
                     </Card>

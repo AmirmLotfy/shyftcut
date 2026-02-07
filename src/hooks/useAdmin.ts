@@ -205,6 +205,85 @@ export function useAdminInsights() {
   });
 }
 
+export interface CareerDnaLead {
+  id: string;
+  phone: string;
+  countryCode: string | null;
+  source: string;
+  sourceId: string;
+  consentMarketing: boolean;
+  createdAt: string;
+}
+
+export interface ContactRequest {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  phoneCountryCode: string | null;
+  company: string | null;
+  topic: string;
+  subject: string;
+  message: string;
+  createdAt: string;
+}
+
+export function useAdminLeads(filters?: {
+  source?: string;
+  countryCode?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (filters?.source) params.set('source', filters.source);
+  if (filters?.countryCode) params.set('country_code', filters.countryCode);
+  if (filters?.startDate) params.set('start_date', filters.startDate);
+  if (filters?.endDate) params.set('end_date', filters.endDate);
+  if (filters?.page) params.set('page', String(filters.page));
+  if (filters?.limit) params.set('limit', String(filters.limit));
+
+  return useQuery({
+    queryKey: ['admin', 'leads', filters],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ leads: CareerDnaLead[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(
+        `/api/admin/leads?${params.toString()}`,
+        { token }
+      );
+    },
+  });
+}
+
+export function useAdminContactRequests(filters?: {
+  topic?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { getAccessToken } = useAuth();
+  const params = new URLSearchParams();
+  if (filters?.topic) params.set('topic', filters.topic);
+  if (filters?.startDate) params.set('start_date', filters.startDate);
+  if (filters?.endDate) params.set('end_date', filters.endDate);
+  if (filters?.page) params.set('page', String(filters.page));
+  if (filters?.limit) params.set('limit', String(filters.limit));
+
+  return useQuery({
+    queryKey: ['admin', 'contact-requests', filters],
+    queryFn: async () => {
+      const token = await getAccessToken();
+      return apiFetch<{ requests: ContactRequest[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(
+        `/api/admin/contact-requests?${params.toString()}`,
+        { token }
+      );
+    },
+  });
+}
+
 export function useAdminAuditLog(filters?: {
   adminUserId?: string;
   action?: string;
@@ -256,6 +335,15 @@ export function useAdminFeatureFlags() {
       return apiFetch<{ featureFlags: Record<string, unknown> }>('/api/admin/settings/feature-flags', { token });
     },
   });
+}
+
+export function useAdminMetaPixel() {
+  const { data, isLoading } = useAdminSettings();
+  const metaPixelId =
+    typeof data?.settings?.find((s) => s.key === 'meta_pixel_id')?.value === 'string'
+      ? (data.settings.find((s) => s.key === 'meta_pixel_id')?.value as string)
+      : '';
+  return { data: { metaPixelId }, isLoading };
 }
 
 // Mutations

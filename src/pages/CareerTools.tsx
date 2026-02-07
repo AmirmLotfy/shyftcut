@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Briefcase, Loader2, ExternalLink, Crown } from 'lucide-react';
@@ -124,7 +125,9 @@ export default function CareerTools() {
 
   if (!isPremium) {
     return (
-      <PremiumGateCard
+      <>
+        <Helmet><title>Career Tools | Shyftcut</title></Helmet>
+        <PremiumGateCard
         variant="full"
         title={isAr ? 'أدوات المهنة' : 'Career Tools'}
         description={
@@ -132,13 +135,15 @@ export default function CareerTools() {
             ? 'تحليل السيرة الذاتية واقتراح 10 وظائف أسبوعياً متاحة لمشتركي بريميوم.'
             : 'CV analysis and weekly job recommendations are available for Premium subscribers.'
         }
-        benefits={getCareerToolsBenefits(isAr ? 'ar' : 'en')}
+        benefits={getCareerToolsBenefits(isAr ? 'ar' : 'en')        }
       />
+      </>
     );
   }
 
   return (
     <>
+      <Helmet><title>Career Tools | Shyftcut</title></Helmet>
       <div className="container mx-auto max-w-app-content space-y-8 px-4 py-8 pb-24">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">

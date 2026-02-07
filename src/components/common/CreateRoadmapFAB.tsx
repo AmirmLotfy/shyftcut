@@ -11,7 +11,7 @@ export function CreateRoadmapFAB() {
     <Link
       to="/wizard"
       className={cn(
-        'fixed z-30 flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        'fixed z-30 flex h-12 items-center gap-2 rounded-full px-5 shadow-lg transition-all hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
         'bg-primary text-primary-foreground btn-glow',
         'bottom-6',
         isRtl ? 'left-6' : 'right-6'
@@ -24,7 +24,8 @@ export function CreateRoadmapFAB() {
       }}
       aria-label={language === 'ar' ? 'إنشاء خريطة طريق' : 'Create roadmap'}
     >
-      <Plus className="h-6 w-6" />
+      <Plus className="h-5 w-5 shrink-0" />
+      <span className="text-sm font-semibold">{language === 'ar' ? 'إنشاء خريطة طريق' : 'Create roadmap'}</span>
     </Link>
   );
 }

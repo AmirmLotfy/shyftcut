@@ -48,7 +48,7 @@ export function FreePlanBanner({
           {usageSummary}
         </span>
         <Link
-          to={`${dashboardPaths.upgrade}?returnTo=${encodeURIComponent(returnTo)}`}
+          to={`${dashboardPaths.upgrade}?returnTo=${encodeURIComponent(returnTo)}&interval=year`}
           state={{ returnTo }}
           className="text-xs font-medium text-primary hover:underline w-fit"
         >
@@ -59,6 +59,7 @@ export function FreePlanBanner({
         planId="premium"
         productId={POLAR_PRODUCTS.premium.yearly.productId}
         returnTo={returnTo}
+        redirectToUpgrade={true}
         size="sm"
         className="min-h-[44px] shrink-0 btn-glow"
       >

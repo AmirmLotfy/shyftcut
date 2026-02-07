@@ -25,10 +25,21 @@ export function apiPath(path: string): string {
 export function apiHeaders(path: string, token?: string | null): Record<string, string> {
   const normalized = path.startsWith("/api") ? path : `/api/${path.replace(/^\//, "")}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // Supabase Edge Functions gateway requires Authorization header with Bearer token
+  // For anonymous requests, use anon key as Bearer token; for authenticated requests, use user token
   if (isSupabaseFunctions) {
     headers["X-Path"] = normalized;
-    if (supabaseAnonKey) headers["apikey"] = supabaseAnonKey;
+    if (supabaseAnonKey) {
+      headers["apikey"] = supabaseAnonKey;
+      // Use anon key as Bearer token for anonymous requests (gateway requirement)
+      headers.Authorization = token ? `Bearer ${token}` : `Bearer ${supabaseAnonKey}`;
+    } else {
+      // Fallback to empty Bearer if anon key not available (shouldn't happen in production)
+      headers.Authorization = token ? `Bearer ${token}` : 'Bearer';
+    }
+  } else {
+    // For non-Supabase APIs, only include Authorization if token is provided
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
   return headers;
 }
@@ -81,17 +92,28 @@ export async function apiFetch<T = unknown>(
     "Content-Type": "application/json",
     ...(init.headers as Record<string, string>),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    if (isSupabaseFunctions && pathOnly.includes("checkout")) headers["X-User-Token"] = token;
+  // Supabase Edge Functions gateway requires Authorization header with Bearer token
+  // For anonymous requests, use anon key as Bearer token; for authenticated requests, use user token
+  if (token && isSupabaseFunctions && pathOnly.includes("checkout")) {
+    headers["X-User-Token"] = token;
   }
   if (isSupabaseFunctions) {
     headers["X-Path"] = pathOnly;
     if (supabaseAnonKey) {
       headers["apikey"] = supabaseAnonKey;
-    } else if (import.meta.env?.DEV) {
-      console.warn("[api] VITE_SUPABASE_ANON_KEY is missing; Edge Functions gateway may return 401. Set it in .env and in Vercel for production.");
+      // Use anon key as Bearer token for anonymous requests (gateway requirement)
+      // Always set this AFTER spreading init.headers to ensure it's never overridden
+      headers.Authorization = token ? `Bearer ${token}` : `Bearer ${supabaseAnonKey}`;
+    } else {
+      // Fallback to empty Bearer if anon key not available (shouldn't happen in production)
+      headers.Authorization = token ? `Bearer ${token}` : 'Bearer';
+      if (import.meta.env?.DEV) {
+        console.warn("[api] VITE_SUPABASE_ANON_KEY is missing; Edge Functions gateway may return 401. Set it in .env and in Vercel for production.");
+      }
     }
+  } else {
+    // For non-Supabase APIs, only include Authorization if token is provided
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
   let res: Response;

@@ -24,7 +24,7 @@
 
 ### Core (Free & Premium)
 
-- **Career DNA** — Viral quiz: discover your career fit in 90 seconds. Challenge friends, share squad links, compare results on a public leaderboard. Optional nickname, phone notifications, and signup prompts. No login required.
+- **Career DNA** — Viral quiz: discover your career fit in 90 seconds. Challenge friends, share squad links, compare results on a public leaderboard. Anghami-style share cards with glass design. Phone opt-in (country codes + flags). Optional nickname and signup prompts. No login required.
 - **90-second Wizard** — Answer 5 short steps; get a tailored 12-week career roadmap (success sound when ready)
 - **Personalized Roadmaps** — Weekly goals, skills to learn, deliverables, and verified course links from 16 trusted platforms
 - **Real Course URLs** — Google Search grounding finds actual course pages (Udemy, Coursera, YouTube, edX, etc.)
@@ -49,6 +49,18 @@
 - **Responsive** — Desktop and mobile; PWA support
 - **Auth** — Email/password, Google OAuth, magic links
 - **Payments** — Polar integration (subscription checkout, customer portal)
+- **Contact Forms** — Public contact form with phone (country codes + flags); submissions stored with country metadata
+
+### Admin Dashboard (Superadmin)
+
+- **Users** — List, search, export, bulk actions
+- **Subscriptions** — Revenue, churn analysis, manual updates
+- **Analytics** — Traffic, conversions, user journeys
+- **Career DNA Leads** — Phone numbers with country codes from Challenge Friends
+- **Contact Submissions** — All public contact form submissions
+- **Tickets** — Support ticket management
+- **Audit Log** — Admin action history
+- **Settings** — Feature flags, Meta Pixel, themes
 
 ---
 
@@ -57,7 +69,7 @@
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | Vite, React 18, TypeScript, Tailwind CSS, shadcn/ui, React Router |
-| **Backend** | Supabase Edge Functions (Deno) — single `api` router + `courses-search`, `webhook-polar` |
+| **Backend** | Supabase Edge Functions (Deno) — single `api` router + `courses-search`, `webhook-polar`, `send-study-reminders`, `send-push-reminders` |
 | **Auth & DB** | Supabase (PostgreSQL, Auth, Storage) |
 | **AI** | Google Gemini 3 (text + image generation) |
 | **Payments** | Polar |
@@ -104,8 +116,8 @@ Shyftcut uses **only Gemini 3 models** across all AI features.
 1. **Clone and install**
 
    ```sh
-   git clone https://github.com/YOUR_ORG/Shyftcut.git
-   cd Shyftcut
+   git clone https://github.com/YOUR_ORG/shyftcut.git
+   cd shyftcut
    npm install
    ```
 
@@ -201,7 +213,7 @@ npm run test:api
 
 ## Deployment
 
-**One-command deploy** (migrations, secrets sync, Edge Functions, Vercel):
+**One-command deploy** (migrations, Edge Functions, Vercel):
 
 ```sh
 npm run deploy:all
@@ -210,7 +222,7 @@ npm run deploy:all
 **Manual:**
 
 - **Frontend:** Vercel (`npx vercel --prod`)
-- **Edge Functions:** `npx supabase functions deploy api --no-verify-jwt` (+ webhook-polar, courses-search, etc.)
+- **Edge Functions:** `npx supabase functions deploy api --no-verify-jwt` (+ webhook-polar, courses-search, send-study-reminders, send-push-reminders)
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist.
 
@@ -230,7 +242,8 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full checklist.
 | `npm run test:course-validation` | Course URL validation unit test |
 | `npm run add:gemini-test-user` | Add/update Gemini Team Premium test user |
 | `npm run supabase:secrets:sync` | Sync env to Supabase Edge secrets |
-| `npm run deploy:all` | Full deploy (migrations, secrets, functions, Vercel) |
+| `npm run deploy:all` | Full deploy (migrations, functions, Vercel) |
+| `npm run github-push` | Security check, commit, push to GitHub (requires `gh auth login`) |
 
 ---
 
