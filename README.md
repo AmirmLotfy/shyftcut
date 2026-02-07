@@ -116,7 +116,7 @@ Shyftcut uses **only Gemini 3 models** across all AI features.
 1. **Clone and install**
 
    ```sh
-   git clone https://github.com/YOUR_ORG/shyftcut.git
+   git clone https://github.com/AmirmLotfy/shyftcut.git
    cd shyftcut
    npm install
    ```
