@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Search, Filter, MoreVertical, Edit, Trash2, User, Ban, Eye, Download } from 'lucide-react';
-import { useAdminUsers, useAdminUserStats, useDeleteAdminUser, useUpdateAdminUser, AdminUser } from '@/hooks/useAdmin';
+import { Search, MoreVertical, Edit, Trash2, User, Ban, Eye, Download, UserPlus } from 'lucide-react';
+import { useAdminUsers, useAdminUserStats, useDeleteAdminUser, useUpdateAdminUser, useCreateAdminUser, useInviteAdminUser, AdminUser } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
 import { Checkbox as UICheckbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,11 +31,23 @@ export default function Users() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [createEmail, setCreateEmail] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
+  const [createDisplayName, setCreateDisplayName] = useState('');
+  const [createTier, setCreateTier] = useState<'free' | 'premium'>('free');
+  const [createPeriod, setCreatePeriod] = useState<'1_month' | '1_year'>('1_year');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteDisplayName, setInviteDisplayName] = useState('');
+  const [inviteTier, setInviteTier] = useState<'free' | 'premium'>('premium');
+  const [invitePeriod, setInvitePeriod] = useState<'1_month' | '1_year'>('1_year');
 
   const { data, isLoading, isError, error } = useAdminUsers({ search, role: roleFilter || undefined, tier: tierFilter || undefined, status: statusFilter || undefined, page, limit: 50 });
   const { data: stats, isError: statsError } = useAdminUserStats();
   const deleteUser = useDeleteAdminUser();
   const updateUser = useUpdateAdminUser();
+  const createUser = useCreateAdminUser();
+  const inviteUser = useInviteAdminUser();
 
   const handleDelete = async (userId: string) => {
     try {
@@ -132,6 +146,10 @@ export default function Users() {
         </Select>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setAddUserOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            {language === 'ar' ? 'إضافة مستخدم' : 'Add user'}
+          </Button>
           <BulkActions
             selectedUserIds={selectedUserIds}
             onComplete={() => {
@@ -318,6 +336,136 @@ export default function Users() {
               {language === 'ar' ? 'حذف' : 'Delete'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{language === 'ar' ? 'إضافة مستخدم' : 'Add user'}</DialogTitle>
+            <DialogDescription>
+              {language === 'ar' ? 'إنشاء حساب مباشر أو إرسال دعوة بالبريد الإلكتروني.' : 'Create an account directly or send an email invitation.'}
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="create" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="create">{language === 'ar' ? 'إنشاء مباشر' : 'Direct add'}</TabsTrigger>
+              <TabsTrigger value="invite">{language === 'ar' ? 'إرسال دعوة' : 'Invite'}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="create" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</Label>
+                <Input type="email" value={createEmail} onChange={(e) => setCreateEmail(e.target.value)} placeholder="user@example.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'كلمة المرور' : 'Password'}</Label>
+                <Input type="password" value={createPassword} onChange={(e) => setCreatePassword(e.target.value)} placeholder="••••••••" minLength={6} />
+              </div>
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'الاسم (اختياري)' : 'Display name (optional)'}</Label>
+                <Input value={createDisplayName} onChange={(e) => setCreateDisplayName(e.target.value)} placeholder={language === 'ar' ? 'الاسم' : 'Name'} />
+              </div>
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'الخطة' : 'Tier'}</Label>
+                <Select value={createTier} onValueChange={(v) => setCreateTier(v as 'free' | 'premium')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {createTier === 'premium' && (
+                <div className="space-y-2">
+                  <Label>{language === 'ar' ? 'مدة البريميوم' : 'Premium period'}</Label>
+                  <Select value={createPeriod} onValueChange={(v) => setCreatePeriod(v as '1_month' | '1_year')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1_month">{language === 'ar' ? 'شهر واحد' : '1 month'}</SelectItem>
+                      <SelectItem value="1_year">{language === 'ar' ? 'سنة واحدة' : '1 year'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddUserOpen(false)}>{language === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
+                <Button
+                  disabled={!createEmail.trim() || createPassword.length < 6 || createUser.isPending}
+                  onClick={async () => {
+                    try {
+                      await createUser.mutateAsync({ email: createEmail.trim(), password: createPassword, display_name: createDisplayName.trim() || undefined, tier: createTier, period: createTier === 'premium' ? createPeriod : undefined });
+                      toast({ title: language === 'ar' ? 'تم إنشاء المستخدم' : 'User created', description: `${createEmail.trim()} (${createTier}${createTier === 'premium' ? `, ${createPeriod === '1_month' ? (language === 'ar' ? 'شهر' : '1 mo') : language === 'ar' ? 'سنة' : '1 yr'}` : ''})` });
+                      setAddUserOpen(false);
+                      setCreateEmail(''); setCreatePassword(''); setCreateDisplayName(''); setCreateTier('free'); setCreatePeriod('1_year');
+                    } catch (err) {
+                      toast({ title: language === 'ar' ? 'خطأ' : 'Error', description: (err as Error).message, variant: 'destructive' });
+                    }
+                  }}
+                >
+                  {createUser.isPending ? (language === 'ar' ? 'جاري...' : 'Creating...') : (language === 'ar' ? 'إنشاء' : 'Create')}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+            <TabsContent value="invite" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'البريد الإلكتروني' : 'Email'}</Label>
+                <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="user@example.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'الاسم (اختياري)' : 'Display name (optional)'}</Label>
+                <Input value={inviteDisplayName} onChange={(e) => setInviteDisplayName(e.target.value)} placeholder={language === 'ar' ? 'الاسم' : 'Name'} />
+              </div>
+              <div className="space-y-2">
+                <Label>{language === 'ar' ? 'الخطة' : 'Tier'}</Label>
+                <Select value={inviteTier} onValueChange={(v) => setInviteTier(v as 'free' | 'premium')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteTier === 'premium' && (
+                <div className="space-y-2">
+                  <Label>{language === 'ar' ? 'مدة البريميوم' : 'Premium period'}</Label>
+                  <Select value={invitePeriod} onValueChange={(v) => setInvitePeriod(v as '1_month' | '1_year')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1_month">{language === 'ar' ? 'شهر واحد' : '1 month'}</SelectItem>
+                      <SelectItem value="1_year">{language === 'ar' ? 'سنة واحدة' : '1 year'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddUserOpen(false)}>{language === 'ar' ? 'إلغاء' : 'Cancel'}</Button>
+                <Button
+                  disabled={!inviteEmail.trim() || inviteUser.isPending}
+                  onClick={async () => {
+                    try {
+                      await inviteUser.mutateAsync({ email: inviteEmail.trim(), tier: inviteTier, display_name: inviteDisplayName.trim() || undefined, period: inviteTier === 'premium' ? invitePeriod : undefined });
+                      toast({ title: language === 'ar' ? 'تم إرسال الدعوة' : 'Invitation sent', description: `${language === 'ar' ? 'تم إرسال الدعوة إلى' : 'Invitation sent to'} ${inviteEmail.trim()} (${inviteTier}${inviteTier === 'premium' ? `, ${invitePeriod === '1_month' ? (language === 'ar' ? 'شهر' : '1 mo') : language === 'ar' ? 'سنة' : '1 yr'}` : ''})` });
+                      setAddUserOpen(false);
+                      setInviteEmail(''); setInviteDisplayName(''); setInviteTier('premium'); setInvitePeriod('1_year');
+                    } catch (err) {
+                      toast({ title: language === 'ar' ? 'خطأ' : 'Error', description: (err as Error).message, variant: 'destructive' });
+                    }
+                  }}
+                >
+                  {inviteUser.isPending ? (language === 'ar' ? 'جاري الإرسال...' : 'Sending...') : (language === 'ar' ? 'إرسال دعوة' : 'Send invite')}
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 

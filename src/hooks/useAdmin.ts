@@ -386,6 +386,46 @@ export function useDeleteAdminUser() {
   });
 }
 
+export function useCreateAdminUser() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ email, password, display_name, tier, period }: { email: string; password: string; display_name?: string; tier?: 'free' | 'premium'; period?: '1_month' | '1_year' }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ user_id: string; email: string }>('/api/admin/users/create', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ email, password, display_name: display_name || undefined, tier: tier || 'free', period: tier === 'premium' ? (period || '1_year') : undefined }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'stats'] });
+    },
+  });
+}
+
+export function useInviteAdminUser() {
+  const { getAccessToken } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ email, tier, display_name, period }: { email: string; tier?: 'free' | 'premium'; display_name?: string; period?: '1_month' | '1_year' }) => {
+      const token = await getAccessToken();
+      return apiFetch<{ email: string; invited_tier: string; period?: string }>('/api/admin/users/invite', {
+        method: 'POST',
+        token,
+        body: JSON.stringify({ email, tier: tier ?? 'premium', display_name: display_name || undefined, period: tier === 'premium' ? (period || '1_year') : undefined }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users', 'stats'] });
+    },
+  });
+}
+
 export function useUpdateAdminSubscription() {
   const { getAccessToken } = useAuth();
   const queryClient = useQueryClient();

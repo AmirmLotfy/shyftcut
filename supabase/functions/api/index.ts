@@ -645,6 +645,8 @@ function route(path: string): string | null {
     if (p1 === "batch") return "admin/batch";
     if (p1 === "users") {
       if (!p2) return "admin/users";
+      if (p2 === "create") return "admin/users/create";
+      if (p2 === "invite") return "admin/users/invite";
       if (p2 === "stats") return "admin/users/stats";
       if (p2 === "bulk") return "admin/users/bulk";
       if (p2 === "export") return "admin/users/export";
@@ -4087,6 +4089,75 @@ Skills: ${skillList.join(", ")}
           });
         }
         return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/users/create": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { email, password, display_name: displayName, tier: requestedTier, period: periodParam } = body as { email?: string; password?: string; display_name?: string; tier?: string; period?: string };
+        const emailTrim = typeof email === "string" ? email.trim().toLowerCase() : "";
+        const tier = requestedTier === "premium" ? "premium" : "free";
+        const period = periodParam === "1_month" ? "1_month" : "1_year";
+        if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return json({ error: "Invalid email" }, 400);
+        if (typeof password !== "string" || password.length < 6) return json({ error: "Password must be at least 6 characters" }, 400);
+        const { data: createData, error: createErr } = await supabase.auth.admin.createUser({
+          email: emailTrim,
+          password: password as string,
+          email_confirm: true,
+          user_metadata: displayName ? { display_name: displayName.trim().slice(0, 500) } : undefined,
+        });
+        if (createErr) {
+          const msg = String(createErr.message || "").toLowerCase();
+          if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) return json({ error: "A user with this email is already registered." }, 400);
+          return json({ error: createErr.message || "Failed to create user" }, 400);
+        }
+        const userId = createData?.user?.id;
+        if (!userId) return json({ error: "User created but no ID returned" }, 500);
+        if (displayName) {
+          await supabase.from("profiles").update({ display_name: displayName.trim().slice(0, 500), updated_at: new Date().toISOString() }).eq("user_id", userId);
+        }
+        const now = new Date();
+        const periodEnd = period === "1_month" ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+        const subUpdate: Record<string, unknown> = { tier, updated_at: new Date().toISOString() };
+        if (tier === "premium") {
+          subUpdate.current_period_start = now.toISOString();
+          subUpdate.current_period_end = periodEnd.toISOString();
+        }
+        const { error: subErr } = await supabase.from("subscriptions").update(subUpdate).eq("user_id", userId);
+        if (subErr) logError("api", "admin/users/create: subscription update failed", subErr);
+        try {
+          await logAdminAction(supabase, user!.id, "create_user", "users", userId, { email: emailTrim, tier, period: tier === "premium" ? period : undefined }, req);
+        } catch (logErr) {
+          logError("api", "admin/users/create: failed to log action", logErr);
+        }
+        return json({ user_id: userId, email: emailTrim }, 201);
+      }
+
+      case "admin/users/invite": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const { email, tier: requestedTier, display_name: displayName, period: periodParam } = body as { email?: string; tier?: string; display_name?: string; period?: string };
+        const emailTrim = typeof email === "string" ? email.trim().toLowerCase() : "";
+        const tier = requestedTier === "free" ? "free" : "premium";
+        const period = periodParam === "1_month" ? "1_month" : "1_year";
+        if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) return json({ error: "Invalid email" }, 400);
+        const metadata: Record<string, string> = { invited_tier: tier };
+        if (tier === "premium") metadata.invited_period = period;
+        if (displayName && typeof displayName === "string") metadata.display_name = displayName.trim().slice(0, 500);
+        const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(emailTrim, { data: metadata });
+        if (inviteErr) {
+          const msg = String(inviteErr.message || "").toLowerCase();
+          if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) return json({ error: "A user with this email is already registered." }, 400);
+          return json({ error: inviteErr.message || "Failed to send invitation" }, 400);
+        }
+        try {
+          await logAdminAction(supabase, user!.id, "invite_user", "users", inviteData?.user?.id, { email: emailTrim, invited_tier: tier, period: tier === "premium" ? period : undefined }, req);
+        } catch (logErr) {
+          logError("api", "admin/users/invite: failed to log action", logErr);
+        }
+        return json({ email: emailTrim, invited_tier: tier, period: tier === "premium" ? period : undefined }, 201);
       }
 
       case "admin/users/stats": {
