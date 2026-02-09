@@ -4146,7 +4146,9 @@ Skills: ${skillList.join(", ")}
         const metadata: Record<string, string> = { invited_tier: tier };
         if (tier === "premium") metadata.invited_period = period;
         if (displayName && typeof displayName === "string") metadata.display_name = displayName.trim().slice(0, 500);
-        const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(emailTrim, { data: metadata });
+        const siteUrl = (Deno.env.get("SITE_URL") ?? "https://shyftcut.com").replace(/\/$/, "");
+        const redirectTo = `${siteUrl}/accept-invite`;
+        const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(emailTrim, { data: metadata, redirectTo });
         if (inviteErr) {
           const msg = String(inviteErr.message || "").toLowerCase();
           if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) return json({ error: "A user with this email is already registered." }, 400);
