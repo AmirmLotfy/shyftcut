@@ -66,12 +66,12 @@ export function BulkActions({ selectedUserIds, onComplete }: BulkActionsProps) {
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent aria-describedby="bulk-actions-desc">
           <DialogHeader>
             <DialogTitle>
               {language === 'ar' ? 'إجراءات مجمعة' : 'Bulk Actions'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="bulk-actions-desc">
               {language === 'ar'
                 ? `تطبيق إجراء على ${selectedUserIds.length} مستخدم`
                 : `Apply action to ${selectedUserIds.length} users`}

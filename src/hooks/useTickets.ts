@@ -65,6 +65,7 @@ export function useTickets(status?: string, category?: string, priority?: string
       const token = await getAccessToken();
       return apiFetch<{ tickets: Ticket[] }>(`/api/tickets?${params.toString()}`, { token });
     },
+    staleTime: 60 * 1000, // 1 min — avoid refetch on every visit to support page
   });
 }
 

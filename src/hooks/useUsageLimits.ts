@@ -10,6 +10,7 @@ interface UsageData {
   notesCount?: number;
   tasksCount?: number;
   aiSuggestionsToday?: number;
+  avatarGenerationsThisMonth?: number;
 }
 
 interface UsageLimits {
@@ -105,6 +106,16 @@ export function useUsageLimits() {
     return Math.max(0, limits.aiSuggestionsPerDay - (usage?.aiSuggestionsToday ?? 0));
   };
 
+  const getAvatarGenerationsRemaining = (): number => {
+    const AVATAR_LIMIT_PER_MONTH = 3;
+    return Math.max(0, AVATAR_LIMIT_PER_MONTH - (usage?.avatarGenerationsThisMonth ?? 0));
+  };
+
+  const canGenerateAvatar = (): boolean => {
+    const AVATAR_LIMIT_PER_MONTH = 3;
+    return (usage?.avatarGenerationsThisMonth ?? 0) < AVATAR_LIMIT_PER_MONTH;
+  };
+
   return {
     usage,
     limits,
@@ -126,6 +137,8 @@ export function useUsageLimits() {
     getNotesRemaining,
     getTasksRemaining,
     getAiSuggestionsRemaining,
+    getAvatarGenerationsRemaining,
+    canGenerateAvatar,
     isUnlimitedNotes: isUnlimited('notesLimit'),
     isUnlimitedTasks: isUnlimited('tasksLimit'),
     isUnlimitedAiSuggestions: isUnlimited('aiSuggestionsPerDay'),

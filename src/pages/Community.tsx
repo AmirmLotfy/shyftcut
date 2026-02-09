@@ -7,7 +7,7 @@ import { Users, Trophy, Flame, Loader2, Link2, Crown, UserPlus, LogOut, PlusCirc
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -708,11 +708,14 @@ export default function Community() {
           )}
 
         <Dialog open={!!membersGroupId} onOpenChange={(open) => !open && setMembersGroupId(null)}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-sm" aria-describedby="community-members-desc">
             <DialogHeader>
               <DialogTitle>
                 {language === 'ar' ? 'أعضاء' : 'Members'}: {membersGroupName}
               </DialogTitle>
+              <DialogDescription id="community-members-desc" className="sr-only">
+                {language === 'ar' ? 'قائمة أعضاء المجموعة' : 'Group members list'}
+              </DialogDescription>
             </DialogHeader>
             <div className="max-h-64 overflow-y-auto space-y-2 py-2">
               {groupMembersLoading ? (

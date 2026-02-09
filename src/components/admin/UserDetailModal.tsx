@@ -26,7 +26,7 @@ export function UserDetailModal({ userId, open, onOpenChange }: UserDetailModalP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="user-detail-desc">
         <DialogHeader>
           <DialogTitle>
             {userLoading ? (
@@ -35,7 +35,7 @@ export function UserDetailModal({ userId, open, onOpenChange }: UserDetailModalP
               userData?.profile?.display_name || userData?.profile?.email || 'User'
             )}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="user-detail-desc">
             {language === 'ar' ? 'تفاصيل المستخدم والأنشطة' : 'User details and activity'}
           </DialogDescription>
         </DialogHeader>

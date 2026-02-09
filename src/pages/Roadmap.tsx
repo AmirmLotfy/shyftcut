@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/api';
-import { dashboardPaths, roadmapPath } from '@/lib/dashboard-routes';
+import { dashboardPaths, roadmapPath, coursesPath } from '@/lib/dashboard-routes';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
 import { QuizModal } from '@/components/quiz/QuizModal';
 import { UpgradePrompt } from '@/components/common/UpgradePrompt';
@@ -427,7 +427,7 @@ export default function Roadmap() {
                                   {language === 'ar' ? 'الدورات الموصى بها' : 'Recommended Courses'}
                                 </h4>
                                 <Link
-                                  to={`${dashboardPaths.courses}?week=${week.week_number}`}
+                                  to={currentRoadmap?.id ? `${coursesPath(currentRoadmap.id)}&week=${week.week_number}` : `${dashboardPaths.courses}?week=${week.week_number}`}
                                   className="text-xs font-medium text-primary hover:underline"
                                 >
                                   {language === 'ar' ? 'عرض في المكتبة' : 'View in library'}

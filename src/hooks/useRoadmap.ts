@@ -16,7 +16,9 @@ export function useRoadmap(roadmapId?: string) {
       return apiFetch<unknown[]>('/api/roadmaps', { token });
     },
     enabled: !!user && !!session,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: activeRoadmap, isLoading: isLoadingActive, isError: isErrorActive, error: errorActive } = useQuery({
@@ -28,7 +30,9 @@ export function useRoadmap(roadmapId?: string) {
       return data;
     },
     enabled: !!user && !!session,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    placeholderData: (previousData) => previousData,
   });
 
   const { data: roadmap, isLoading: isLoadingSingle, isError: isErrorSingle, error: errorSingle } = useQuery({

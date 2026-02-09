@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { BarChart3, BookOpen, Clock, Target, ArrowRight, Loader2, Brain, Calendar, TrendingUp, AlertCircle, RefreshCw, MessageSquare, HelpCircle, Map, Star, Gauge, CreditCard, Flame, Trash2, Lock } from 'lucide-react';
+import { BarChart3, BookOpen, Clock, Target, ArrowRight, Loader2, Brain, Calendar, TrendingUp, AlertCircle, RefreshCw, MessageSquare, HelpCircle, Map, Star, Gauge, CreditCard, Flame, Trash2, Lock, Archive, MoreVertical, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -29,6 +29,7 @@ import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 import { WeekTasks } from '@/components/study/WeekTasks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 
 export default function Dashboard() {
@@ -676,8 +677,8 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        {/* Roadmaps: Secondary priority - Only show if multiple */}
-        {roadmaps.length > 1 && (
+        {/* Roadmaps: show when user has at least one – manage active, archive, restore, delete */}
+        {roadmaps.length >= 1 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -688,7 +689,7 @@ export default function Dashboard() {
               <Map className="h-6 w-6 text-primary" />
               {t('dashboard.yourRoadmaps')}
             </h2>
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 w-full">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 w-full">
               {roadmaps
                 .filter((r: { status?: string }) => r.status !== 'archived')
                 .map((r: { id: string; title?: string; progress_percentage?: number; status?: string; difficulty_level?: string }) => {
@@ -697,83 +698,85 @@ export default function Dashboard() {
                   return (
                     <motion.div
                       key={r.id}
-                      initial={{ opacity: 0, scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      whileHover={{ scale: 1.02 }}
                       transition={{ duration: 0.2 }}
                       className="w-full min-w-0 max-w-full"
                     >
                       <Card className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 w-full max-w-full glass-card ${
-                        isActive 
-                          ? 'border-primary/50 bg-gradient-to-br from-primary/10 via-purple-500/5 to-pink-500/5 shadow-lg shadow-primary/10' 
+                        isActive
+                          ? 'border-primary/50 bg-gradient-to-br from-primary/10 via-purple-500/5 to-pink-500/5 shadow-lg shadow-primary/10'
                           : 'border-border/40 bg-gradient-to-br from-card/80 via-card/60 to-card/40 backdrop-blur-xl hover:border-primary/30'
                       }`}>
-                        {/* Gradient overlay */}
                         <div className={`absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 ${
-                          isActive 
-                            ? 'from-primary/5 via-purple-500/5 to-pink-500/5 opacity-100' 
-                            : 'from-primary/5 via-purple-500/5 to-pink-500/5 group-hover:opacity-100'
+                          isActive ? 'from-primary/5 via-purple-500/5 to-pink-500/5 opacity-100' : 'from-primary/5 via-purple-500/5 to-pink-500/5 group-hover:opacity-100'
                         }`} />
-                        
                         <div className="relative p-4 sm:p-5 w-full min-w-0 max-w-full overflow-hidden">
-                          {/* Header with icon and actions */}
-                          <div className="mb-4 flex items-start justify-between gap-2 sm:gap-3 w-full min-w-0">
+                          <div className="mb-4 flex items-start justify-between gap-2 w-full min-w-0">
                             <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 overflow-hidden">
                               <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl transition-all ${
-                                isActive 
-                                  ? 'bg-gradient-to-br from-primary/20 to-purple-500/20 shadow-lg shadow-primary/20' 
-                                  : 'bg-gradient-to-br from-muted/50 to-muted/30 group-hover:from-primary/10 group-hover:to-purple-500/10'
+                                isActive ? 'bg-gradient-to-br from-primary/20 to-purple-500/20 shadow-lg shadow-primary/20' : 'bg-gradient-to-br from-muted/50 to-muted/30 group-hover:from-primary/10 group-hover:to-purple-500/10'
                               }`}>
-                                <Map className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors ${
-                                  isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'
-                                }`} />
-                      </div>
+                                <Map className={`h-5 w-5 sm:h-6 sm:w-6 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}`} />
+                              </div>
                               <div className="min-w-0 flex-1 overflow-hidden">
                                 <Link to={roadmapPath(r.id)} className="block min-w-0">
                                   <h3 className="font-bold text-sm sm:text-base leading-tight break-words mb-1 group-hover:text-primary transition-colors">
                                     {r.title || t('dashboard.roadmap')}
                                   </h3>
-                        </Link>
+                                </Link>
                                 {r.difficulty_level && (
                                   <Badge variant="outline" className="text-xs capitalize mt-1">
                                     {r.difficulty_level}
                                   </Badge>
                                 )}
                               </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1">
                               {isActive ? (
                                 <Badge className="text-xs bg-gradient-to-r from-primary to-purple-500 text-white border-0 shadow-md shadow-primary/30 whitespace-nowrap">
                                   <Star className="h-3 w-3 mr-1 fill-current rtl:mr-0 rtl:ml-1 shrink-0" />
                                   <span className="hidden sm:inline">{t('dashboard.active')}</span>
                                   <span className="sm:hidden">★</span>
-                          </Badge>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
+                                </Badge>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   className="h-8 px-2 gap-1 text-xs hover:bg-primary/10 shrink-0"
-                            disabled={isUpdatingRoadmap}
-                            onClick={() => updateRoadmap({ roadmapId: r.id, payload: { status: 'active' } })}
-                          >
+                                  disabled={isUpdatingRoadmap}
+                                  onClick={() => updateRoadmap({ roadmapId: r.id, payload: { status: 'active' } })}
+                                >
                                   <Star className="h-3 w-3 shrink-0" />
                                   <span className="hidden sm:inline">{t('dashboard.setActive')}</span>
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          disabled={isDeletingRoadmap}
-                          onClick={() => setDeleteConfirmRoadmapId(r.id)}
-                          aria-label={language === 'ar' ? 'حذف' : 'Delete'}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                                </Button>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={t('dashboard.manageRoadmaps')}>
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => updateRoadmap({ roadmapId: r.id, payload: { status: 'archived' } })}
+                                    disabled={isUpdatingRoadmap}
+                                  >
+                                    <Archive className="h-4 w-4 mr-2 rtl:mr-0 rtl:ml-2" />
+                                    {t('dashboard.archive')}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setDeleteConfirmRoadmapId(r.id)}
+                                    disabled={isDeletingRoadmap}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2 rtl:mr-0 rtl:ml-2" />
+                                    {language === 'ar' ? 'حذف' : 'Delete'}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
-
-                          {/* Progress section */}
                           <div className="space-y-2 w-full min-w-0">
                             <div className="flex items-center justify-between text-xs sm:text-sm">
                               <span className="text-muted-foreground font-medium truncate">{t('dashboard.progress')}</span>
@@ -783,49 +786,64 @@ export default function Dashboard() {
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${progress}%` }}
-                                transition={{ duration: 0.8, ease: "easeOut" }}
-                                className={`h-full rounded-full bg-gradient-to-r ${
-                                  isActive
-                                    ? 'from-primary via-purple-500 to-pink-500 shadow-lg shadow-primary/30'
-                                    : 'from-primary/60 to-purple-500/60 group-hover:from-primary group-hover:to-purple-500'
-                                }`}
+                                transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className={`h-full rounded-full bg-gradient-to-r ${isActive ? 'from-primary via-purple-500 to-pink-500 shadow-lg shadow-primary/30' : 'from-primary/60 to-purple-500/60 group-hover:from-primary group-hover:to-purple-500'}`}
                               />
                             </div>
                           </div>
-
-                          {/* View link */}
-                          <Link 
+                          <Link
                             to={roadmapPath(r.id)}
                             className="mt-4 flex items-center gap-2 text-xs sm:text-sm font-medium text-primary hover:text-primary/80 transition-colors group/link w-full min-w-0"
                           >
-                            <span className="truncate">{language === 'ar' ? 'عرض التفاصيل' : 'View Details'}</span>
+                            <span className="truncate">{t('dashboard.viewDetails')}</span>
                             <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 shrink-0 transition-transform group-hover/link:translate-x-1 rtl:rotate-180" />
                           </Link>
-                    </div>
-                  </Card>
+                        </div>
+                      </Card>
                     </motion.div>
                   );
                 })}
             </div>
             {roadmaps.some((r: { status?: string }) => r.status === 'archived') && (
-              <div className="mt-4 border-t border-border pt-4">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {t('dashboard.archived')}
-                </p>
-                <div className="flex flex-wrap gap-2">
+              <div className="mt-6 rounded-xl border border-border bg-muted/30 p-4">
+                <p className="mb-3 text-sm font-medium text-muted-foreground">{t('dashboard.archived')}</p>
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                   {roadmaps
                     .filter((r: { status?: string }) => r.status === 'archived')
                     .map((r: { id: string; title?: string; progress_percentage?: number }) => (
-                      <Link
+                      <div
                         key={r.id}
-                        to={roadmapPath(r.id)}
-                        className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/80 px-4 py-3"
                       >
-                        {r.title || t('dashboard.roadmap')}
-                        {typeof r.progress_percentage === 'number' && (
-                          <span className="ml-2 text-xs rtl:ml-0 rtl:mr-2">({r.progress_percentage}%)</span>
-                        )}
-                      </Link>
+                        <Link to={roadmapPath(r.id)} className="min-w-0 flex-1 font-medium text-sm hover:text-primary truncate">
+                          {r.title || t('dashboard.roadmap')}
+                          {typeof r.progress_percentage === 'number' && (
+                            <span className="ml-2 text-xs text-muted-foreground rtl:ml-0 rtl:mr-2">({r.progress_percentage}%)</span>
+                          )}
+                        </Link>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1 text-xs"
+                            disabled={isUpdatingRoadmap}
+                            onClick={() => updateRoadmap({ roadmapId: r.id, payload: { status: 'inactive' } })}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            {t('dashboard.restore')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            disabled={isDeletingRoadmap}
+                            onClick={() => setDeleteConfirmRoadmapId(r.id)}
+                            aria-label={language === 'ar' ? 'حذف' : 'Delete'}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                 </div>
               </div>

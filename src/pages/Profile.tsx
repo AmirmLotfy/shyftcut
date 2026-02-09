@@ -15,6 +15,7 @@ import { validatePassword } from '@/lib/password-validation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useUsageLimits } from '@/hooks/useUsageLimits';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
 import { useUserBadges } from '@/hooks/useUserBadges';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
@@ -49,6 +50,7 @@ import {
   experienceLevels,
 } from '@/lib/profile-options';
 import { COUNTRY_CODES, flagEmoji, parsePhone, buildPhone, validatePhone } from '@/lib/country-codes';
+import { searchCities, cityLabel, type CityResult } from '@/lib/city-search';
 
 export default function Profile() {
   const { language, setLanguage, t } = useLanguage();
@@ -57,6 +59,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const { profile, isLoading, error: profileError, updateProfile, isUpdating } = useProfile();
   const { tier, isPremium, periodEnd } = useSubscription();
+  const { getAvatarGenerationsRemaining, canGenerateAvatar, refetch: refetchUsage } = useUsageLimits();
   const { preferences: notifPrefs, updatePreferences: updateNotifPrefs, isUpdating: isUpdatingNotif } = useNotificationPreferences();
   const { badges: userBadges } = useUserBadges();
   const { subscribe: subscribePush, unsubscribe: unsubscribePush, subscribing: pushSubscribing, isSupported: pushSupported } = usePushSubscription();
@@ -104,13 +107,25 @@ export default function Profile() {
     location: (profile as { location?: string })?.location ?? '',
     job_work_preference: (profile as { job_work_preference?: string })?.job_work_preference ?? '',
     find_jobs_enabled: (profile as { find_jobs_enabled?: boolean })?.find_jobs_enabled ?? false,
+    job_search_country: (profile as { job_search_country?: string })?.job_search_country ?? '',
+    job_search_city: (profile as { job_search_city?: string })?.job_search_city ?? '',
+    job_employment_types: Array.isArray((profile as { job_employment_types?: string[] })?.job_employment_types)
+      ? (profile as { job_employment_types: string[] }).job_employment_types
+      : [],
+    job_seniority: (profile as { job_seniority?: string })?.job_seniority ?? '',
     linkedin_url: (profile as { linkedin_url?: string })?.linkedin_url ?? '',
     twitter_url: (profile as { twitter_url?: string })?.twitter_url ?? '',
     github_url: (profile as { github_url?: string })?.github_url ?? '',
     phone_country_code: '',
     phone_national: '',
+    gender: (profile as { gender?: string })?.gender ?? '',
   });
   const [avatarGenerating, setAvatarGenerating] = useState(false);
+  const [cityQuery, setCityQuery] = useState('');
+  const [cityResults, setCityResults] = useState<CityResult[]>([]);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [citySearching, setCitySearching] = useState(false);
+  const citySearchAbortRef = useRef<AbortController | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [showAvatarUrl, setShowAvatarUrl] = useState(false);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
@@ -176,25 +191,52 @@ export default function Profile() {
   };
 
   const handleGenerateAvatar = async () => {
+    const scope = '[Avatar Generate]';
     setAvatarGenerating(true);
     try {
+      console.debug(scope, 'Starting: requesting token');
       const token = await getAccessToken();
-      const data = await apiFetch<{ avatar_url?: string }>('/api/profile/avatar/generate', {
+      if (!token) {
+        console.error(scope, 'No access token');
+        throw new Error('Not signed in. Please sign in again.');
+      }
+      console.debug(scope, 'POST /api/profile/avatar/generate');
+      const data = await apiFetch<{ avatar_url?: string; error?: string }>('/api/profile/avatar/generate', {
         method: 'POST',
         token,
       });
+      if (data?.error) {
+        console.error(scope, 'API returned error in body:', data.error);
+        throw new Error(data.error);
+      }
       if (data?.avatar_url) {
+        console.debug(scope, 'Success: avatar_url received');
         setFormData((prev) => ({ ...prev, avatar_url: data.avatar_url! }));
         queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+        queryClient.invalidateQueries({ queryKey: ['usage-limits', user?.id] });
+        await refetchUsage();
         toast({
           title: t('profile.avatarGenerated'),
           description: t('profile.avatarUpdated'),
         });
+      } else {
+        console.warn(scope, 'Success response but no avatar_url:', data);
       }
     } catch (err: unknown) {
+      const errObj = err instanceof Error ? err : new Error(String(err));
+      const status = (err as { status?: number }).status;
+      const code = (err as { code?: string }).code;
+      const responseBody = (err as { responseBody?: string }).responseBody;
+      const rawMessage = errObj.message;
+      const safeMessage = (rawMessage && rawMessage !== '[object Object]' && rawMessage !== 'Object')
+        ? rawMessage
+        : t('profile.avatarGenerateFailed');
+      console.error(scope, 'Error:', safeMessage, '| status:', status, '| code:', code);
+      if (responseBody) console.error(scope, 'Response body:', responseBody);
+      if (errObj.stack) console.error(scope, 'Stack:', errObj.stack);
       toast({
         title: t('common.errorTitle'),
-        description: err instanceof Error ? err.message : t('profile.avatarGenerateFailed'),
+        description: safeMessage,
         variant: 'destructive',
       });
     } finally {
@@ -225,10 +267,15 @@ export default function Profile() {
       location: formData.location?.trim() || null,
       job_work_preference: ['remote', 'hybrid', 'on_site'].includes(formData.job_work_preference) ? formData.job_work_preference : null,
       find_jobs_enabled: !!formData.find_jobs_enabled,
+      job_search_country: formData.job_search_country?.trim().length === 2 ? formData.job_search_country.trim().toUpperCase() : null,
+      job_search_city: formData.job_search_city?.trim() || null,
+      job_employment_types: formData.job_employment_types?.length ? formData.job_employment_types : [],
+      job_seniority: ['entry', 'mid', 'senior', 'lead', 'executive'].includes(formData.job_seniority) ? formData.job_seniority : null,
       linkedin_url: formData.linkedin_url?.trim() || null,
       twitter_url: formData.twitter_url?.trim() || null,
       github_url: formData.github_url?.trim() || null,
       phone: phoneValue,
+      gender: ['male', 'female', 'non_binary', 'prefer_not_to_say'].includes(formData.gender) ? formData.gender : null,
     };
     updateProfile(payload, {
       onSuccess: () => {
@@ -271,14 +318,55 @@ export default function Profile() {
         location: (p.location as string) ?? '',
         job_work_preference: (p.job_work_preference as string) ?? '',
         find_jobs_enabled: !!(p.find_jobs_enabled as boolean),
+        job_search_country: (p.job_search_country as string) ?? '',
+        job_search_city: (p.job_search_city as string) ?? '',
+        job_employment_types: Array.isArray(p.job_employment_types) ? (p.job_employment_types as string[]) : [],
+        job_seniority: (p.job_seniority as string) ?? '',
         linkedin_url: (p.linkedin_url as string) ?? '',
         twitter_url: (p.twitter_url as string) ?? '',
         github_url: (p.github_url as string) ?? '',
         phone_country_code: parsePhone(p.phone as string | undefined).countryCode,
         phone_national: parsePhone(p.phone as string | undefined).nationalNumber,
+        gender: (p.gender as string) ?? '',
       });
     }
   }, [profile]);
+
+  // City autocomplete: debounced search (280ms) so we don't flood the API and get stable results
+  useEffect(() => {
+    const q = cityQuery.trim();
+    if (q.length < 2) {
+      setCityResults([]);
+      setCityDropdownOpen(false);
+      return;
+    }
+    const tid = window.setTimeout(() => {
+      if (citySearchAbortRef.current) citySearchAbortRef.current.abort();
+      const ac = new AbortController();
+      citySearchAbortRef.current = ac;
+      setCitySearching(true);
+      searchCities(q, { countryCode: formData.job_search_country || undefined, count: 15, signal: ac.signal })
+        .then((results) => {
+          if (!ac.signal.aborted) {
+            setCityResults(results);
+            setCityDropdownOpen(results.length > 0);
+          }
+        })
+      .catch(() => {
+        if (!ac.signal.aborted) setCityResults([]);
+      })
+      .finally(() => {
+        setCitySearching(false);
+      });
+    }, 280);
+    return () => {
+      window.clearTimeout(tid);
+      if (citySearchAbortRef.current) {
+        citySearchAbortRef.current.abort();
+        citySearchAbortRef.current = null;
+      }
+    };
+  }, [cityQuery, formData.job_search_country]);
 
   const signInMethodLabel =
     hasPassword && hasGoogle
@@ -560,21 +648,26 @@ export default function Profile() {
                             {t('profile.uploadPhoto')}
                         </Button>
                         {isPremium && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={avatarGenerating}
-                            onClick={handleGenerateAvatar}
-                            className="gap-2 shrink-0"
-                          >
-                            {avatarGenerating ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <ImagePlus className="h-4 w-4" />
-                            )}
-                            {t('profile.generateWithAi')}
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={avatarGenerating || !canGenerateAvatar()}
+                              onClick={handleGenerateAvatar}
+                              className="gap-2 shrink-0"
+                            >
+                              {avatarGenerating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ImagePlus className="h-4 w-4" />
+                              )}
+                              {t('profile.generateWithAi')}
+                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                              {getAvatarGenerationsRemaining()}/3 {language === 'ar' ? 'متبقي' : 'left'}
+                            </span>
+                          </>
                         )}
                       </div>
                     </div>
@@ -627,6 +720,25 @@ export default function Profile() {
                           className="pl-10 opacity-60 rtl:pl-0 rtl:pr-10"
                         />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gender">{t('profile.gender')}</Label>
+                      <Select
+                        value={formData.gender || '_none'}
+                        onValueChange={(v) => setFormData({ ...formData, gender: v === '_none' ? '' : v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('profile.selectGender')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">{t('profile.none')}</SelectItem>
+                          <SelectItem value="male">{t('profile.genderMale')}</SelectItem>
+                          <SelectItem value="female">{t('profile.genderFemale')}</SelectItem>
+                          <SelectItem value="non_binary">{t('profile.genderNonBinary')}</SelectItem>
+                          <SelectItem value="prefer_not_to_say">{t('profile.genderPreferNotToSay')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">{t('profile.genderHint')}</p>
                     </div>
                   </div>
 
@@ -917,6 +1029,164 @@ export default function Profile() {
                     </div>
                   </div>
 
+                  {isPremium && (
+                    <Card className="mt-6 public-glass-card rounded-2xl border-primary/20">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Briefcase className="h-5 w-5" />
+                          {t('profile.jobSearchSettings')}
+                        </CardTitle>
+                        <CardDescription id="job-search-settings-description">
+                          {t('profile.jobSearchSettingsDescription')}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6" aria-describedby="job-search-settings-description">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="job_search_country">{t('profile.jobSearchCountry')}</Label>
+                            <Select
+                              value={formData.job_search_country || '_none'}
+                              onValueChange={(v) => {
+                                const code = v === '_none' ? '' : v;
+                                setFormData({ ...formData, job_search_country: code });
+                                if (!code) setFormData((prev) => ({ ...prev, job_search_city: '' }));
+                                setCityResults([]);
+                                setCityDropdownOpen(false);
+                              }}
+                            >
+                              <SelectTrigger id="job_search_country">
+                                <SelectValue placeholder={t('profile.jobSearchCountryPlaceholder')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">{t('profile.none')}</SelectItem>
+                                {COUNTRY_CODES.map((c) => (
+                                  <SelectItem key={c.code} value={c.code}>
+                                    {flagEmoji(c.code)} {c.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2 relative">
+                            <Label htmlFor="job_search_city">{t('profile.jobSearchCity')}</Label>
+                            <Input
+                              id="job_search_city"
+                              value={cityDropdownOpen ? cityQuery : (formData.job_search_city || cityQuery)}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setCityQuery(v);
+                                setFormData((prev) => ({ ...prev, job_search_city: v }));
+                              }}
+                              onFocus={() => cityQuery.length >= 2 && setCityDropdownOpen(cityResults.length > 0)}
+                              onBlur={() => setTimeout(() => setCityDropdownOpen(false), 200)}
+                              placeholder={t('profile.jobSearchCityPlaceholder')}
+                              autoComplete="off"
+                            />
+                            {citySearching && (
+                              <span className="absolute right-3 top-9 text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              </span>
+                            )}
+                            {cityDropdownOpen && cityResults.length > 0 && (
+                              <ul
+                                className="absolute z-10 mt-1 w-full rounded-md border bg-popover py-1 shadow-md"
+                                role="listbox"
+                              >
+                                {cityResults.map((c) => (
+                                  <li
+                                    key={`${c.id}-${c.country_code}`}
+                                    role="option"
+                                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      const label = cityLabel(c);
+                                      setFormData((prev) => ({ ...prev, job_search_city: label }));
+                                      setCityQuery('');
+                                      setCityResults([]);
+                                      setCityDropdownOpen(false);
+                                    }}
+                                  >
+                                    {cityLabel(c)}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            <p className="text-xs text-muted-foreground">{t('profile.jobSearchCityHint')}</p>
+                          </div>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>{t('profile.workType')}</Label>
+                            <Select
+                              value={formData.job_work_preference || '_none'}
+                              onValueChange={(v) => setFormData({ ...formData, job_work_preference: v === '_none' ? '' : v })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('profile.workType')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">{t('profile.none')}</SelectItem>
+                                <SelectItem value="remote">{t('profile.remote')}</SelectItem>
+                                <SelectItem value="hybrid">{t('profile.hybrid')}</SelectItem>
+                                <SelectItem value="on_site">{t('profile.onSite')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>{t('profile.jobSeniority')}</Label>
+                            <Select
+                              value={formData.job_seniority || '_none'}
+                              onValueChange={(v) => setFormData({ ...formData, job_seniority: v === '_none' ? '' : v })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={t('profile.jobSeniorityPlaceholder')} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">{t('profile.none')}</SelectItem>
+                                <SelectItem value="entry">{t('profile.jobSeniorityEntry')}</SelectItem>
+                                <SelectItem value="mid">{t('profile.jobSeniorityMid')}</SelectItem>
+                                <SelectItem value="senior">{t('profile.jobSenioritySenior')}</SelectItem>
+                                <SelectItem value="lead">{t('profile.jobSeniorityLead')}</SelectItem>
+                                <SelectItem value="executive">{t('profile.jobSeniorityExecutive')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>{t('profile.jobEmploymentTypes')}</Label>
+                          <div className="flex flex-wrap gap-4">
+                            {(['full_time', 'part_time', 'contract', 'freelance', 'internship'] as const).map((type) => (
+                              <label key={type} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.job_employment_types?.includes(type) ?? false}
+                                  onChange={(e) => {
+                                    const next = e.target.checked
+                                      ? [...(formData.job_employment_types || []), type]
+                                      : (formData.job_employment_types || []).filter((t) => t !== type);
+                                    setFormData({ ...formData, job_employment_types: next });
+                                  }}
+                                  className="rounded border-input"
+                                />
+                                <span className="text-sm">{t(`profile.jobEmployment_${type}`)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Switch
+                            id="find_jobs_enabled_premium"
+                            checked={formData.find_jobs_enabled}
+                            onCheckedChange={(checked) => setFormData({ ...formData, find_jobs_enabled: checked })}
+                          />
+                          <Label htmlFor="find_jobs_enabled_premium" className="cursor-pointer">
+                            {t('profile.findJobsWeekly')}
+                          </Label>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <Button type="submit" disabled={isUpdating} className="btn-glow gap-2">
                     {isUpdating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -967,6 +1237,20 @@ export default function Profile() {
                     disabled={isUpdatingNotif}
                   />
                 </div>
+                {isPremium && (
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <Label htmlFor="job_digest_email" className="cursor-pointer">{t('profile.jobDigestEmail')}</Label>
+                      <p className="text-xs text-muted-foreground">{t('profile.jobDigestEmailDescription')}</p>
+                    </div>
+                    <Switch
+                      id="job_digest_email"
+                      checked={notifPrefs?.job_digest_email !== false}
+                      onCheckedChange={(checked) => updateNotifPrefs({ job_digest_email: checked })}
+                      disabled={isUpdatingNotif}
+                    />
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label htmlFor="push_enabled" className="cursor-pointer">{language === 'ar' ? 'إشعارات الدفع' : 'Push notifications'}</Label>

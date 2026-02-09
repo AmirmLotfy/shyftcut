@@ -126,10 +126,10 @@ export default function Tickets() {
               {language === 'ar' ? 'إنشاء تذكرة جديدة' : 'Create New Ticket'}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="tickets-create-desc">
             <DialogHeader>
               <DialogTitle>{language === 'ar' ? 'إنشاء تذكرة جديدة' : 'Create New Ticket'}</DialogTitle>
-              <DialogDescription>
+              <DialogDescription id="tickets-create-desc">
                 {language === 'ar' ? 'املأ النموذج أدناه لإنشاء تذكرة دعم جديدة' : 'Fill out the form below to create a new support ticket'}
               </DialogDescription>
             </DialogHeader>

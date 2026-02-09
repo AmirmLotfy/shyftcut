@@ -78,12 +78,12 @@ export function ThemeEditor({ theme, open, onOpenChange, onSuccess }: ThemeEdito
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="theme-editor-desc">
         <DialogHeader>
           <DialogTitle>
             {theme ? (language === 'ar' ? 'تعديل السمة' : 'Edit Theme') : (language === 'ar' ? 'إنشاء سمة جديدة' : 'Create New Theme')}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="theme-editor-desc">
             {language === 'ar' ? 'تخصيص ألوان السمة' : 'Customize theme colors'}
           </DialogDescription>
         </DialogHeader>

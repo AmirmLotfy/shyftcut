@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -624,9 +625,12 @@ export default function CareerDNAResult() {
           setShowSaveModal(open);
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" aria-describedby="career-dna-saved-desc">
           <DialogHeader>
             <DialogTitle>{t('careerDna.result.saved')}</DialogTitle>
+            <DialogDescription id="career-dna-saved-desc" className="sr-only">
+              {t('careerDna.result.longPressHint')}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4">
             {saveModalImageUrl && (

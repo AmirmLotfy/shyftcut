@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play, Pause, RotateCcw, Settings2, BookOpen, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
 import { useAuth } from '@/contexts/AuthContext';
-import { dashboardPaths } from '@/lib/dashboard-routes';
+import { dashboardPaths, studyPath } from '@/lib/dashboard-routes';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -99,10 +99,27 @@ function playPhaseChangeSound() {
 }
 
 export default function Study() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roadmapParamId = searchParams.get('roadmap')?.trim() || null;
   const { language, t } = useLanguage();
   const isAr = language === 'ar';
-  const { activeRoadmap } = useRoadmap();
+  const { roadmaps, roadmap, activeRoadmap, isLoading } = useRoadmap(roadmapParamId || undefined);
   const { getAccessToken } = useAuth();
+
+  const nonArchived = (roadmaps ?? []).filter((r: { status?: string }) => r.status !== 'archived');
+  const currentRoadmap = (roadmapParamId && roadmap) ? roadmap : activeRoadmap;
+
+  // Clear invalid ?roadmap= when it doesn't match any roadmap or fetch failed
+  useEffect(() => {
+    if (!roadmapParamId || currentRoadmap) return;
+    if (!isLoading && activeRoadmap && !roadmap) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('roadmap');
+        return next;
+      }, { replace: true });
+    }
+  }, [roadmapParamId, currentRoadmap, isLoading, activeRoadmap, roadmap, setSearchParams]);
   const { toast } = useToast();
   const [settings, setSettings] = useState(loadSettings);
   const [phase, setPhase] = useState<Phase>('work');
@@ -143,8 +160,8 @@ export default function Study() {
 
   // Auto-select current week when roadmap loads
   useEffect(() => {
-    if (activeRoadmap?.roadmap_weeks?.length && !selectedWeekId) {
-      const weeks = (activeRoadmap.roadmap_weeks as { id: string; week_number: number; is_completed?: boolean }[])
+    if (currentRoadmap?.roadmap_weeks?.length && !selectedWeekId) {
+      const weeks = (currentRoadmap.roadmap_weeks as { id: string; week_number: number; is_completed?: boolean }[])
         .slice()
         .sort((a, b) => a.week_number - b.week_number);
       const currentWeek = weeks.find((w) => !w.is_completed) ?? weeks[weeks.length - 1];
@@ -152,7 +169,7 @@ export default function Study() {
         setSelectedWeekId(currentWeek.id);
       }
     }
-  }, [activeRoadmap, selectedWeekId]);
+  }, [currentRoadmap, selectedWeekId]);
 
   // Record study time when work session completes
   const recordStudyTime = useCallback(async (minutes: number, weekId: string | null) => {
@@ -262,8 +279,31 @@ export default function Study() {
           <p className="mt-1 text-muted-foreground text-sm md:text-base">
             {isAr ? 'مؤقت بومودورو لجدولة العمل والاستراحات' : 'Pomodoro timer to schedule work and breaks'}
           </p>
-          {activeRoadmap?.roadmap_weeks?.length ? (
+          {currentRoadmap?.roadmap_weeks?.length ? (
             <div className="mt-4 space-y-2">
+              {nonArchived.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <Label className="text-xs text-muted-foreground shrink-0">{isAr ? 'الخريطة' : 'Roadmap'}</Label>
+                  <Select
+                    value={currentRoadmap?.id ?? ''}
+                    onValueChange={(id) => {
+                      if (id) setSearchParams({ roadmap: id }, { replace: true });
+                    }}
+                  >
+                    <SelectTrigger className="max-w-[220px] h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nonArchived.map((r: { id: string; title?: string }) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {(r.title ?? (isAr ? 'خريطة الطريق' : 'Roadmap')).slice(0, 28)}
+                          {(r.title?.length ?? 0) > 28 ? '…' : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{isAr ? 'اختر الأسبوع' : 'Select Week'}</Label>
               <Select value={selectedWeekId || ''} onValueChange={setSelectedWeekId}>
                 <SelectTrigger className="w-full">
@@ -271,7 +311,7 @@ export default function Study() {
                 </SelectTrigger>
                 <SelectContent>
                   {(() => {
-                    const weeks = (activeRoadmap.roadmap_weeks as { id: string; week_number: number; title?: string; is_completed?: boolean }[])
+                    const weeks = (currentRoadmap.roadmap_weeks as { id: string; week_number: number; title?: string; is_completed?: boolean }[])
                       .slice()
                       .sort((a, b) => a.week_number - b.week_number);
                     return weeks.map((week) => (
@@ -307,7 +347,7 @@ export default function Study() {
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
-              {isAr ? 'لا توجد خريطة طريق نشطة' : 'No active roadmap'}
+              {isAr ? 'لا توجد خريطة طريق محددة أو نشطة' : 'No roadmap selected or active'}
             </p>
           )}
         </motion.div>
@@ -336,7 +376,7 @@ export default function Study() {
                 size="lg"
                 className="min-touch gap-2"
                 onClick={() => {
-                  if (!selectedWeekId && activeRoadmap?.roadmap_weeks?.length) {
+                  if (!selectedWeekId && currentRoadmap?.roadmap_weeks?.length) {
                     toast({
                       title: isAr ? 'يرجى اختيار أسبوع' : 'Please select a week',
                       variant: 'destructive',
@@ -345,7 +385,7 @@ export default function Study() {
                   }
                   setIsRunning(true);
                 }}
-                disabled={isRunning || (!selectedWeekId && !!activeRoadmap?.roadmap_weeks?.length)}
+                disabled={isRunning || (!selectedWeekId && !!currentRoadmap?.roadmap_weeks?.length)}
               >
                 <Play className="h-5 w-5" />
                 {isAr ? 'ابدأ' : 'Start'}

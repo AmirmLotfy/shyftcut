@@ -54,11 +54,14 @@ export interface ApiOptions extends RequestInit {
 export function extractApiErrorMessage(data: unknown, fallback: string): string {
   if (!data || typeof data !== "object") return fallback;
   const obj = data as Record<string, unknown>;
-  const err = obj.error ?? obj.message;
+  // Top-level string
+  const err = obj.error ?? obj.message ?? obj.detail;
   if (typeof err === "string" && err && err !== "[object Object]") return err;
+  // Nested: error.message, error.detail
   if (err && typeof err === "object") {
-    const msg = (err as { message?: string }).message;
-    if (typeof msg === "string" && msg) return msg;
+    const o = err as Record<string, unknown>;
+    const msg = typeof o.message === "string" ? o.message : typeof o.detail === "string" ? o.detail : undefined;
+    if (msg && msg !== "[object Object]") return msg;
   }
   if (err != null) {
     const s = String(err);
@@ -144,9 +147,10 @@ export async function apiFetch<T = unknown>(
     const authCodeFromBody = res.status === 401 && typeof err.code === "string" ? err.code : undefined;
     const authCode = authCodeFromBody ?? (res.status === 401 ? (res.headers.get("X-Auth-Failure-Code") ?? "unknown_401") : undefined);
     debugLog("api", "error response", pathOnly, res.status, message, authCode ?? "");
-    const e = new Error(message) as Error & { code?: string; status?: number };
+    const e = new Error(message) as Error & { code?: string; status?: number; responseBody?: string };
     if (authCode) e.code = authCode;
     if (res.status) e.status = res.status;
+    if (res.status >= 500) e.responseBody = text;
     throw e;
   }
 

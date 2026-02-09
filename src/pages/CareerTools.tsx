@@ -3,12 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, Briefcase, Loader2, ExternalLink, Upload } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// pdf.js worker (CDN for reliable loading in Vite)
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
-}
+import { extractTextFromCvFile } from '@/lib/cv-extract';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,6 +21,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getCareerToolsBenefits } from '@/lib/premium-features';
 
 type CVAnalysis = {
+  headline?: string;
+  experience_summary?: string;
+  education_summary?: string;
+  sections_detected?: string[];
   strengths?: string[];
   gaps?: string[];
   recommendations?: string[];
@@ -43,26 +42,6 @@ type JobRow = {
   fetched_at?: string;
 };
 
-async function extractTextFromPdf(file: File): Promise<string> {
-  const buf = await file.arrayBuffer();
-  const doc = await pdfjsLib.getDocument(buf).promise;
-  const texts: string[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
-    texts.push(pageText);
-  }
-  return texts.join('\n\n').trim();
-}
-
-async function extractTextFromFile(file: File): Promise<string> {
-  if (file.type === 'application/pdf') return extractTextFromPdf(file);
-  if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-    return file.text();
-  }
-  throw new Error('Unsupported format. Use PDF or TXT.');
-}
 
 export default function CareerTools() {
   const { language } = useLanguage();
@@ -131,7 +110,7 @@ export default function CareerTools() {
     setCvUploading(true);
     setCvResult(null);
     try {
-      const text = await extractTextFromFile(file);
+      const text = await extractTextFromCvFile(file);
       if (text.length < 50) {
         toast({
           title: language === 'ar' ? 'نص قصير جداً' : 'Text too short',
@@ -290,6 +269,31 @@ export default function CareerTools() {
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-lg border border-border bg-muted/30 p-4 space-y-4"
               >
+                {cvResult.headline ? (
+                  <p className="text-sm font-medium border-b border-border pb-2">{cvResult.headline}</p>
+                ) : null}
+                {cvResult.experience_summary ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'ملخص الخبرة' : 'Experience summary'}</h4>
+                    <p className="text-sm">{cvResult.experience_summary}</p>
+                  </div>
+                ) : null}
+                {cvResult.education_summary ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'ملخص التعليم' : 'Education summary'}</h4>
+                    <p className="text-sm">{cvResult.education_summary}</p>
+                  </div>
+                ) : null}
+                {cvResult.sections_detected?.length ? (
+                  <div>
+                    <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'أقسام السيرة' : 'Sections detected'}</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {cvResult.sections_detected.map((s, i) => (
+                        <Badge key={i} variant="outline" className="text-xs">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {cvResult.strengths?.length ? (
                   <div>
                     <h4 className="font-medium text-sm text-muted-foreground mb-1">{isAr ? 'نقاط القوة' : 'Strengths'}</h4>

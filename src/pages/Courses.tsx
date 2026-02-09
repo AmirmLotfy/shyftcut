@@ -12,7 +12,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useRoadmap } from '@/hooks/useRoadmap';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/lib/api';
-import { dashboardPaths } from '@/lib/dashboard-routes';
+import { dashboardPaths, coursesPath } from '@/lib/dashboard-routes';
 import { hasValidCourseUrl, getCourseSearchUrl } from '@/lib/course-links';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -20,10 +20,25 @@ import { useToast } from '@/hooks/use-toast';
 export default function Courses() {
   const { language, t } = useLanguage();
   const { getAccessToken } = useAuth();
-  const { activeRoadmap, isLoading, isError, error } = useRoadmap();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const roadmapParamId = searchParams.get('roadmap');
+  const { roadmaps, roadmap, activeRoadmap, isLoading, isError, error } = useRoadmap(roadmapParamId || undefined);
+  const currentRoadmap = (roadmapParamId && roadmap) ? roadmap : activeRoadmap;
+  const nonArchived = (roadmaps ?? []).filter((r: { is_archived?: boolean }) => !r.is_archived);
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
+
+  // Clear invalid ?roadmap= when id doesn't match any roadmap
+  useEffect(() => {
+    if (isLoading) return;
+    if (roadmapParamId && !roadmap && activeRoadmap) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('roadmap');
+        return next;
+      }, { replace: true });
+    }
+  }, [roadmapParamId, currentRoadmap, isLoading, activeRoadmap, roadmap, setSearchParams]);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [weekFilter, setWeekFilter] = useState<string>('all');
@@ -34,9 +49,9 @@ export default function Courses() {
 
   // Sorted weeks (same order as Roadmap)
   const weeks = useMemo(() => {
-    if (!activeRoadmap?.roadmap_weeks) return [];
-    return [...activeRoadmap.roadmap_weeks].sort((a: any, b: any) => a.week_number - b.week_number);
-  }, [activeRoadmap]);
+    if (!currentRoadmap?.roadmap_weeks) return [];
+    return [...currentRoadmap.roadmap_weeks].sort((a: any, b: any) => a.week_number - b.week_number);
+  }, [currentRoadmap]);
 
   // Unlocked week numbers: Week 1 always, then Week N when Week N-1 is completed (matches Roadmap)
   const unlockedWeekNumbers = useMemo(() => {
@@ -280,6 +295,32 @@ export default function Courses() {
           transition={{ delay: 0.1 }}
           className="mb-6 flex flex-wrap gap-4"
         >
+          {nonArchived.length > 1 && (
+            <Select
+              value={currentRoadmap?.id ?? ''}
+              onValueChange={(id) => {
+                if (id) {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('roadmap', id);
+                    return next;
+                  }, { replace: true });
+                }
+              }}
+            >
+              <SelectTrigger className="min-touch w-full min-w-0 sm:w-[200px]">
+                <SelectValue placeholder={language === 'ar' ? 'الخريطة' : 'Roadmap'} />
+              </SelectTrigger>
+              <SelectContent>
+                {nonArchived.map((r: { id: string; title?: string }) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {(r.title ?? (language === 'ar' ? 'خريطة الطريق' : 'Roadmap')).slice(0, 32)}
+                    {(r.title?.length ?? 0) > 32 ? '…' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="relative min-w-0 w-full flex-1 sm:min-w-[200px] sm:w-auto">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground rtl:left-auto rtl:right-3" />
             <Input

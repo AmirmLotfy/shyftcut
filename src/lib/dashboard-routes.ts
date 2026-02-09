@@ -25,6 +25,18 @@ export function roadmapPath(id?: string): string {
   return id ? `${DASHBOARD_BASE}/roadmap/${id}` : dashboardPaths.roadmap;
 }
 
+/** Study page URL; optional roadmap id keeps Study scoped to that roadmap (multi-roadmap UX). */
+export function studyPath(roadmapId?: string | null): string {
+  if (!roadmapId) return dashboardPaths.study;
+  return `${dashboardPaths.study}?roadmap=${encodeURIComponent(roadmapId)}`;
+}
+
+/** Courses page URL; optional roadmap id keeps Courses scoped to that roadmap (multi-roadmap UX). */
+export function coursesPath(roadmapId?: string | null): string {
+  if (!roadmapId) return dashboardPaths.courses;
+  return `${dashboardPaths.courses}?roadmap=${encodeURIComponent(roadmapId)}`;
+}
+
 /** Paths that are under dashboard (for noindex / isAppPath). */
 export const DASHBOARD_PATH_PREFIX = `${DASHBOARD_BASE}/`;
 

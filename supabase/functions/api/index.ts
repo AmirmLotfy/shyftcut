@@ -28,7 +28,10 @@ import {
 } from "../_shared/gemini.ts";
 import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, REAL_COURSE_URL_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
 import { isYouTubeUrl } from "../_shared/verify-course-url.ts";
+import { isAllowedJobHost, isValidJobUrl, ALLOWED_JOB_DOMAINS_INSTRUCTION, REAL_JOB_URL_INSTRUCTION } from "../_shared/job-hosts.ts";
+import { verifyJobUrl } from "../_shared/verify-job-url.ts";
 import { scrapeCourseMetadata } from "../_shared/course-metadata.ts";
+import { sendResendEmail } from "../_shared/resend.ts";
 
 const CHAT_BLOCKED_MESSAGE = "This response was blocked by content filters. Please rephrase and try again.";
 
@@ -115,6 +118,23 @@ const MAX_CV_PASTE_LEN = 50_000;
 const CV_ANALYSIS_RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
+    headline: {
+      type: "string",
+      description: "One-line professional headline summarizing the candidate (e.g. 'Senior Frontend Engineer with 6+ years React experience').",
+    },
+    experience_summary: {
+      type: "string",
+      description: "Brief summary of years and type of experience (e.g. '6 years software engineering, 3 in frontend').",
+    },
+    education_summary: {
+      type: "string",
+      description: "Brief summary of highest education and relevant credentials.",
+    },
+    sections_detected: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of CV sections identified (e.g. Experience, Education, Skills).",
+    },
     strengths: {
       type: "array",
       items: { type: "string" },
@@ -133,7 +153,7 @@ const CV_ANALYSIS_RESPONSE_JSON_SCHEMA = {
     skill_keywords: {
       type: "array",
       items: { type: "string" },
-      description: "Extracted skill keywords for job matching.",
+      description: "Extracted skill keywords for job matching (technologies, tools, soft skills).",
     },
   },
   required: ["strengths", "gaps", "recommendations", "skill_keywords"],
@@ -170,7 +190,7 @@ const CAREER_DNA_RESPONSE_JSON_SCHEMA = {
   required: ["matchScore", "personalityArchetype", "archetypeDescription", "superpower", "superpowerRarity", "hiddenTalent", "hiddenTalentCareerHint", "suggestedCareers", "shareableQuote", "scoreTier"],
 };
 
-/** JSON schema for jobs find (Gemini grounding) – array of job objects. */
+/** JSON schema for jobs find (Gemini grounding) – array of job objects. URLs must be from Google Search only. */
 const JOBS_RESPONSE_JSON_SCHEMA = {
   type: "object",
   properties: {
@@ -179,16 +199,16 @@ const JOBS_RESPONSE_JSON_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Job title." },
+          title: { type: "string", description: "Exact job title from the listing." },
           company: { type: "string", description: "Company name." },
-          url: { type: "string", description: "Real job listing URL (must be valid HTTP/HTTPS from search)." },
+          url: { type: "string", description: "Direct link to the job listing page from your search results. Must be a real URL you found—no invented or placeholder URLs. Prefer Indeed, LinkedIn, Glassdoor, company career pages." },
           location_type: { type: "string", enum: ["remote", "hybrid", "on_site"], description: "Work arrangement." },
           location: { type: "string", description: "Location string if any." },
           match_score: { type: "number", description: "0–100 match score for the candidate." },
         },
         required: ["title", "company", "url", "location_type", "match_score"],
       },
-      description: "Up to 10 real open job listings with URLs from web search.",
+      description: "Up to 10 real, currently open job listings. Every URL must come from Google Search results.",
     },
   },
   required: ["jobs"],
@@ -329,6 +349,78 @@ function trimStr(s: unknown, maxLen: number): string {
   return t.length > maxLen ? t.slice(0, maxLen) : t;
 }
 
+function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Job row ready for DB insert. */
+type JobInsertRow = {
+  user_id: string;
+  title: string;
+  company: string | null;
+  url: string;
+  location_type: string;
+  location: string | null;
+  match_score: number | null;
+  source: string;
+  fetched_at: string;
+};
+
+/**
+ * Filter and verify job URLs (like courses): only allowed hosts, valid URL shape, then HEAD/GET check.
+ * Returns only jobs whose URL is real and reachable.
+ */
+async function filterAndVerifyJobs(
+  jobs: Array<{ title?: string; company?: string; url?: string; location_type?: string; location?: string; match_score?: number }>,
+  userId: string,
+  fetchedAt: string
+): Promise<JobInsertRow[]> {
+  const max = 10;
+  const normalized = jobs.slice(0, max)
+    .filter((j) => typeof j?.url === "string" && (j.url.startsWith("http://") || j.url.startsWith("https://")))
+    .map((j) => {
+      let url = (j.url ?? "").trim().slice(0, 2048);
+      try {
+        new URL(url);
+      } catch {
+        return null;
+      }
+      if (!isValidJobUrl(url) || !isAllowedJobHost(url)) return null;
+      const locType = ["remote", "hybrid", "on_site"].includes(String(j.location_type ?? "")) ? j.location_type : "remote";
+      const score = typeof j.match_score === "number" ? Math.max(0, Math.min(100, Math.round(j.match_score))) : null;
+      return {
+        url,
+        title: trimStr(j.title ?? "Job", 500),
+        company: trimStr(j.company ?? "", 500) || null,
+        location_type: locType,
+        location: trimStr(j.location ?? "", 500) || null,
+        match_score: score,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const verified = await Promise.all(
+    normalized.map(async (r) => ((await verifyJobUrl(r.url)) ? r : null))
+  );
+  return verified
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .map((r) => ({
+      user_id: userId,
+      title: r.title,
+      company: r.company,
+      url: r.url,
+      location_type: r.location_type,
+      location: r.location,
+      match_score: r.match_score,
+      source: "gemini_grounding",
+      fetched_at: fetchedAt,
+    }));
+}
+
 function normalizeDifficultyLevel(value: unknown): "beginner" | "intermediate" | "advanced" {
   const s = String(value ?? "").trim().toLowerCase();
   if (DIFFICULTY_LEVELS.includes(s as (typeof DIFFICULTY_LEVELS)[number])) return s as "beginner" | "intermediate" | "advanced";
@@ -410,9 +502,34 @@ async function fetchCourseUrlFromSearch(
   anonKey: string,
   platform: string,
   query: string,
-  language: string
+  language: string,
+  supabase?: ReturnType<typeof getSupabase>
 ): Promise<string | null> {
   if (!supabaseUrl?.trim() || !anonKey?.trim()) return null;
+  
+  const normalizedPlatform = String(platform).trim().slice(0, 100).toLowerCase();
+  const normalizedQuery = String(query).trim().slice(0, 300).toLowerCase();
+  const cacheKey = `${normalizedPlatform}:${normalizedQuery}:${language}`;
+  
+  // Check cache first (cost optimization - avoid redundant API calls)
+  if (supabase) {
+    try {
+      const { data: cached } = await supabase
+        .from("course_url_cache")
+        .select("url")
+        .eq("platform", normalizedPlatform)
+        .eq("query", normalizedQuery)
+        .eq("language", language)
+        .single();
+      
+      if (cached?.url && typeof cached.url === "string" && isValidCourseUrl(cached.url) && isAllowedCourseHost(cached.url)) {
+        return cached.url;
+      }
+    } catch {
+      // Cache miss or error - continue to API call
+    }
+  }
+  
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/courses-search`;
   try {
     const res = await fetch(url, {
@@ -426,7 +543,24 @@ async function fetchCourseUrlFromSearch(
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { url?: string | null };
-    return typeof data?.url === "string" && data.url ? data.url : null;
+    const foundUrl = typeof data?.url === "string" && data.url ? data.url : null;
+    
+    // Cache successful results (cost optimization)
+    if (foundUrl && supabase && isValidCourseUrl(foundUrl) && isAllowedCourseHost(foundUrl)) {
+      try {
+        await supabase.from("course_url_cache").upsert({
+          platform: normalizedPlatform,
+          query: normalizedQuery,
+          language,
+          url: foundUrl,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "platform,query,language" });
+      } catch {
+        // Cache write failure - non-critical, continue
+      }
+    }
+    
+    return foundUrl;
   } catch {
     return null;
   }
@@ -485,7 +619,8 @@ async function fillMissingCourseUrls(
   language: string,
   supabaseUrl: string,
   anonKey: string,
-  maxToFill: number
+  maxToFill: number,
+  supabase?: ReturnType<typeof getSupabase>
 ): Promise<void> {
   const weeks = Array.isArray(roadmapData.weeks) ? roadmapData.weeks as Array<Record<string, unknown>> : [];
   const toFill: { weekIndex: number; courseIndex: number; platform: string; title: string }[] = [];
@@ -504,7 +639,7 @@ async function fillMissingCourseUrls(
   if (toFill.length === 0) return;
   const slice = toFill.slice(0, maxToFill);
   const results = await Promise.all(
-    slice.map(({ platform, title }) => fetchCourseUrlFromSearch(supabaseUrl, anonKey, platform, title, language))
+    slice.map(({ platform, title }) => fetchCourseUrlFromSearch(supabaseUrl, anonKey, platform, title, language, supabase))
   );
   for (let i = 0; i < slice.length; i++) {
     const url = results[i];
@@ -590,6 +725,11 @@ function route(path: string): string | null {
   }
   if (p0 === "contact") return "contact";
   if (p0 === "support") return "support";
+  if (p0 === "tickets") {
+    if (!p1) return "tickets";
+    if (p2 === "comments") return "tickets/comments";
+    return "tickets/id";
+  }
   if (p0 === "newsletter") return "newsletter";
   if (p0 === "roadmaps") return "roadmaps";
   if (p0 === "roadmap") {
@@ -701,6 +841,10 @@ function route(path: string): string | null {
     }
     if (p1 === "leads") return "admin/leads";
     if (p1 === "contact-requests") return "admin/contact-requests";
+    if (p1 === "tickets") {
+      if (p2 === "stats") return "admin/tickets/stats";
+      return "admin/tickets";
+    }
     return null;
   }
   if (p0 === "cv" && p1 === "analyze") return "cv/analyze";
@@ -929,6 +1073,32 @@ Deno.serve(async (req: Request) => {
             location: trimStr(b.location) ?? b.location ?? current.location ?? null,
             job_work_preference: ["remote", "hybrid", "on_site"].includes(String(b.job_work_preference ?? "")) ? b.job_work_preference : (current.job_work_preference ?? null),
             find_jobs_enabled: typeof b.find_jobs_enabled === "boolean" ? b.find_jobs_enabled : (current.find_jobs_enabled ?? false),
+            job_search_country: (() => {
+              if (!("job_search_country" in b)) return (current as { job_search_country?: string }).job_search_country ?? null;
+              const v = trimStr(b.job_search_country);
+              if (!v) return null;
+              return /^[A-Za-z]{2}$/.test(v) ? v.toUpperCase() : null;
+            })(),
+            job_search_city: !("job_search_city" in b) ? (current as { job_search_city?: string }).job_search_city ?? null : trimStr(b.job_search_city)?.slice(0, 200) ?? null,
+            job_employment_types: (() => {
+              if (!("job_employment_types" in b)) return (current as { job_employment_types?: string[] }).job_employment_types ?? [];
+              const arr = Array.isArray(b.job_employment_types) ? b.job_employment_types : [];
+              const allowed = new Set(["full_time", "part_time", "contract", "freelance", "internship"]);
+              return arr.filter((x) => typeof x === "string" && allowed.has(x)).slice(0, 10);
+            })(),
+            job_seniority: (() => {
+              if (!("job_seniority" in b)) return (current as { job_seniority?: string }).job_seniority ?? null;
+              const v = trimStr(b.job_seniority);
+              if (!v) return null;
+              return ["entry", "mid", "senior", "lead", "executive"].includes(v) ? v : null;
+            })(),
+            gender: (() => {
+              if (!("gender" in b)) return (current as { gender?: string }).gender ?? null;
+              const v = trimStr(b.gender);
+              if (!v) return null;
+              const allowed = new Set(["male", "female", "non_binary", "prefer_not_to_say"]);
+              return allowed.has(v) ? v : null;
+            })(),
             linkedin_url: linkedinUrl,
             twitter_url: twitterUrl,
             github_url: githubUrl,
@@ -971,10 +1141,14 @@ Deno.serve(async (req: Request) => {
         if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const AVATAR_LIMIT_PER_MONTH = 3;
         const bucketName = "avatars";
+        const logPrefix = "[avatar/generate]";
         try {
+          console.log(logPrefix, "start", "user_id:", user!.id);
           const sub = await supabase.from("subscriptions").select("tier").eq("user_id", user!.id).single();
           const tier = (sub?.data?.tier ?? "free") as string;
+          console.log(logPrefix, "tier:", tier, "isPaid:", isPaidTier(tier));
           if (!isPaidTier(tier)) {
+            console.warn(logPrefix, "rejected: not premium");
             return json({ error: "Avatar generation is for Premium subscribers only." }, 402);
           }
           const startOfMonth = new Date();
@@ -985,18 +1159,65 @@ Deno.serve(async (req: Request) => {
             .select("*", { count: "exact", head: true })
             .eq("user_id", user!.id)
             .gte("created_at", startOfMonth.toISOString());
+          console.log(logPrefix, "avatar_generations count this month:", count ?? 0);
           if ((count ?? 0) >= AVATAR_LIMIT_PER_MONTH) {
+            console.warn(logPrefix, "rejected: limit reached");
             return json(
               { error: `You have used your ${AVATAR_LIMIT_PER_MONTH} avatar generations this month. Next month you can generate more.` },
               402
             );
           }
           const config = getGeminiConfig();
-          if (!config) return json({ error: "AI image generation is not configured." }, 500);
-          const avatarImageSize = (Deno.env.get("GEMINI_AVATAR_IMAGE_SIZE") ?? "2K").toUpperCase() === "4K" ? "4K" : "2K";
+          if (!config) {
+            console.error(logPrefix, "getGeminiConfig() returned null/undefined");
+            return json({ error: "AI image generation is not configured." }, 500);
+          }
+          // Docs: imageSize must be uppercase "1K", "2K", or "4K" (https://ai.google.dev/gemini-api/docs/image-generation)
+          const sizeEnv = (Deno.env.get("GEMINI_AVATAR_IMAGE_SIZE") ?? "2K").toUpperCase();
+          const avatarImageSize = sizeEnv === "4K" ? "4K" : sizeEnv === "1K" ? "1K" : "2K";
           const imageUrl = getGeminiGenerateContentUrl(GEMINI_IMAGE_MODEL);
+          console.log(logPrefix, "calling Gemini", "model:", GEMINI_IMAGE_MODEL, "imageSize:", avatarImageSize);
+          // Randomize elements for variety: color schemes, expressions, accessories
+          const colorSchemes = [
+            "vibrant blue and purple",
+            "warm orange and pink",
+            "cool green and teal",
+            "bold red and yellow",
+            "soft pastel pink and lavender",
+            "energetic cyan and magenta",
+            "sunset orange and coral",
+            "fresh mint and turquoise",
+          ];
+          const expressions = [
+            "friendly smile",
+            "confident expression",
+            "warm welcoming look",
+            "approachable demeanor",
+            "positive cheerful face",
+          ];
+          const accessories = [
+            "no accessories",
+            "subtle geometric pattern in background",
+            "minimal geometric shapes around",
+            "clean solid color background",
+          ];
+          const selectedColors = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
+          const selectedExpression = expressions[Math.floor(Math.random() * expressions.length)];
+          const selectedAccessory = accessories[Math.floor(Math.random() * accessories.length)];
+          // Get user's gender preference for avatar generation
+          const { data: profileData } = await supabase.from("profiles").select("gender").eq("user_id", user!.id).single();
+          const userGender = profileData?.gender;
+          let genderPrompt = "";
+          if (userGender === "male") {
+            genderPrompt = "The avatar should represent a male person. ";
+          } else if (userGender === "female") {
+            genderPrompt = "The avatar should represent a female person. ";
+          } else if (userGender === "non_binary") {
+            genderPrompt = "The avatar should represent a non-binary person with androgynous features. ";
+          }
+          // prefer_not_to_say or null: don't specify gender, let AI decide
           const prompt =
-            "Generate a single clean, professional profile avatar image. Style: simple and friendly, like modern app profile pictures (e.g. Google Chrome profile icons). Minimalist, neutral or soft gradient background. Show only head and shoulders, no text. High quality, suitable for a user avatar. Square aspect ratio.";
+            `Generate a low-poly, flat design profile avatar. ${genderPrompt}Style: geometric faceted shapes, angular polygons, flat colors with no shadows or gradients. Use ${selectedColors} color scheme. ${selectedExpression}. ${selectedAccessory}. Low-poly art style similar to modern app icons - clean, colorful, geometric. Show only head and shoulders portrait. Flat 2D illustration, no 3D effects, no gradients, vibrant saturated colors. Square aspect ratio, professional avatar suitable for profile picture.`;
           const res = await geminiFetchWithRetry(imageUrl, {
             method: "POST",
             headers: getGeminiHeaders(config.apiKey),
@@ -1004,17 +1225,28 @@ Deno.serve(async (req: Request) => {
               contents: [{ role: "user", parts: [{ text: prompt }] }],
               generationConfig: {
                 responseModalities: ["TEXT", "IMAGE"],
-                responseMimeType: "image/png",
                 imageConfig: { aspectRatio: "1:1", imageSize: avatarImageSize },
               },
             }),
           });
           if (!res.ok) {
             const errText = await res.text();
-            console.error("avatar generate Gemini error:", res.status, errText);
-            return json({ error: "Avatar generation failed. Please try again." }, 500);
+            console.error(logPrefix, "Gemini non-OK:", "status:", res.status, "body:", errText?.slice(0, 500));
+            let userMessage = "Avatar generation failed. Please try again.";
+            try {
+              const errJson = errText ? JSON.parse(errText) : null;
+              const msg = errJson?.error?.message ?? errJson?.message ?? "";
+              if (typeof msg === "string" && msg.length > 0 && msg.length < 200) {
+                if (msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("resource exhausted")) userMessage = "Image generation quota exceeded. Try again later.";
+                else if (msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("404")) userMessage = "Image generation service is not available. Please try again later.";
+                else userMessage = msg;
+              }
+            } catch {
+              /* use default userMessage */
+            }
+            return json({ error: userMessage }, 500);
           }
-          const json = (await res.json()) as {
+          const geminiResponse = (await res.json()) as {
             candidates?: Array<{
               finishReason?: string;
               content?: {
@@ -1027,14 +1259,16 @@ Deno.serve(async (req: Request) => {
             }>;
             usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; thoughtsTokenCount?: number };
           };
-          const cands = json.candidates ?? [];
+          const cands = geminiResponse.candidates ?? [];
+          const partsCount = cands[0]?.content?.parts?.length ?? 0;
+          console.log(logPrefix, "Gemini response:", "candidates:", cands.length, "parts:", partsCount);
           const finishCheck = checkGeminiFinishReason(cands, cands[0]?.finishReason);
           if (!finishCheck.ok) {
-            console.error("avatar generate: blocked finish reason", finishCheck.finishReason);
+            console.error(logPrefix, "blocked finish reason:", finishCheck.finishReason, "userMessage:", finishCheck.userMessage);
             return json({ error: finishCheck.userMessage ?? "Avatar generation was blocked. Please try again." }, 400);
           }
-          logGeminiUsage(json.usageMetadata, "profile/avatar/generate");
-          const parts = json.candidates?.[0]?.content?.parts ?? [];
+          logGeminiUsage(geminiResponse.usageMetadata, "profile/avatar/generate");
+          const parts = geminiResponse.candidates?.[0]?.content?.parts ?? [];
           let base64Data: string | null = null;
           // Gemini 3 Pro Image may return thought parts then final image; use last non-thought image
           for (const part of parts) {
@@ -1043,17 +1277,18 @@ Deno.serve(async (req: Request) => {
             if (data) base64Data = data;
           }
           if (!base64Data) {
-            console.error("avatar generate: no image in response");
+            console.error(logPrefix, "no image in response; parts count:", parts.length);
             return json({ error: "No image was generated. Please try again." }, 500);
           }
           const binary = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+          console.log(logPrefix, "image decoded, bytes:", binary.length);
           const fileName = `${user!.id}/${Date.now()}.png`;
           const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, binary, {
             contentType: "image/png",
             upsert: true,
           });
           if (uploadError) {
-            console.error("avatar upload error:", uploadError);
+            console.error(logPrefix, "storage upload error:", uploadError?.message ?? uploadError, "bucket:", bucketName);
             return json(
               { error: "Failed to save avatar. Ensure the 'avatars' storage bucket exists and is public." },
               500
@@ -1066,10 +1301,15 @@ Deno.serve(async (req: Request) => {
             .from("profiles")
             .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
             .eq("user_id", user!.id);
+          console.log(logPrefix, "success", "avatar_url:", avatarUrl);
           return json({ avatar_url: avatarUrl });
         } catch (err) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const safe = (raw && raw !== "[object Object]" && raw.length < 200) ? raw : "Avatar generation failed. Please try again.";
+          console.error(logPrefix, "unexpected error:", safe);
+          if (err instanceof Error && err.stack) console.error(logPrefix, "stack:", err.stack);
           logError("profile/avatar/generate", "unexpected error", err);
-          return json({ error: "Avatar generation failed. Please try again." }, 500);
+          return json({ error: safe }, 500);
         }
       }
 
@@ -1133,27 +1373,46 @@ Deno.serve(async (req: Request) => {
         if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const { data: profile } = await supabase.from("profiles").select("target_career, job_title").eq("user_id", user!.id).single();
         const targetRole = (profile as { target_career?: string } | null)?.target_career ?? "the role they are targeting";
-        const systemPrompt = `You are a career coach. Analyze the candidate's CV/resume and return a JSON object with:
-- strengths: 3–5 key strengths (short strings).
+        // Static system prompt template (cacheable)
+        const staticSystemPrompt = `You are an expert career coach and CV analyst. Analyze the candidate's CV/resume in detail and return a JSON object with:
+- headline: one-line professional headline (e.g. "Senior Frontend Engineer with 6+ years React").
+- experience_summary: brief summary of years and type of experience.
+- education_summary: brief summary of highest education and relevant credentials.
+- sections_detected: list of CV sections you identified (Experience, Education, Skills, etc.).
+- strengths: 3–5 key strengths (concrete, evidence-based).
 - gaps: 3–5 gaps vs the target role (skills or experience to develop).
-- recommendations: 3–5 short actionable recommendations.
-- skill_keywords: extracted skill keywords for job matching (e.g. JavaScript, React, project management).
-Target role context: ${targetRole}. Return only valid JSON matching the schema.`;
+- recommendations: 3–5 short, actionable recommendations (specific courses, projects, or steps).
+- skill_keywords: extracted skill keywords for job matching (technologies, tools, soft skills).
+Use the structure of the CV (section headers, bullet points) to inform your analysis. Base all output only on the provided CV text—do not invent. Return only valid JSON matching the schema.`;
+        
+        // Use context caching for static system prompt (cost optimization)
+        const cvBody: Record<string, unknown> = {
+          contents: [{ role: "user", parts: [{ text: `Target role context: ${targetRole}.\n\nAnalyze this CV (sections may be separated by blank lines):\n\n${text}` }] }],
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "low" : "low" }, // Optimized: low instead of medium for structured JSON output
+            temperature: 1.0,
+            maxOutputTokens: 3072, // Optimized: reduced from 4096 (typical response ~2000 tokens)
+            responseMimeType: "application/json",
+            responseJsonSchema: CV_ANALYSIS_RESPONSE_JSON_SCHEMA,
+          },
+        };
+        
+        if (staticSystemPrompt.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+          const cachedName = await createCachedContent(config.apiKey, config.model, staticSystemPrompt, "shyftcut-cv-analyze", 3600);
+          if (cachedName) {
+            cvBody.cachedContent = cachedName;
+          } else {
+            cvBody.systemInstruction = { parts: [{ text: staticSystemPrompt }] };
+          }
+        } else {
+          cvBody.systemInstruction = { parts: [{ text: staticSystemPrompt }] };
+        }
+        
         const genUrl = getGeminiGenerateContentUrl(config.model);
         const aiRes = await geminiFetchWithRetry(genUrl, {
           method: "POST",
           headers: getGeminiHeaders(config.apiKey),
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: "user", parts: [{ text: `Analyze this CV:\n\n${text}` }] }],
-            generationConfig: {
-              thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
-              temperature: 1.0,
-              maxOutputTokens: 4096,
-              responseMimeType: "application/json",
-              responseJsonSchema: CV_ANALYSIS_RESPONSE_JSON_SCHEMA,
-            },
-          }),
+          body: JSON.stringify(cvBody),
         });
         if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
         if (!aiRes.ok) {
@@ -1215,23 +1474,39 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         const locationStr = trimStr(p?.location ?? "", 200) || "any";
         const skillsStr = Array.isArray(p?.skills) ? p.skills.join(", ") : "";
         const targetRole = trimStr(p?.target_career ?? p?.job_title ?? "software developer", 200);
-        const systemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (real job listing URL from search - must be valid HTTP/HTTPS), location_type (one of: remote, hybrid, on_site), location (string if any), match_score (0-100). Prefer real job boards: Indeed, LinkedIn, Remotive, company career pages. User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Skills: ${skillsStr}. Only include jobs that match the user's work preference (${workPref}). Return only valid JSON.`;
+        
+        // Static system prompt template (cacheable) - split static instructions from user-specific data
+        const staticSystemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. ${ALLOWED_JOB_DOMAINS_INSTRUCTION} ${REAL_JOB_URL_INSTRUCTION} Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (only real URLs from your search results—no invented links), location_type (remote, hybrid, on_site), location (string if any), match_score (0-100). Only include jobs that match the user's work preference. Return only valid JSON.`;
+        
+        // Use context caching for static system prompt (cost optimization)
+        const jobsBody: Record<string, unknown> = {
+          contents: [{ role: "user", parts: [{ text: `User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Skills: ${skillsStr}.\n\nFind 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Use Google Search and return only real job listing URLs you find.` }] }],
+          tools: [{ google_search: {} }],
+          generationConfig: {
+            thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+            temperature: 1.0,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+            responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
+          },
+        };
+        
+        if (staticSystemPrompt.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+          const cachedName = await createCachedContent(config.apiKey, config.model, staticSystemPrompt, "shyftcut-jobs-find", 3600);
+          if (cachedName) {
+            jobsBody.cachedContent = cachedName;
+          } else {
+            jobsBody.systemInstruction = { parts: [{ text: staticSystemPrompt }] };
+          }
+        } else {
+          jobsBody.systemInstruction = { parts: [{ text: staticSystemPrompt }] };
+        }
+        
         const genUrl = getGeminiGenerateContentUrl(config.model);
         const aiRes = await geminiFetchWithRetry(genUrl, {
           method: "POST",
           headers: getGeminiHeaders(config.apiKey),
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: "user", parts: [{ text: `Find 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Return real job URLs only.` }] }],
-            tools: [{ google_search: {} }],
-            generationConfig: {
-              thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
-              temperature: 1.0,
-              maxOutputTokens: 8192,
-              responseMimeType: "application/json",
-              responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
-            },
-          }),
+          body: JSON.stringify(jobsBody),
         });
         if (aiRes.status === 429) return json({ error: "Rate limit exceeded. Please try again later." }, 429);
         if (!aiRes.ok) {
@@ -1261,27 +1536,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         }
         const jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
         const fetchedAt = new Date().toISOString();
-        const toInsert = jobs.slice(0, 10).filter((j) => typeof j?.url === "string" && (j.url.startsWith("http://") || j.url.startsWith("https://"))).map((j) => {
-          let url = (j.url ?? "").trim().slice(0, 2048);
-          try {
-            new URL(url);
-          } catch {
-            url = "https://example.com";
-          }
-          const locType = ["remote", "hybrid", "on_site"].includes(String(j.location_type ?? "")) ? j.location_type : "remote";
-          const score = typeof j.match_score === "number" ? Math.max(0, Math.min(100, Math.round(j.match_score))) : null;
-          return {
-            user_id: user!.id,
-            title: trimStr(j.title ?? "Job", 500),
-            company: trimStr(j.company ?? "", 500) || null,
-            url,
-            location_type: locType,
-            location: trimStr(j.location ?? "", 500) || null,
-            match_score: score,
-            source: "gemini_grounding",
-            fetched_at: fetchedAt,
-          };
-        });
+        const toInsert = await filterAndVerifyJobs(jobs, user!.id, fetchedAt);
         if (toInsert.length > 0) {
           await supabase.from("job_recommendations").insert(toInsert);
         }
@@ -1299,73 +1554,141 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         if (!config) return json({ error: "GEMINI_API_KEY not set" }, 500);
         const { data: paidUsers } = await supabase
           .from("profiles")
-          .select("user_id, target_career, job_title, skills, location, job_work_preference")
+          .select("user_id, email, target_career, job_title, skills, location, job_work_preference, job_search_country, job_search_city, job_employment_types, job_seniority")
           .eq("find_jobs_enabled", true);
         if (!paidUsers?.length) return json({ ok: true, processed: 0 });
         const subs = await supabase.from("subscriptions").select("user_id, tier").in("user_id", paidUsers.map((u: { user_id: string }) => u.user_id));
         const paidTierUserIds = new Set((subs?.data ?? []).filter((s: { tier: string }) => isPaidTier(s.tier)).map((s: { user_id: string }) => s.user_id));
-        let processed = 0;
-        for (const row of paidUsers as Array<{ user_id: string; target_career?: string; job_title?: string; skills?: string[]; location?: string; job_work_preference?: string }>) {
-          if (!paidTierUserIds.has(row.user_id)) continue;
+        const { data: notifPrefs } = await supabase.from("notification_preferences").select("user_id, job_digest_email").in("user_id", paidUsers.map((u: { user_id: string }) => u.user_id));
+        const jobDigestByUser = new Map((notifPrefs ?? []).map((p: { user_id: string; job_digest_email?: boolean }) => [p.user_id, p.job_digest_email !== false]));
+        const siteUrl = Deno.env.get("SITE_URL") ?? Deno.env.get("APP_URL") ?? "https://shyftcut.com";
+        
+        type ProfileRow = { user_id: string; email?: string; target_career?: string; job_title?: string; skills?: string[]; location?: string; job_work_preference?: string; job_search_country?: string; job_search_city?: string; job_employment_types?: string[]; job_seniority?: string };
+        const eligibleUsers = (paidUsers as ProfileRow[]).filter((row) => paidTierUserIds.has(row.user_id));
+        
+        if (eligibleUsers.length === 0) return json({ ok: true, processed: 0 });
+        
+        // Use Batch API for cost optimization (50% savings)
+        // Build batch requests
+        const batchRequests: Array<{ contents: Array<{ role: string; parts: Array<{ text: string }> }>; systemInstruction?: { parts: Array<{ text: string }> }; tools?: unknown[]; generationConfig?: Record<string, unknown> }> = [];
+        const userMetadata: Array<{ user_id: string; email?: string; sendDigest: boolean }> = [];
+        
+        for (const row of eligibleUsers) {
           const workPref = ["remote", "hybrid", "on_site"].includes(String(row.job_work_preference ?? "")) ? row.job_work_preference : "remote";
-          const locationStr = trimStr(row.location ?? "", 200) || "any";
+          const locationParts: string[] = [];
+          if (trimStr(row.job_search_city ?? "", 200)) locationParts.push(trimStr(row.job_search_city!, 200));
+          if (trimStr(row.job_search_country ?? "", 2)) locationParts.push(trimStr(row.job_search_country!, 2));
+          const locationStr = locationParts.length > 0 ? locationParts.join(", ") : (trimStr(row.location ?? "", 200) || "any");
           const skillsStr = Array.isArray(row.skills) ? row.skills.join(", ") : "";
           const targetRole = trimStr(row.target_career ?? row.job_title ?? "software developer", 200);
-          const systemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (real job listing URL from search - must be valid HTTP/HTTPS), location_type (one of: remote, hybrid, on_site), location (string if any), match_score (0-100). Prefer real job boards. User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Skills: ${skillsStr}. Only include jobs that match the user's work preference (${workPref}). Return only valid JSON.`;
-          const genUrl = getGeminiGenerateContentUrl(config.model);
+          const employmentArr = Array.isArray(row.job_employment_types) ? row.job_employment_types : [];
+          const employmentStr = employmentArr.length > 0 ? employmentArr.join(", ") : "full_time, part_time";
+          const seniorityStr = ["entry", "mid", "senior", "lead", "executive"].includes(String(row.job_seniority ?? "")) ? row.job_seniority : "";
+          const systemPrompt = `You are a job search assistant. Use Google Search to find real, currently open job listings. ${ALLOWED_JOB_DOMAINS_INSTRUCTION} ${REAL_JOB_URL_INSTRUCTION} Return exactly 10 jobs as a JSON object with a "jobs" array. Each job must have: title, company, url (only real URLs from your search results—no invented links), location_type (remote, hybrid, on_site), location (string if any), match_score (0-100). User preferences: work type ${workPref}, location ${locationStr}, target role ${targetRole}. Employment types: ${employmentStr}.${seniorityStr ? ` Seniority: ${seniorityStr}.` : ""} Skills: ${skillsStr}. Only include jobs that match the user's work preference (${workPref}). Return only valid JSON.`;
+          
+          batchRequests.push({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: `Find 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Employment: ${employmentStr}.${seniorityStr ? ` Seniority: ${seniorityStr}.` : ""} Use Google Search and return only real job listing URLs you find.` }] }],
+            tools: [{ google_search: {} }],
+            generationConfig: {
+              thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
+              temperature: 1.0,
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json",
+              responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
+            },
+          });
+          
+          userMetadata.push({
+            user_id: row.user_id,
+            email: trimStr(row.email ?? ""),
+            sendDigest: jobDigestByUser.get(row.user_id) !== false,
+          });
+        }
+        
+        // Submit batch job
+        const batchName = await submitBatchGenerateContent(config.apiKey, config.model, batchRequests, "shyftcut-weekly-jobs");
+        if (!batchName) {
+          return json({ error: "Failed to submit batch job" }, 500);
+        }
+        
+        // Poll batch status (with timeout - max 5 minutes for cron)
+        const maxPollTime = 5 * 60 * 1000; // 5 minutes
+        const pollInterval = 10 * 1000; // 10 seconds
+        const startTime = Date.now();
+        let batchStatus: { state?: string; output?: unknown; error?: string } | null = null;
+        
+        while (Date.now() - startTime < maxPollTime) {
+          batchStatus = await getBatchStatus(config.apiKey, batchName);
+          if (!batchStatus) {
+            return json({ error: "Failed to get batch status" }, 500);
+          }
+          
+          const state = batchStatus.state;
+          if (state === "JOB_STATE_SUCCEEDED") {
+            break;
+          } else if (state === "JOB_STATE_FAILED" || state === "JOB_STATE_CANCELLED" || state === "JOB_STATE_EXPIRED") {
+            return json({ error: `Batch job ${state}: ${batchStatus.error ?? "Unknown error"}` }, 500);
+          } else if (state === "JOB_STATE_PENDING" || state === "JOB_STATE_RUNNING") {
+            await new Promise((resolve) => setTimeout(resolve, pollInterval));
+            continue;
+          } else {
+            return json({ error: `Unknown batch state: ${state}` }, 500);
+          }
+        }
+        
+        if (!batchStatus || batchStatus.state !== "JOB_STATE_SUCCEEDED") {
+          // Batch not completed within timeout - store batch name for later processing
+          // For now, return partial success
+          return json({ ok: true, processed: 0, batchName, message: "Batch job submitted, processing asynchronously" });
+        }
+        
+        // Process batch results - output structure: { dest: { inlinedResponses: [...] } }
+        const output = batchStatus.output as { dest?: { inlinedResponses?: Array<{ response?: { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> }; error?: string }> } } | null;
+        const inlinedResponses = output?.dest?.inlinedResponses ?? [];
+        if (inlinedResponses.length !== eligibleUsers.length) {
+          logError("jobs/weekly", "Batch response count mismatch", new Error(`Expected ${eligibleUsers.length} responses, got ${inlinedResponses.length}`));
+        }
+        
+        let processed = 0;
+        for (let i = 0; i < Math.min(inlinedResponses.length, eligibleUsers.length); i++) {
+          const response = inlinedResponses[i];
+          const metadata = userMetadata[i];
+          
+          if (response.error) {
+            logError("jobs/weekly", `user ${metadata.user_id}`, new Error(response.error));
+            continue;
+          }
+          
+          if (!response.response?.candidates?.[0]?.content?.parts) {
+            logError("jobs/weekly", `user ${metadata.user_id}`, new Error("No response content"));
+            continue;
+          }
+          
           try {
-            const aiRes = await geminiFetchWithRetry(genUrl, {
-              method: "POST",
-              headers: getGeminiHeaders(config.apiKey),
-              body: JSON.stringify({
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: "user", parts: [{ text: `Find 10 best open jobs for: ${targetRole}. Work: ${workPref}. Location: ${locationStr}. Return real job URLs only.` }] }],
-                tools: [{ google_search: {} }],
-                generationConfig: {
-                  thinkingConfig: { thinkingLevel: isGemini3Flash(config.model) ? "medium" : "low" },
-                  temperature: 1.0,
-                  maxOutputTokens: 8192,
-                  responseMimeType: "application/json",
-                  responseJsonSchema: JOBS_RESPONSE_JSON_SCHEMA,
-                },
-              }),
-            });
-            if (!aiRes.ok) continue;
-            const aiJson = (await aiRes.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>; usageMetadata?: unknown };
-            const parts = aiJson.candidates?.[0]?.content?.parts ?? [];
+            const parts = response.response.candidates[0].content.parts;
             const jsonText = extractTextFromParts(parts as Array<{ text?: string; thought?: boolean }>);
             const parsed = JSON.parse(jsonText || "{}") as { jobs?: Array<{ title?: string; company?: string; url?: string; location_type?: string; location?: string; match_score?: number }> };
             const jobs = Array.isArray(parsed.jobs) ? parsed.jobs : [];
             const fetchedAt = new Date().toISOString();
-            const toInsert = jobs.slice(0, 10).filter((j) => typeof j?.url === "string" && (j.url.startsWith("http://") || j.url.startsWith("https://"))).map((j) => {
-              let url = (j.url ?? "").trim().slice(0, 2048);
-              try {
-                new URL(url);
-              } catch {
-                url = "https://example.com";
-              }
-              const locType = ["remote", "hybrid", "on_site"].includes(String(j.location_type ?? "")) ? j.location_type : "remote";
-              const score = typeof j.match_score === "number" ? Math.max(0, Math.min(100, Math.round(j.match_score))) : null;
-              return {
-                user_id: row.user_id,
-                title: trimStr(j.title ?? "Job", 500),
-                company: trimStr(j.company ?? "", 500) || null,
-                url,
-                location_type: locType,
-                location: trimStr(j.location ?? "", 500) || null,
-                match_score: score,
-                source: "gemini_grounding",
-                fetched_at: fetchedAt,
-              };
-            });
+            const toInsert = await filterAndVerifyJobs(jobs, metadata.user_id, fetchedAt);
             if (toInsert.length > 0) {
               await supabase.from("job_recommendations").insert(toInsert);
               processed++;
+              if (metadata.sendDigest && metadata.email) {
+                const listItems = toInsert.map((j) => `<li><a href="${j.url}">${escapeHtml(j.title)}${j.company ? ` at ${escapeHtml(j.company)}` : ""}</a></li>`).join("");
+                await sendResendEmail({
+                  to: metadata.email,
+                  subject: "Your weekly job matches from Shyftcut",
+                  html: `<p>Here are your personalized job recommendations:</p><ul>${listItems}</ul><p><a href="${siteUrl.replace(/\/$/, "")}/dashboard">View in dashboard</a></p><p>— The Shyftcut team</p>`,
+                });
+              }
             }
           } catch (e) {
-            logError("jobs/weekly", `user ${row.user_id}`, e);
+            logError("jobs/weekly", `user ${metadata.user_id}`, e);
           }
         }
+        
         return json({ ok: true, processed });
       }
 
@@ -1432,6 +1755,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           .select("*", { count: "exact", head: true })
           .eq("user_id", user!.id)
           .gte("created_at", todayIso);
+        const { count: avatarGenerationsThisMonth } = await supabase
+          .from("avatar_generations")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .gte("created_at", iso);
         return json({
           roadmapsCreated: roadmapsCreated ?? 0,
           chatMessagesThisMonth: chatMessagesThisMonth ?? 0,
@@ -1439,6 +1767,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           notesCount: notesCount ?? 0,
           tasksCount: tasksCount ?? 0,
           aiSuggestionsToday: aiSuggestionsToday ?? 0,
+          avatarGenerationsThisMonth: avatarGenerationsThisMonth ?? 0,
         });
       }
 
@@ -1851,6 +2180,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           reminder_time: "20:00",
           timezone: "UTC",
           in_app_reminder: true,
+          job_digest_email: true,
         };
         if (req.method === "GET") {
           const prefs = existing ?? { user_id: user!.id, ...defaults };
@@ -1864,6 +2194,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         const reminderTime = /^\d{1,2}:\d{2}$/.test(String(reminderTimeRaw)) ? String(reminderTimeRaw) : defaults.reminder_time;
         const timezone = trimStr(b.timezone) ?? (existing?.timezone ?? defaults.timezone) ?? "UTC";
         const inAppReminder = typeof b.in_app_reminder === "boolean" ? b.in_app_reminder : (existing?.in_app_reminder ?? defaults.in_app_reminder);
+        const jobDigestEmail = typeof b.job_digest_email === "boolean" ? b.job_digest_email : (existing?.job_digest_email ?? defaults.job_digest_email);
         const payload = {
           user_id: user!.id,
           email_reminders: emailReminders,
@@ -1871,6 +2202,7 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           reminder_time: reminderTime,
           timezone: timezone,
           in_app_reminder: inAppReminder,
+          job_digest_email: jobDigestEmail,
           updated_at: new Date().toISOString(),
         };
         const { data: updated, error } = await supabase
@@ -2345,6 +2677,108 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
           });
         }
         return json({ ok: true });
+      }
+
+      case "tickets": {
+        if (req.method === "GET") {
+          const status = url.searchParams.get("status") ?? "";
+          const category = url.searchParams.get("category") ?? "";
+          const priority = url.searchParams.get("priority") ?? "";
+          const { data: adminProfile } = await supabase.from("profiles").select("role").eq("user_id", user!.id).single();
+          const isAdmin = (adminProfile as { role?: string } | null)?.role === "admin";
+          let query = supabase.from("tickets").select("id, user_id, ticket_number, subject, description, category, priority, status, assigned_to, created_at, updated_at, resolved_at, metadata").order("created_at", { ascending: false });
+          if (!isAdmin) query = query.eq("user_id", user!.id);
+          if (status && ["open", "in_progress", "waiting_customer", "resolved", "closed"].includes(status)) query = query.eq("status", status);
+          if (category && ["technical", "billing", "feature_request", "bug_report", "general", "account"].includes(category)) query = query.eq("category", category);
+          if (priority && ["low", "medium", "high", "urgent"].includes(priority)) query = query.eq("priority", priority);
+          const { data: tickets, error } = await query;
+          if (error) throw error;
+          return json({ tickets: tickets ?? [] });
+        }
+        if (req.method === "POST") {
+          const subject = typeof body.subject === "string" ? body.subject.trim().slice(0, 500) : "";
+          const description = typeof body.description === "string" ? body.description.trim().slice(0, 10000) : "";
+          const category = typeof body.category === "string" && ["technical", "billing", "feature_request", "bug_report", "general", "account"].includes(body.category) ? body.category : "general";
+          const priority = typeof body.priority === "string" && ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : "medium";
+          if (!subject) return json({ error: "Subject is required" }, 400);
+          if (!description || description.length < 10) return json({ error: "Description must be at least 10 characters" }, 400);
+          const { data: ticket, error: insertErr } = await supabase.from("tickets").insert({
+            user_id: user!.id,
+            subject,
+            description,
+            category,
+            priority,
+            status: "open",
+          }).select("id, user_id, ticket_number, subject, description, category, priority, status, assigned_to, created_at, updated_at, resolved_at, metadata").single();
+          if (insertErr) throw insertErr;
+          return json({ ticket: ticket ?? null });
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "tickets/id": {
+        const ticketId = pathSegments[1];
+        if (!ticketId) return json({ error: "Ticket ID required" }, 400);
+        if (req.method === "GET") {
+          const { data: ticket, error } = await supabase.from("tickets").select("id, user_id, ticket_number, subject, description, category, priority, status, assigned_to, created_at, updated_at, resolved_at, metadata").eq("id", ticketId).single();
+          if (error || !ticket) return json({ error: "Ticket not found" }, 404);
+          if ((ticket as { user_id?: string }).user_id !== user!.id) {
+            const { data: adminProfile } = await supabase.from("profiles").select("role").eq("user_id", user!.id).single();
+            if ((adminProfile as { role?: string } | null)?.role !== "admin") return json({ error: "Forbidden" }, 403);
+          }
+          const { data: comments } = await supabase.from("ticket_comments").select("id, ticket_id, user_id, content, is_internal, created_at").eq("ticket_id", ticketId).order("created_at", { ascending: true });
+          const isAdmin = (await supabase.from("profiles").select("role").eq("user_id", user!.id).single()).data?.role === "admin";
+          const commentsFiltered = (comments ?? []).filter((c: { is_internal?: boolean }) => isAdmin || !c.is_internal);
+          const { data: attachments } = await supabase.from("ticket_attachments").select("id, ticket_id, comment_id, file_url, file_name, file_size, mime_type, created_at").eq("ticket_id", ticketId);
+          return json({
+            ticket: {
+              ...ticket,
+              comments: commentsFiltered,
+              attachments: attachments ?? [],
+            },
+          });
+        }
+        if (req.method === "PATCH") {
+          const { data: existing } = await supabase.from("tickets").select("id, user_id").eq("id", ticketId).single();
+          if (!existing) return json({ error: "Ticket not found" }, 404);
+          const isOwner = (existing as { user_id?: string }).user_id === user!.id;
+          const { data: adminProfile } = await supabase.from("profiles").select("role").eq("user_id", user!.id).single();
+          const isAdmin = (adminProfile as { role?: string } | null)?.role === "admin";
+          if (!isOwner && !isAdmin) return json({ error: "Forbidden" }, 403);
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          if (typeof body.status === "string" && ["open", "in_progress", "waiting_customer", "resolved", "closed"].includes(body.status)) updates.status = body.status;
+          if (typeof body.priority === "string" && ["low", "medium", "high", "urgent"].includes(body.priority)) updates.priority = body.priority;
+          if (isAdmin && body.assigned_to !== undefined) updates.assigned_to = body.assigned_to === null || body.assigned_to === "" ? null : body.assigned_to;
+          if (typeof body.subject === "string" && body.subject.trim()) updates.subject = body.subject.trim().slice(0, 500);
+          if (typeof body.description === "string") updates.description = body.description.trim().slice(0, 10000);
+          const { data: updated, error: updateErr } = await supabase.from("tickets").update(updates).eq("id", ticketId).select("id, user_id, ticket_number, subject, description, category, priority, status, assigned_to, created_at, updated_at, resolved_at, metadata").single();
+          if (updateErr) throw updateErr;
+          return json({ ticket: updated });
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "tickets/comments": {
+        if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+        const ticketId = pathSegments[1];
+        if (!ticketId) return json({ error: "Ticket ID required" }, 400);
+        const { data: ticket } = await supabase.from("tickets").select("id, user_id").eq("id", ticketId).single();
+        if (!ticket) return json({ error: "Ticket not found" }, 404);
+        const isOwner = (ticket as { user_id?: string }).user_id === user!.id;
+        const { data: adminProfile } = await supabase.from("profiles").select("role").eq("user_id", user!.id).single();
+        const isAdmin = (adminProfile as { role?: string } | null)?.role === "admin";
+        if (!isOwner && !isAdmin) return json({ error: "Forbidden" }, 403);
+        const content = typeof body.content === "string" ? body.content.trim().slice(0, 5000) : "";
+        const is_internal = isAdmin && body.is_internal === true;
+        if (!content) return json({ error: "Comment content is required" }, 400);
+        const { data: comment, error: insertErr } = await supabase.from("ticket_comments").insert({
+          ticket_id: ticketId,
+          user_id: user!.id,
+          content,
+          is_internal: !!is_internal,
+        }).select("id, ticket_id, user_id, content, is_internal, created_at").single();
+        if (insertErr) throw insertErr;
+        return json({ comment: comment ?? null });
       }
 
       case "newsletter": {
@@ -3001,10 +3435,11 @@ Based on the context above, generate 4-6 specific tasks (e.g. "Complete section 
 
       case "roadmap/generate": {
         if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
+        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string; cvText?: string } };
         if (!profileData?.targetCareer) return json({ error: "profileData is required" }, 400);
         const targetCareer = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
         if (!targetCareer) return json({ error: "targetCareer is required" }, 400);
+        const MAX_CV_TEXT_LEN = 30_000;
         const safeProfile = {
           ...profileData,
           targetCareer,
@@ -3018,6 +3453,7 @@ Based on the context above, generate 4-6 specific tasks (e.g. "Complete section 
           budget: sanitizeUserText(profileData.budget, MAX_PROFILE_FIELD_LEN) || undefined,
           timeline: sanitizeUserText(profileData.timeline, 20) || undefined,
           careerReason: sanitizeUserText(profileData.careerReason, MAX_DESCRIPTION_LEN) || undefined,
+          cvText: typeof profileData.cvText === "string" && profileData.cvText.trim() ? profileData.cvText.trim().slice(0, MAX_CV_TEXT_LEN) : undefined,
         };
         await ensureProfileAndSubscription(supabase, user!.id, user!.email, user!.user_metadata?.display_name as string | undefined);
         const { data: profileRow } = await supabase.from("profiles").select("preferred_language").eq("user_id", user!.id).single();
@@ -3032,29 +3468,35 @@ Based on the context above, generate 4-6 specific tasks (e.g. "Complete section 
         const config = getGeminiConfig();
         if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const roadmapThinkingLevel = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
-        const useGrounding = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
+        // Disable grounding for free users (cost optimization)
+        const envGroundingEnabled = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
+        const useGrounding = envGroundingEnabled && isPaidTier(tier);
         const careerReasonLine = safeProfile.careerReason && String(safeProfile.careerReason).trim() ? `\nUser's motivation: ${String(safeProfile.careerReason).trim()}` : "";
         const languageInstruction = roadmapLang === "ar"
-          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
-          : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
+          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would. Do not mix languages.</language>"
+          : "\n<language>Output the entire roadmap in English. All field values must be in English. Do not mix languages.</language>";
+        const integrityInstruction = "\n<integrity>Do not invent or guess course URLs, platform names, or any data. Only output course URLs that you found via Google Search; if none found, use empty string for url. Strictly follow the JSON schema—do not add extra fields or omit required fields. Output only in the single language specified above.</integrity>";
         const groundingTaskLine = useGrounding
           ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} ${REAL_COURSE_URL_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage or browse/category pages as the url.`
           : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
-        const systemPrompt = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
-<context>
-The user is transitioning from "${safeProfile.jobTitle ?? ""}" in "${safeProfile.industry ?? ""}" to "${safeProfile.targetCareer}".
+        const cvContextLine = safeProfile.cvText ? `\nCV/Resume (excerpt): ${safeProfile.cvText.slice(0, 8000)}` : "";
+        
+        // Build system prompt with static template (for caching) and dynamic user context
+        const staticSystemTemplate = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
+<task>Based on the user context provided, create a structured 12-week roadmap. ${groundingTaskLine}</task>${languageInstruction}${integrityInstruction}`;
+        
+        const userContext = `The user is transitioning from "${safeProfile.jobTitle ?? ""}" in "${safeProfile.industry ?? ""}" to "${safeProfile.targetCareer}".
 Experience Level: ${safeProfile.experienceLevel ?? ""}
 Current Skills: ${(safeProfile.skills ?? []).join(", ")}
 Learning Style: ${safeProfile.learningStyle ?? ""}
 Preferred Platforms: ${(safeProfile.preferredPlatforms ?? []).join(", ")}
 Weekly Hours Available: ${safeProfile.weeklyHours ?? 10}
 Budget: ${safeProfile.budget ?? "Not specified"}
-Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
-</context>
-<task>Based on the information above, create a structured 12-week roadmap. ${groundingTaskLine}</task>${languageInstruction}`;
+Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}${cvContextLine}`;
+        
+        // Use context caching for static template (cost optimization)
         const roadmapBody: Record<string, unknown> = {
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: useGrounding ? "Generate my personalized 12-week career roadmap with course recommendations. Use search to find real course links." : "Generate my personalized 12-week career roadmap with course recommendations." }] }],
+          contents: [{ role: "user", parts: [{ text: `<context>\n${userContext}\n</context>\n\n${useGrounding ? "Generate my personalized 12-week career roadmap with course recommendations. Use search to find real course links." : "Generate my personalized 12-week career roadmap with course recommendations."}` }] }],
           generationConfig: {
             thinkingConfig: { thinkingLevel: roadmapThinkingLevel },
             temperature: 1.0,
@@ -3063,6 +3505,19 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
             responseJsonSchema: ROADMAP_RESPONSE_JSON_SCHEMA,
           },
         };
+        
+        // Cache static system template if long enough
+        if (staticSystemTemplate.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+          const cachedName = await createCachedContent(config.apiKey, config.model, staticSystemTemplate, `shyftcut-roadmap-${roadmapLang}`, 3600);
+          if (cachedName) {
+            roadmapBody.cachedContent = cachedName;
+          } else {
+            roadmapBody.systemInstruction = { parts: [{ text: staticSystemTemplate }] };
+          }
+        } else {
+          roadmapBody.systemInstruction = { parts: [{ text: staticSystemTemplate }] };
+        }
+        
         if (useGrounding) roadmapBody.tools = [{ google_search: {} }];
         const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
           method: "POST",
@@ -3117,7 +3572,7 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
         if (!roadmapData.title) return json({ error: "Invalid roadmap structure from AI" }, 500);
         const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
         const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-        await fillMissingCourseUrls(roadmapData, roadmapLang, supabaseUrl, anonKey, 15);
+        await fillMissingCourseUrls(roadmapData, roadmapLang, supabaseUrl, anonKey, 15, supabase);
         await supabase.from("profiles").upsert({
           user_id: user!.id,
           display_name: (user!.email?.split("@")[0] ?? "User").trim().slice(0, 500),
@@ -3129,6 +3584,7 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           learning_style: safeProfile.learningStyle ?? null,
           weekly_hours: safeProfile.weeklyHours ?? 10,
           budget: safeProfile.budget ?? null,
+          cv_text: safeProfile.cvText ?? null,
         }, { onConflict: "user_id" });
         const { data: roadmapRow, error: roadmapErr } = await supabase.from("roadmaps").insert({
           user_id: user!.id,
@@ -3196,10 +3652,11 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
         if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
         const ip = getClientIp(req);
         if (!checkGuestRateLimit(ip)) return json({ error: "Too many previews. Try again in an hour." }, 429);
-        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string } };
+        const { profileData } = body as { profileData?: { targetCareer?: string; jobTitle?: string; industry?: string; experienceLevel?: string; skills?: string[]; learningStyle?: string; preferredPlatforms?: string[]; weeklyHours?: number; budget?: string; timeline?: string; careerReason?: string; preferredLanguage?: string; cvText?: string } };
         if (!profileData?.targetCareer) return json({ error: "profileData is required" }, 400);
         const targetCareerGuest = sanitizeUserText(profileData.targetCareer, MAX_PROFILE_FIELD_LEN);
         if (!targetCareerGuest) return json({ error: "targetCareer is required" }, 400);
+        const MAX_CV_TEXT_LEN_GUEST = 30_000;
         const preferredLangGuest = (profileData?.preferredLanguage ?? "en").trim().toLowerCase();
         const roadmapLangGuest = preferredLangGuest === "ar" ? "ar" : "en";
         const safeProfileGuest = {
@@ -3215,33 +3672,37 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           budget: sanitizeUserText(profileData.budget, MAX_PROFILE_FIELD_LEN) || undefined,
           timeline: sanitizeUserText(profileData.timeline, 20) || undefined,
           careerReason: sanitizeUserText(profileData.careerReason, MAX_DESCRIPTION_LEN) || undefined,
+          cvText: typeof profileData.cvText === "string" && profileData.cvText.trim() ? profileData.cvText.trim().slice(0, MAX_CV_TEXT_LEN_GUEST) : undefined,
         };
         const config = getGeminiConfig();
         if (!config) return json({ error: "AI is not configured. Set GEMINI_API_KEY." }, 500);
         const roadmapThinkingLevelGuest = (Deno.env.get("GEMINI_ROADMAP_THINKING_LEVEL") ?? "low").trim().toLowerCase() === "high" ? "high" : "low";
-        const useGroundingGuest = Deno.env.get("ROADMAP_USE_GROUNDING") !== "false";
+        // Disable grounding for guest users (cost optimization - guests are not paying)
+        const useGroundingGuest = false;
         const careerReasonLineGuest = safeProfileGuest.careerReason && String(safeProfileGuest.careerReason).trim() ? `\nUser's motivation: ${String(safeProfileGuest.careerReason).trim()}` : "";
+        const cvContextLineGuest = safeProfileGuest.cvText ? `\nCV/Resume (excerpt): ${safeProfileGuest.cvText.slice(0, 8000)}` : "";
         const languageInstructionGuest = roadmapLangGuest === "ar"
-          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
-          : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
-        const groundingTaskLineGuest = useGroundingGuest
-          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} ${REAL_COURSE_URL_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage or browse/category pages as the url.`
-          : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
-        const systemPromptGuest = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
-<context>
-The user is transitioning from "${safeProfileGuest.jobTitle ?? ""}" in "${safeProfileGuest.industry ?? ""}" to "${safeProfileGuest.targetCareer}".
+          ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would. Do not mix languages.</language>"
+          : "\n<language>Output the entire roadmap in English. All field values must be in English. Do not mix languages.</language>";
+        const integrityInstructionGuest = "\n<integrity>Do not invent or guess course URLs, platform names, or any data. Only output course URLs that you found via Google Search; if none found, use empty string for url. Strictly follow the JSON schema—do not add extra fields or omit required fields. Output only in the single language specified above.</integrity>";
+        const groundingTaskLineGuest = "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
+        
+        // Build system prompt with static template (for caching) and dynamic user context
+        const staticSystemTemplateGuest = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
+<task>Based on the user context provided, create a structured 12-week roadmap. ${groundingTaskLineGuest}</task>${languageInstructionGuest}${integrityInstructionGuest}`;
+        
+        const userContextGuest = `The user is transitioning from "${safeProfileGuest.jobTitle ?? ""}" in "${safeProfileGuest.industry ?? ""}" to "${safeProfileGuest.targetCareer}".
 Experience Level: ${safeProfileGuest.experienceLevel ?? ""}
 Current Skills: ${(safeProfileGuest.skills ?? []).join(", ")}
 Learning Style: ${safeProfileGuest.learningStyle ?? ""}
 Preferred Platforms: ${(safeProfileGuest.preferredPlatforms ?? []).join(", ")}
 Weekly Hours Available: ${safeProfileGuest.weeklyHours ?? 10}
 Budget: ${safeProfileGuest.budget ?? "Not specified"}
-Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
-</context>
-<task>Based on the information above, create a structured 12-week roadmap. ${groundingTaskLineGuest}</task>${languageInstructionGuest}`;
+Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}${cvContextLineGuest}`;
+        
+        // Use context caching for static template (cost optimization)
         const roadmapBodyGuest: Record<string, unknown> = {
-          systemInstruction: { parts: [{ text: systemPromptGuest }] },
-          contents: [{ role: "user", parts: [{ text: useGroundingGuest ? "Generate my personalized 12-week career roadmap with course recommendations. Use search to find real course links." : "Generate my personalized 12-week career roadmap with course recommendations." }] }],
+          contents: [{ role: "user", parts: [{ text: `<context>\n${userContextGuest}\n</context>\n\nGenerate my personalized 12-week career roadmap with course recommendations.` }] }],
           generationConfig: {
             thinkingConfig: { thinkingLevel: roadmapThinkingLevelGuest },
             temperature: 1.0,
@@ -3250,7 +3711,18 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
             responseJsonSchema: ROADMAP_RESPONSE_JSON_SCHEMA,
           },
         };
-        if (useGroundingGuest) roadmapBodyGuest.tools = [{ google_search: {} }];
+        
+        // Cache static system template if long enough
+        if (staticSystemTemplateGuest.length >= MIN_SYSTEM_PROMPT_LENGTH_FOR_CACHE) {
+          const cachedName = await createCachedContent(config.apiKey, config.model, staticSystemTemplateGuest, `shyftcut-roadmap-guest-${roadmapLangGuest}`, 3600);
+          if (cachedName) {
+            roadmapBodyGuest.cachedContent = cachedName;
+          } else {
+            roadmapBodyGuest.systemInstruction = { parts: [{ text: staticSystemTemplateGuest }] };
+          }
+        } else {
+          roadmapBodyGuest.systemInstruction = { parts: [{ text: staticSystemTemplateGuest }] };
+        }
         const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {
           method: "POST",
           headers: getGeminiHeaders(config.apiKey),
@@ -3296,7 +3768,9 @@ Timeline Goal: ${safeProfileGuest.timeline ?? "12"}${careerReasonLineGuest}
         cleanRoadmapOutput(roadmapData);
         const supabaseUrlGuest = Deno.env.get("SUPABASE_URL") ?? "";
         const anonKeyGuest = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-        await fillMissingCourseUrls(roadmapData, roadmapLangGuest, supabaseUrlGuest, anonKeyGuest, 4);
+        // Create supabase client for caching (guests can still benefit from cached course URLs)
+        const supabaseGuest = getSupabase();
+        await fillMissingCourseUrls(roadmapData, roadmapLangGuest, supabaseUrlGuest, anonKeyGuest, 4, supabaseGuest);
         const weeks = weeksArr.slice(0, 2).map((w: Record<string, unknown>) => ({
           title: w.title ?? "",
           description: w.description ?? "",
@@ -3600,14 +4074,19 @@ Analyze and return the structured response.`;
           const firstIncomplete = (weeks ?? []).find((w: { is_completed?: boolean }) => !w?.is_completed) as { title?: string } | undefined;
           currentWeekTitle = firstIncomplete?.title ?? "All weeks completed!";
         }
+        const profileCv = (profile as { cv_text?: string } | null)?.cv_text;
+        const cvContextChat = profileCv && profileCv.trim() ? `\nUser's CV/Resume (excerpt): ${profileCv.trim().slice(0, 6000)}` : "";
         const systemPromptBase =
           `<role>You are Shyftcut AI, a friendly career coach. Help with career transition, skills, interviews, resume, salary negotiation. Be encouraging and practical. Keep responses concise.</role>
 <context>
 ${profile ? `User: ${(profile as { job_title?: string }).job_title ?? "Not specified"} → ${(profile as { target_career?: string }).target_career ?? "Not specified"}, ${(profile as { experience_level?: string }).experience_level ?? ""}. Skills: ${((profile as { skills?: string[] }).skills ?? []).join(", ") || "Not specified"}` : "No profile."}
-${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roadmap as { progress_percentage?: number }).progress_percentage}%, Current week: ${currentWeekTitle}` : ""}
-</context>`;
+${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roadmap as { progress_percentage?: number }).progress_percentage}%, Current week: ${currentWeekTitle}` : ""}${cvContextChat}
+</context>
+<integrity>Do not invent facts, course links, job postings, salaries, or statistics. If you use web search, base your answer only on what you found and say so when citing. If unsure, say so. Never mix languages in a single response.</integrity>`;
         const preferredLang = (profile as { preferred_language?: string })?.preferred_language;
-        const languageInstruction = preferredLang === "ar" ? "\n<language>Respond in Egyptian modern professional Arabic (فصحى عصرية مصرية) unless the user writes in another language. Warm, conversational, professional. Write like a native Egyptian career coach.</language>" : "";
+        const languageInstruction = preferredLang === "ar"
+          ? "\n<language>Respond only in Egyptian modern professional Arabic (فصحى عصرية مصرية) unless the user writes in another language. Warm, conversational, professional. Write like a native Egyptian career coach.</language>"
+          : "\n<language>Respond only in English unless the user writes in another language. Do not mix languages.</language>";
         const systemPrompt = systemPromptBase + languageInstruction;
         const rawList = Array.isArray(messages) ? messages.slice(-MAX_CHAT_MESSAGES) : [];
         let totalChars = 0;
@@ -3639,7 +4118,28 @@ ${roadmap ? `Roadmap: ${(roadmap as { title?: string }).title}, Progress: ${(roa
           if (cachedName) bodyPayload.cachedContent = cachedName;
         }
         if (!bodyPayload.cachedContent) bodyPayload.systemInstruction = { parts: [{ text: systemPrompt }] };
-        if (useSearch === true) bodyPayload.tools = [{ google_search: {} }];
+        
+        // Rate limit search for free users (cost optimization)
+        if (useSearch === true) {
+          if (!isPaidTier(tier)) {
+            // Check daily search usage for free users (max 5/day)
+            const startOfDay = new Date();
+            startOfDay.setHours(0, 0, 0, 0);
+            const { count: searchUsageToday } = await supabase
+              .from("chat_search_usage")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", user!.id)
+              .gte("used_at", startOfDay.toISOString());
+            
+            const MAX_SEARCHES_PER_DAY_FREE = 5;
+            if ((searchUsageToday ?? 0) >= MAX_SEARCHES_PER_DAY_FREE) {
+              return json({ error: "Daily search limit reached. Upgrade to Premium for unlimited web search." }, 402);
+            }
+            // Track search usage
+            await supabase.from("chat_search_usage").insert({ user_id: user!.id, used_at: new Date().toISOString() });
+          }
+          bodyPayload.tools = [{ google_search: {} }];
+        }
         const aiRes = await geminiFetchWithRetry(getGeminiStreamUrl(config.model), {
           method: "POST",
           headers: getGeminiHeaders(config.apiKey),
@@ -6238,6 +6738,74 @@ Be concise and actionable. Focus on what matters most for platform growth and us
           return json({
             requests,
             pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+          });
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/tickets": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+
+        if (req.method === "GET") {
+          const status = url.searchParams.get("status") ?? "";
+          const category = url.searchParams.get("category") ?? "";
+          const priority = url.searchParams.get("priority") ?? "";
+          const assignedTo = url.searchParams.get("assigned_to") ?? "";
+          const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+          const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") ?? "20", 10)));
+          const offset = (page - 1) * limit;
+
+          let query = supabase
+            .from("tickets")
+            .select("id, user_id, ticket_number, subject, description, category, priority, status, assigned_to, created_at, updated_at, resolved_at, metadata", { count: "exact" })
+            .order("created_at", { ascending: false });
+          if (status && ["open", "in_progress", "waiting_customer", "resolved", "closed"].includes(status)) query = query.eq("status", status);
+          if (category && ["technical", "billing", "feature_request", "bug_report", "general", "account"].includes(category)) query = query.eq("category", category);
+          if (priority && ["low", "medium", "high", "urgent"].includes(priority)) query = query.eq("priority", priority);
+          if (assignedTo) query = query.eq("assigned_to", assignedTo);
+
+          const { data: tickets, error, count } = await query.range(offset, offset + limit - 1);
+          if (error) throw error;
+          return json({
+            tickets: tickets ?? [],
+            pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) || 1 },
+          });
+        }
+        return json({ error: "Method not allowed" }, 405);
+      }
+
+      case "admin/tickets/stats": {
+        const authCheck = await requireSuperadmin(supabase, user?.id ?? null, req);
+        if (!authCheck.authorized) return authCheck.error!;
+
+        if (req.method === "GET") {
+          const { data: allTickets } = await supabase.from("tickets").select("id, status, category, created_at, updated_at");
+          const tickets = (allTickets ?? []) as Array<{ id: string; status: string; category: string; created_at: string; updated_at: string }>;
+          const open = tickets.filter((t) => t.status === "open").length;
+          const inProgress = tickets.filter((t) => t.status === "in_progress").length;
+          const resolved = tickets.filter((t) => t.status === "resolved" || t.status === "closed").length;
+          const byCategory: Record<string, number> = {};
+          for (const t of tickets) {
+            byCategory[t.category] = (byCategory[t.category] ?? 0) + 1;
+          }
+          let avgResponseTimeHours = 0;
+          const resolvedWithTime = tickets.filter((t) => t.status === "resolved" && t.updated_at);
+          if (resolvedWithTime.length > 0) {
+            const sum = resolvedWithTime.reduce((acc, t) => {
+              const created = new Date(t.created_at).getTime();
+              const updated = new Date(t.updated_at).getTime();
+              return acc + (updated - created) / (1000 * 60 * 60);
+            }, 0);
+            avgResponseTimeHours = Math.round((sum / resolvedWithTime.length) * 10) / 10;
+          }
+          return json({
+            total: tickets.length,
+            open,
+            inProgress,
+            resolved,
+            avgResponseTimeHours,
+            byCategory: Object.entries(byCategory).map(([category, count]) => ({ category, count })),
           });
         }
         return json({ error: "Method not allowed" }, 405);

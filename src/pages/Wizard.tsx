@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Lightbulb, BookOpen, Clock, CheckCircle2, Globe, Wand2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Briefcase, Target, Lightbulb, BookOpen, Clock, CheckCircle2, Globe, Wand2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { useUsageLimits } from '@/hooks/useUsageLimits';
 import { UpgradePrompt } from '@/components/common/UpgradePrompt';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
 import { roadmapPath } from '@/lib/dashboard-routes';
+import { extractTextFromCvFile } from '@/lib/cv-extract';
 import { playRoadmapReadySound } from '@/lib/sounds';
 import { debugLog, debugError } from '@/lib/debug';
 import { captureException } from '@/lib/error-tracking';
@@ -90,7 +91,7 @@ export default function Wizard() {
   const [previewData, setPreviewData] = useState<RoadmapTeaserData | null>(null);
   const guestRestoreDone = useRef(false);
 
-  // Form state (no text inputs: jobTitle, careerReason, skills from selects/chips only)
+  // Form state; "*Other" hold custom text when user selects "Other"
   const [formData, setFormData] = useState({
     jobTitle: '',
     industry: '',
@@ -103,6 +104,12 @@ export default function Wizard() {
     preferredPlatforms: [] as string[],
     weeklyHours: 10,
     budget: '',
+    jobTitleOther: '',
+    industryOther: '',
+    targetCareerOther: '',
+    careerReasonOther: '',
+    cvText: '',       // extracted from optional CV upload
+    cvFile: null as File | null,
   });
 
   const totalSteps = 6;
@@ -270,18 +277,19 @@ export default function Wizard() {
   }, [user, searchParams, getAccessToken, navigate, queryClient, t, toast]);
 
   const profilePayload = {
-    jobTitle: formData.jobTitle,
-    industry: formData.industry,
+    jobTitle: formData.jobTitle === 'Other' ? (formData.jobTitleOther.trim() || formData.jobTitle) : formData.jobTitle,
+    industry: formData.industry === 'Other' ? (formData.industryOther.trim() || formData.industry) : formData.industry,
     experienceLevel: formData.experienceLevel,
-    targetCareer: formData.targetCareer,
+    targetCareer: formData.targetCareer === 'Other' ? (formData.targetCareerOther.trim() || formData.targetCareer) : formData.targetCareer,
     timeline: formData.timeline,
     skills: formData.skills,
     learningStyle: formData.learningStyle,
     preferredPlatforms: formData.preferredPlatforms,
     weeklyHours: formData.weeklyHours,
     budget: formData.budget,
-    careerReason: formData.careerReason || undefined,
+    careerReason: formData.careerReason === 'Other' ? (formData.careerReasonOther.trim() || formData.careerReason) : (formData.careerReason || undefined),
     preferredLanguage: language,
+    cvText: formData.cvText.trim() || undefined,
   };
 
   const generateRoadmap = async () => {
@@ -394,11 +402,19 @@ export default function Wizard() {
   const isStepValid = () => {
     switch (step) {
       case 0:
-        return true; // Language step: valid once they see it; choice advances via buttons
-      case 1:
-        return formData.jobTitle && formData.industry && formData.experienceLevel;
-      case 2:
-        return formData.targetCareer;
+        return true;
+      case 1: {
+        if (!formData.jobTitle || !formData.industry || !formData.experienceLevel) return false;
+        if (formData.jobTitle === 'Other' && !formData.jobTitleOther.trim()) return false;
+        if (formData.industry === 'Other' && !formData.industryOther.trim()) return false;
+        return true;
+      }
+      case 2: {
+        if (!formData.targetCareer) return false;
+        if (formData.targetCareer === 'Other' && !formData.targetCareerOther.trim()) return false;
+        if (formData.careerReason === 'Other' && !formData.careerReasonOther.trim()) return false;
+        return true;
+      }
       case 3:
         return formData.skills.length >= 2;
       case 4:
@@ -656,6 +672,14 @@ export default function Wizard() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {formData.jobTitle === 'Other' && (
+                        <Input
+                          placeholder={t('wizard.specifyOther')}
+                          value={formData.jobTitleOther}
+                          onChange={(e) => updateForm('jobTitleOther', e.target.value)}
+                          className="mt-2"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>{t('wizard.industry')}</Label>
@@ -669,6 +693,14 @@ export default function Wizard() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {formData.industry === 'Other' && (
+                        <Input
+                          placeholder={t('wizard.specifyOther')}
+                          value={formData.industryOther}
+                          onChange={(e) => updateForm('industryOther', e.target.value)}
+                          className="mt-2"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label>{t('wizard.experienceLevel')}</Label>
@@ -684,6 +716,43 @@ export default function Wizard() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 font-normal">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        {t('wizard.uploadCv')} <span className="text-xs font-normal text-muted-foreground">({t('wizard.uploadCvOptional')})</span>
+                      </Label>
+                      <p className="text-sm text-muted-foreground">{t('wizard.uploadCvHint')}</p>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="file"
+                          accept=".pdf,.txt,application/pdf,text/plain"
+                          className="text-sm file:mr-2 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground file:rtl:ml-2"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) {
+                              setFormData((prev) => ({ ...prev, cvFile: null, cvText: '' }));
+                              return;
+                            }
+                            try {
+                              const text = await extractTextFromCvFile(file);
+                              setFormData((prev) => ({ ...prev, cvFile: file, cvText: text }));
+                            } catch (err) {
+                              toast({
+                                title: t('common.errorTitle'),
+                                description: err instanceof Error ? err.message : t('wizard.cvExtractFailed'),
+                                variant: 'destructive',
+                              });
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        {formData.cvFile && (
+                          <span className="text-xs text-muted-foreground">
+                            {formData.cvFile.name} · {formData.cvText.length} {language === 'ar' ? 'حرف' : 'chars'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <p className="hidden text-sm text-muted-foreground md:block md:max-w-[180px] md:pt-8">
@@ -707,6 +776,14 @@ export default function Wizard() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.targetCareer === 'Other' && (
+                      <Input
+                        placeholder={t('wizard.specifyOther')}
+                        value={formData.targetCareerOther}
+                        onChange={(e) => updateForm('targetCareerOther', e.target.value)}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>{t('wizard.whyChange')}</Label>
@@ -727,6 +804,14 @@ export default function Wizard() {
                         </button>
                       ))}
                     </div>
+                    {formData.careerReason === 'Other' && (
+                      <Input
+                        placeholder={t('wizard.specifyOther')}
+                        value={formData.careerReasonOther}
+                        onChange={(e) => updateForm('careerReasonOther', e.target.value)}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>{t('wizard.timeline')}</Label>

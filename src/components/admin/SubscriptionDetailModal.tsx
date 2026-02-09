@@ -22,12 +22,12 @@ export function SubscriptionDetailModal({ subscription, open, onOpenChange }: Su
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" aria-describedby="subscription-detail-desc">
         <DialogHeader>
           <DialogTitle>
             {language === 'ar' ? 'تفاصيل الاشتراك' : 'Subscription Details'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription id="subscription-detail-desc">
             {subscription.profiles?.display_name || subscription.profiles?.email || 'User'}
           </DialogDescription>
         </DialogHeader>

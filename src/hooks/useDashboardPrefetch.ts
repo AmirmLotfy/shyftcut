@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +14,7 @@ export function useDashboardPrefetch() {
   const { pathname } = useLocation();
   const { user, session, getAccessToken } = useAuth();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isDashboardPath(pathname) || !user?.id || !session) return;
 
     const prefetch = async () => {

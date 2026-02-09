@@ -11,6 +11,7 @@
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Gemini 3 Implementation](#gemini-3-implementation)
+- [Cost & Performance Optimizations](#cost--performance-optimizations)
 - [Local Setup](#local-setup)
 - [Environment Variables](#environment-variables)
 - [Testing](#testing)
@@ -92,13 +93,14 @@ Shyftcut uses **only Gemini 3 models** across all AI features.
 
 ### Capabilities Used
 
-- **Google Search Grounding** — Roadmap and course recommendations use real-time web search for actual course URLs
+- **Google Search Grounding** — Roadmap and course recommendations use real-time web search for actual course URLs (paid users only for roadmap)
 - **Structured Output** — `responseMimeType: application/json` + `responseJsonSchema` for parseable responses
-- **Thinking Levels** — `low` (chat, CV, jobs, courses-search), `high` (quiz), configurable for roadmap
+- **Thinking Levels** — Optimized per feature: `low` (chat, CV analysis), `medium` (jobs/find), `high` (quiz), configurable for roadmap
 - **Flash-only Levels** — `minimal` (courses-search, moderation), `medium` (CV, jobs) when using Flash
 - **Thought Signatures** — Chat maintains reasoning context across turns
-- **Context Caching** — Long chat system prompts cached to reduce tokens and latency
-- **Batch API** — Quiz generation supports bulk/batch mode
+- **Context Caching** — System prompts cached across roadmap, CV, jobs, quiz, and chat (up to 90% token reduction)
+- **Batch API** — Weekly jobs cron uses batch processing (50% cost reduction for async workloads)
+- **API Key Rotation** — Multi-key support with automatic failover for rate limits and reliability
 - **16 Trusted Course Platforms** — Udemy, Coursera, LinkedIn Learning, YouTube, Pluralsight, Skillshare, edX, FutureLearn, Khan Academy, Codecademy, DataCamp, freeCodeCamp, MasterClass, Microsoft Learn, AWS Training, Google Cloud Skills
 
 ### Key Files
@@ -108,6 +110,142 @@ Shyftcut uses **only Gemini 3 models** across all AI features.
 - `supabase/functions/courses-search/index.ts` — Dedicated course URL finder via grounding
 - `docs/COURSE_SEARCH_GROUNDING.md` — Course search and grounding flow
 - `docs/GEMINI_MODELS_AUDIT.md` — Model and best-practices audit
+
+---
+
+## Cost & Performance Optimizations
+
+Shyftcut implements comprehensive cost and performance optimizations across all AI features to minimize API costs while maintaining high-quality user experiences.
+
+### 1. Context Caching (Up to 90% Token Reduction)
+
+**Implementation:** Static system prompts are cached using Gemini's Context Caching API, avoiding re-sending repetitive instructions on every request.
+
+**Features Using Context Caching:**
+- **Roadmap Generation** — Caches static career guidance templates (separated from dynamic user context)
+- **CV Analysis** — Caches analysis instructions
+- **Jobs/Find** — Caches job search system prompts
+- **Quiz Generation** — Caches quiz creation templates
+- **Chat** — Caches long system instructions for coaching context
+
+**Impact:** Reduces input tokens by up to 90% for features with large, repetitive system prompts. Cache TTL: 1 hour (configurable).
+
+**Code:** `createCachedContent()` in `supabase/functions/_shared/gemini.ts`
+
+### 2. Batch API for Asynchronous Tasks (50% Cost Reduction)
+
+**Implementation:** Weekly job recommendations cron job uses Gemini Batch API for bulk processing.
+
+**Features Using Batch API:**
+- **Weekly Jobs Cron** — Processes all eligible users' job searches in a single batch request
+
+**Impact:** 50% cost reduction for asynchronous workloads. Acceptable 24-hour turnaround time for weekly digests.
+
+**Code:** `submitBatchGenerateContent()` and `getBatchStatus()` in `supabase/functions/_shared/gemini.ts`
+
+### 3. Smart Grounding (Google Search) Management
+
+**Implementation:** Google Search grounding is strategically enabled only where it adds value and only for paid users.
+
+**Optimizations:**
+- **Roadmap Generation** — Grounding disabled for free users (saves ~$0.35 per roadmap)
+- **Chat Search** — Rate-limited for free users (5 searches/day), unlimited for paid
+- **Course URL Resolution** — Cached to avoid redundant searches
+
+**Impact:** Reduces expensive search query costs ($14/1k queries after 5k free/month) while maintaining quality for premium users.
+
+**Database:** `chat_search_usage` table tracks daily search usage for rate limiting
+
+### 4. Thinking Levels Optimization
+
+**Implementation:** Thinking levels are optimized per feature based on complexity requirements.
+
+**Optimizations:**
+- **CV Analysis** — Uses `low` thinking level for Flash models (was `medium`)
+- **Jobs/Find** — Uses `medium` thinking level for Flash models (balanced quality/cost)
+- **Quiz Generation** — Uses `high` thinking level (quality-critical)
+- **Chat** — Uses `low` thinking level (fast, conversational)
+
+**Impact:** Reduces token costs for thinking tokens while maintaining appropriate reasoning depth per use case.
+
+### 5. Token Limit Optimization
+
+**Implementation:** `maxOutputTokens` adjusted based on actual usage patterns to prevent over-generation.
+
+**Optimizations:**
+- **CV Analysis** — Reduced from 4096 → 3072 tokens
+- **Quiz Generation** — Reduced from 4096 → 3072 tokens
+- **Jobs/Find** — Kept at 8192 tokens (needs full job listings)
+
+**Impact:** Prevents unnecessary token generation, reducing output costs by ~25% for CV and Quiz features.
+
+### 6. Course URL Caching
+
+**Implementation:** Database cache layer prevents redundant API calls for the same course searches.
+
+**Features:**
+- **Cache Key:** `platform` + `query` + `language`
+- **Cache Table:** `course_url_cache` stores resolved URLs
+- **Fallback:** API call only when cache miss occurs
+
+**Impact:** Eliminates redundant `courses-search` API calls (saves ~$0.02 per cached URL) and reduces latency.
+
+**Database:** `course_url_cache` table with composite primary key
+
+### 7. API Key Rotation & Reliability
+
+**Implementation:** Multi-key rotation system with automatic failover for rate limits and quota management.
+
+**Features:**
+- **Multiple Keys:** Supports `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3`
+- **Round-Robin:** Distributes load across healthy keys
+- **Automatic Failover:** Switches keys on rate limits (429) or errors
+- **Health Tracking:** Monitors key status and error rates
+
+**Impact:** Improves reliability, handles rate limits gracefully, and enables higher throughput.
+
+**Code:** `gemini-rotation.ts` module with `GeminiKeyManager`
+
+### 8. Rate Limiting & Usage Controls
+
+**Implementation:** Tier-based rate limiting prevents abuse and controls costs.
+
+**Free User Limits:**
+- **Chat Search** — 5 searches per day (tracked in `chat_search_usage` table)
+- **Roadmap Grounding** — Disabled (no Google Search queries)
+- **Other Features** — Standard monthly limits apply
+
+**Paid User Benefits:**
+- **Unlimited** chat search with grounding
+- **Full grounding** enabled for roadmap generation
+- **Unlimited** usage of all AI features
+
+**Impact:** Protects against cost overruns from free users while providing premium experience for paid subscribers.
+
+### Performance Metrics
+
+| Optimization | Cost Savings | Performance Impact |
+|--------------|--------------|-------------------|
+| Context Caching | Up to 90% input token reduction | Faster response times (less data sent) |
+| Batch API (Weekly Jobs) | 50% cost reduction | Acceptable async delay (24h) |
+| Grounding Management | ~$0.35/roadmap for free users | No quality impact (free users) |
+| Thinking Levels | ~20-30% token reduction | Minimal quality impact |
+| Token Limits | ~25% output reduction | Prevents over-generation |
+| Course URL Caching | ~$0.02 per cached URL | Instant cache hits |
+| Rate Limiting | Prevents abuse costs | Protects service stability |
+
+### Database Tables for Optimization
+
+- **`chat_search_usage`** — Tracks daily search usage for rate limiting
+- **`course_url_cache`** — Caches resolved course URLs (platform + query + language)
+
+**Migration:** `supabase/migrations/20260219000000_cost_optimization_tables.sql`
+
+### Related Documentation
+
+- [SERVICES_AND_COSTS_FINDINGS.md](docs/SERVICES_AND_COSTS_FINDINGS.md) — Complete cost analysis
+- [PRICING_COST_ANALYSIS.md](docs/PRICING_COST_ANALYSIS.md) — Per-feature cost breakdown
+- [GEMINI_MODELS_AUDIT.md](docs/GEMINI_MODELS_AUDIT.md) — Model usage and best practices
 
 ---
 

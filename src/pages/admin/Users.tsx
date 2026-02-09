@@ -321,10 +321,10 @@ export default function Users() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteConfirm && !!deleteUserId} onOpenChange={setDeleteConfirm}>
-        <DialogContent>
+        <DialogContent aria-describedby="users-delete-desc">
           <DialogHeader>
             <DialogTitle>{language === 'ar' ? 'تأكيد الحذف' : 'Confirm Delete'}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="users-delete-desc">
               {language === 'ar' ? 'هل أنت متأكد من حذف هذا المستخدم؟ سيتم حذف جميع البيانات المرتبطة به.' : 'Are you sure you want to delete this user? All associated data will be deleted.'}
             </DialogDescription>
           </DialogHeader>
@@ -341,10 +341,10 @@ export default function Users() {
 
       {/* Add User Dialog */}
       <Dialog open={addUserOpen} onOpenChange={setAddUserOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" aria-describedby="users-add-desc">
           <DialogHeader>
             <DialogTitle>{language === 'ar' ? 'إضافة مستخدم' : 'Add user'}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription id="users-add-desc">
               {language === 'ar' ? 'إنشاء حساب مباشر أو إرسال دعوة بالبريد الإلكتروني.' : 'Create an account directly or send an email invitation.'}
             </DialogDescription>
           </DialogHeader>

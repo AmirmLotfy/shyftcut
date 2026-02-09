@@ -24,7 +24,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LOGO_PATH } from '@/lib/seo';
 import { prefetchRoute } from '@/lib/route-prefetch';
-import { dashboardPaths, isDashboardPath } from '@/lib/dashboard-routes';
+import { dashboardPaths, isDashboardPath, studyPath, coursesPath } from '@/lib/dashboard-routes';
 import { cn } from '@/lib/utils';
 
 type NavItemConfig = {
@@ -117,6 +117,19 @@ export function AppSidebar() {
   const { language, t, direction } = useLanguage();
   const { user } = useAuth();
 
+  // When viewing a specific roadmap, Study and Courses links keep that roadmap in the URL
+  const roadmapIdFromPath = pathname.startsWith(dashboardPaths.roadmap + '/')
+    ? pathname.slice((dashboardPaths.roadmap + '/').length).split('/')[0]?.split('?')[0]
+    : undefined;
+
+  const getNavHref = (item: NavItemConfig) => {
+    if (roadmapIdFromPath) {
+      if (item.href === dashboardPaths.study) return studyPath(roadmapIdFromPath);
+      if (item.href === dashboardPaths.courses) return coursesPath(roadmapIdFromPath);
+    }
+    return item.href;
+  };
+
   const isActive = (href: string) => {
     if (href === dashboardPaths.index) return pathname === dashboardPaths.index;
     if (href === dashboardPaths.community) return pathname === dashboardPaths.community;
@@ -146,6 +159,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-2 px-2">
                 {appNavItems.map((item) => {
+                  const href = getNavHref(item);
                   const active = isActive(item.href);
                   const Icon = item.icon;
                   return (
@@ -161,10 +175,10 @@ export function AppSidebar() {
                         )}
                       >
                         <Link
-                          to={item.href}
+                          to={href}
                           className="flex items-center gap-3"
-                          onMouseEnter={() => prefetchRoute(item.href)}
-                          onFocus={() => prefetchRoute(item.href)}
+                          onMouseEnter={() => prefetchRoute(href)}
+                          onFocus={() => prefetchRoute(href)}
                         >
                           <Icon className={cn("h-[18px] w-[18px] shrink-0 transition-colors", active ? item.iconActiveClasses : item.iconInactiveClasses)} />
                           <span>{item.labelKey[language as keyof typeof item.labelKey]}</span>

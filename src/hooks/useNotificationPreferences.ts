@@ -11,6 +11,7 @@ export interface NotificationPreferences {
   reminder_time: string;
   timezone: string;
   in_app_reminder: boolean;
+  job_digest_email?: boolean;
 }
 
 export function useNotificationPreferences() {

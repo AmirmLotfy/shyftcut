@@ -10,9 +10,12 @@ const RETRY_DELAY_MS = 1500;
 /** Timeout for Gemini API calls (generate and stream). */
 export const GEMINI_REQUEST_TIMEOUT_MS = 90_000;
 
-/** Only Gemini 3 models supported: gemini-3-flash-preview, gemini-3-pro-preview, gemini-3-pro-image-preview */
+/**
+ * Supported Gemini 3 models (see https://ai.google.dev/gemini-api/docs/models/gemini).
+ * Image generation uses Gemini 3 Pro Image Preview (Nano Banana Pro): https://ai.google.dev/gemini-api/docs/image-generation
+ */
 const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-3-pro-image-preview"];
-/** Model for Nano Banana Pro / image generation (avatar, etc.). */
+/** Model for image generation (Nano Banana Pro). Model code per docs: gemini-3-pro-image-preview. */
 export const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
 
 export interface GeminiConfig {
