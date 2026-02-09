@@ -20,8 +20,38 @@ function isAllowedCourseHost(url) {
   }
 }
 
+function isBrowseOrCategoryPage(url) {
+  if (!url || typeof url !== "string") return true;
+  try {
+    const u = new URL(url.trim());
+    const host = u.hostname.toLowerCase();
+    const path = u.pathname.replace(/\/+$/, "") || "/";
+    const pathLower = path.toLowerCase();
+    if (host.includes("coursera.org") && pathLower.startsWith("/browse")) return true;
+    if (host.includes("udemy.com") && !pathLower.includes("/course/")) return true;
+    if ((host.includes("youtube.com") || host.includes("youtu.be")) &&
+        (pathLower.startsWith("/results") || pathLower.startsWith("/feed") ||
+         pathLower.startsWith("/channel/") || pathLower.startsWith("/c/"))) return true;
+    if (host.includes("edx.org") && (pathLower === "/courses" || pathLower === "/courses/")) return true;
+    if (host.includes("linkedin.com") && pathLower.includes("/learning/topics")) return true;
+    if (host.includes("skillshare.com") && pathLower.startsWith("/browse")) return true;
+    if ((host.includes("futurelearn.com") || host.includes("datacamp.com")) &&
+        (pathLower === "/courses" || pathLower === "/courses/")) return true;
+    if (host.includes("pluralsight.com") && pathLower.startsWith("/product")) return true;
+    if (host.includes("codecademy.com") && pathLower.startsWith("/catalog")) return true;
+    if (host.includes("khanacademy.org") && (pathLower === "/courses" || pathLower === "/courses/")) return true;
+    if (host.includes("learn.microsoft.com") && (pathLower === "/learn" || pathLower === "/learn/")) return true;
+    if (host.includes("aws.amazon.com") && (pathLower === "/training" || pathLower === "/training/")) return true;
+    if (host.includes("cloudskillsboost.google") && (pathLower === "/" || pathLower === "")) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 function isValidCourseUrl(url) {
   if (!url || (!url.startsWith("http://") && !url.startsWith("https://"))) return false;
+  if (isBrowseOrCategoryPage(url)) return false;
   try {
     const u = new URL(url);
     const path = u.pathname.replace(/\/+$/, "") || "/";
@@ -57,6 +87,11 @@ ok("Microsoft Learn URL", isAllowedCourseHost("https://learn.microsoft.com/en-us
 // Reject homepage
 ok("Reject Udemy homepage", !isValidCourseUrl("https://www.udemy.com/") || !isValidCourseUrl("https://www.udemy.com"));
 ok("Reject root path", !isValidCourseUrl("https://www.udemy.com/"));
+
+// Reject browse/category pages (e.g. coursera.org/browse/business/entrepreneurship)
+ok("Reject Coursera browse page", !isValidCourseUrl("https://www.coursera.org/browse/business/entrepreneurship"));
+ok("Reject Udemy topic page", !isValidCourseUrl("https://www.udemy.com/topic/python/"));
+ok("Reject YouTube results page", !isValidCourseUrl("https://www.youtube.com/results?search_query=python"));
 
 // Reject disallowed domains
 ok("Reject random domain", !isAllowedCourseHost("https://fake-course-site.com/course/123"));

@@ -26,7 +26,7 @@ import {
   submitBatchGenerateContent,
   getBatchStatus,
 } from "../_shared/gemini.ts";
-import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
+import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, REAL_COURSE_URL_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
 import { isYouTubeUrl } from "../_shared/verify-course-url.ts";
 import { scrapeCourseMetadata } from "../_shared/course-metadata.ts";
 
@@ -578,6 +578,7 @@ async function verifyPassword(supabaseUrl: string, anonKey: string, email: strin
 function route(path: string): string | null {
   const parts = path.replace(/^\/api\/?/, "").split("/").filter(Boolean);
   const p0 = parts[0];
+  if (p0 === "health") return "health";
   const p1 = parts[1];
   const p2 = parts[2];
   const p3 = parts[3];
@@ -702,9 +703,9 @@ function route(path: string): string | null {
   }
   if (p0 === "cv" && p1 === "analyze") return "cv/analyze";
   if (p0 === "jobs") {
+    if (p1 === "list" || !p1) return "jobs/list";
     if (p1 === "find") return "jobs/find";
     if (p1 === "weekly") return "jobs/weekly";
-    if (!p1) return "jobs/list";
     return null;
   }
   if (p0 === "study-streak") return "study-streak";
@@ -833,6 +834,7 @@ Deno.serve(async (req: Request) => {
   const user = "user" in authResult ? authResult.user : null;
   const authFailureReason = "reason" in authResult ? authResult.reason : null;
   const requireAuth = ![
+    "health",
     "contact",
     "newsletter",
     "roadmap/generate-guest",
@@ -866,6 +868,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     switch (routeKey) {
+      case "health": {
+        return json({ ok: true, service: "api" }, 200);
+      }
       case "profile": {
         if (req.method !== "GET" && req.method !== "PATCH") {
           return json({ error: "Method not allowed" }, 405);
@@ -1882,7 +1887,14 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         if (!isPaidTier(tier)) return json({ error: "Community is for Premium subscribers." }, 402);
         const targetCareer = url.searchParams.get("target_career")?.trim() || null;
         const experienceLevel = url.searchParams.get("experience_level")?.trim() || null;
-        let query = supabase.from("profiles").select("user_id, display_name, avatar_url, job_title, target_career, experience_level, linkedin_url").neq("user_id", user!.id);
+        const { data: paidSubs } = await supabase.from("subscriptions").select("user_id").in("tier", ["premium", "pro"]).eq("status", "active");
+        const paidUserIds = new Set((paidSubs ?? []).map((s: { user_id: string }) => s.user_id));
+        paidUserIds.delete(user!.id);
+        const paidIds = Array.from(paidUserIds).slice(0, 500);
+        if (paidIds.length === 0) {
+          return json([]);
+        }
+        let query = supabase.from("profiles").select("user_id, display_name, avatar_url, job_title, target_career, experience_level, linkedin_url").in("user_id", paidIds);
         if (targetCareer) query = query.eq("target_career", targetCareer);
         if (experienceLevel) query = query.eq("experience_level", experienceLevel);
         const { data: profiles } = await query.limit(50);
@@ -1928,7 +1940,11 @@ Target role context: ${targetRole}. Return only valid JSON matching the schema.`
         if (!isPaidTier(tier)) return json({ error: "Leaderboard is for Premium subscribers." }, 402);
         const period = url.searchParams.get("period") || "all";
         const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "20", 10)));
-        let streakQuery = supabase.from("study_streaks").select("user_id, current_streak, longest_streak, last_activity_date").order("current_streak", { ascending: false }).limit(limit);
+        const { data: paidSubsLeaderboard } = await supabase.from("subscriptions").select("user_id").in("tier", ["premium", "pro"]).eq("status", "active");
+        const paidUserIdsLeaderboard = new Set((paidSubsLeaderboard ?? []).map((s: { user_id: string }) => s.user_id));
+        const paidIdsLeaderboard = paidUserIdsLeaderboard.size > 0 ? Array.from(paidUserIdsLeaderboard).slice(0, 500) : [];
+        let streakQuery = supabase.from("study_streaks").select("user_id, current_streak, longest_streak, last_activity_date").order("current_streak", { ascending: false }).limit(Math.min(limit * 3, 300));
+        if (paidIdsLeaderboard.length > 0) streakQuery = streakQuery.in("user_id", paidIdsLeaderboard);
         if (period === "week" || period === "month") {
           const cut = new Date();
           if (period === "week") cut.setDate(cut.getDate() - 7);
@@ -3020,7 +3036,7 @@ Based on the context above, generate 4-6 specific tasks (e.g. "Complete section 
           ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
           : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
         const groundingTaskLine = useGrounding
-          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
+          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} ${REAL_COURSE_URL_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage or browse/category pages as the url.`
           : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
         const systemPrompt = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
 <context>
@@ -3207,7 +3223,7 @@ Timeline Goal: ${safeProfile.timeline ?? "12"}${careerReasonLine}
           ? "\n<language>Output the entire roadmap in Egyptian modern professional Arabic (فصحى عصرية مصرية). All field values—title, description, week titles, week descriptions, skills_to_learn, deliverables, and course titles—must be in Arabic. Warm, clear tone. Avoid stiff or bureaucratic phrasing. Write as a native Egyptian professional would.</language>"
           : "\n<language>Output the entire roadmap in English. All field values must be in English.</language>";
         const groundingTaskLineGuest = useGroundingGuest
-          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage as the url.`
+          ? `Use Google Search to find real courses on the user's preferred platforms. Recommend courses ONLY from those platforms. ${ALLOWED_DOMAINS_INSTRUCTION} ${REAL_COURSE_URL_INSTRUCTION} Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Return only real, working course URLs from search results—no invented or placeholder URLs. Each course url must be a full URL to a specific course page (path must not be only /). Do not use the platform homepage or browse/category pages as the url.`
           : "Recommend courses from the user's preferred platforms. Respect budget (Free Only / up_to_50 / up_to_200 / unlimited). Set estimated_hours per week within their weekly availability. Each week: title, description, 2-4 skills_to_learn, 2-3 deliverables, estimated_hours, 2-3 courses (title, platform, url). Do not invent URLs; use empty string for url if you cannot provide a real link. Missing URLs will be filled later.";
         const systemPromptGuest = `<role>You are a career guidance expert AI. Create a detailed 12-week learning roadmap for career transition.</role>
 <context>

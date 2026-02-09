@@ -20,6 +20,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUsageLimits } from '@/hooks/useUsageLimits';
 import { UpgradePrompt } from '@/components/common/UpgradePrompt';
 import { apiPath, apiHeaders, extractApiErrorMessage } from '@/lib/api';
+import { roadmapPath } from '@/lib/dashboard-routes';
 import { playRoadmapReadySound } from '@/lib/sounds';
 import { debugLog, debugError } from '@/lib/debug';
 import { captureException } from '@/lib/error-tracking';
@@ -256,7 +257,7 @@ export default function Wizard() {
         await queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
         await queryClient.invalidateQueries({ queryKey: ['activeRoadmap'] });
         queryClient.invalidateQueries({ queryKey: ['roadmap', data.roadmapId] });
-        navigate(`/roadmap/${data.roadmapId}`);
+        navigate(roadmapPath(data.roadmapId));
       } catch (err) {
         sessionStorage.removeItem(GUEST_PROFILE_KEY);
         sessionStorage.removeItem(GUEST_TEASER_KEY);
@@ -376,7 +377,7 @@ export default function Wizard() {
       await queryClient.invalidateQueries({ queryKey: ['roadmaps'] });
       await queryClient.invalidateQueries({ queryKey: ['activeRoadmap'] });
       queryClient.invalidateQueries({ queryKey: ['roadmap', data.roadmapId] });
-      navigate(`/roadmap/${data.roadmapId}`);
+      navigate(roadmapPath(data.roadmapId));
     } catch (error) {
       debugError('Wizard', 'generateRoadmap failed', error);
       captureException(error);

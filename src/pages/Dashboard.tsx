@@ -65,7 +65,8 @@ export default function Dashboard() {
     setStreakBannerDismissed(true);
   };
 
-  const isLoading = isLoadingRoadmap || isLoadingProfile;
+  // Only block on roadmap; profile is used for display_name, fallback to user.email
+  const isLoading = isLoadingRoadmap;
   const isError = isErrorRoadmap || !!errorProfile;
   const errorMessage = (errorRoadmap as Error)?.message ?? (errorProfile as Error)?.message;
 

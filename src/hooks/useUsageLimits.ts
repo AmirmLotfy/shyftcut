@@ -33,6 +33,7 @@ export function useUsageLimits() {
       return apiFetch<UsageData>('/api/usage', { token });
     },
     enabled: !!user && !!session,
+    staleTime: 2 * 60 * 1000,
   });
 
   const limits: UsageLimits = {

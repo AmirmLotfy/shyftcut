@@ -3,7 +3,7 @@
 
 import { corsHeaders } from "../_shared/cors.ts";
 import { getGeminiConfig, getGeminiGenerateContentUrl, getGeminiHeaders, geminiFetchWithRetry, checkGeminiFinishReason, isGemini3Flash } from "../_shared/gemini.ts";
-import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
+import { isAllowedCourseHost, isValidCourseUrl, ALLOWED_DOMAINS_INSTRUCTION, REAL_COURSE_URL_INSTRUCTION, getPlatformDomain } from "../_shared/course-hosts.ts";
 import { verifyCourseUrl } from "../_shared/verify-course-url.ts";
 
 const MAX_QUERY_LEN = 300;
@@ -21,7 +21,7 @@ function extractTextFromParts(parts: Array<{ text?: string; thought?: boolean }>
 const COURSE_SEARCH_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    url: { type: "string", description: "A single real, working course page URL from search. Must be from an allowed platform (udemy.com, coursera.org, linkedin.com, youtube.com, pluralsight.com, skillshare.com, edx.org, futurelearn.com, khanacademy.org, codecademy.com, datacamp.com, freecodecamp.org, masterclass.com, cloudskillsboost.google, learn.microsoft.com, aws.amazon.com). Must not be the platform homepage." },
+    url: { type: "string", description: "A single real, working course page URL from search. Must be from an allowed platform. Must NOT be a browse/category page (e.g. coursera.org/browse/...). Use direct course URLs like coursera.org/learn/..., udemy.com/course/..., youtube.com/watch?v=..." },
     title: { type: "string", description: "Exact course title from the page if found." },
   },
   required: ["url"],
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
   const langInstruction = language === "ar"
     ? " When results exist in Arabic, prefer them. Use Egyptian modern professional tone for titles when presenting to Arabic users."
     : " Use English search and results.";
-  const systemPrompt = `You are a course finder. Use Google Search to find ONE real course on the platform "${platform}" that matches the user's query. ${ALLOWED_DOMAINS_INSTRUCTION} Return only one result: the URL of a specific course page (not the platform homepage, not a search results page). The URL must be a full HTTP or HTTPS link to a course detail page (path must not be only /).${langInstruction}`;
+  const systemPrompt = `You are a course finder. Use Google Search to find ONE real course on the platform "${platform}" that matches the user's query. ${ALLOWED_DOMAINS_INSTRUCTION} ${REAL_COURSE_URL_INSTRUCTION} Return only one result: the URL of a specific course page (not the platform homepage, not a browse/category page, not a search results page). The URL must be a full HTTP or HTTPS link to a course detail page (path must not be only /).${langInstruction}`;
   const userPrompt = `Find a real course on ${platform} for: ${query}. Use search and return the exact course page URL and title in the required JSON format.`;
 
   const aiRes = await geminiFetchWithRetry(getGeminiGenerateContentUrl(config.model), {

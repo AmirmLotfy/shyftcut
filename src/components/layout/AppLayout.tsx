@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { AppShell } from './AppShell';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDashboardPrefetch } from '@/hooks/useDashboardPrefetch';
 
 /** Skeleton shown in content area while a nested app route is loading. Keeps shell visible. */
 function AppPageSkeleton() {
@@ -22,6 +23,7 @@ function AppPageSkeleton() {
 
 /** Layout route for app pages. Keeps AppShell (sidebar, top bar) mounted; only outlet content swaps. */
 export function AppLayout() {
+  useDashboardPrefetch();
   return (
     <>
       <Helmet>

@@ -25,6 +25,7 @@ export function useNotificationPreferences() {
       return apiFetch<NotificationPreferences>('/api/notification-preferences', { token });
     },
     enabled: !!user && !!session,
+    staleTime: 2 * 60 * 1000,
   });
 
   const updatePreferences = useMutation({

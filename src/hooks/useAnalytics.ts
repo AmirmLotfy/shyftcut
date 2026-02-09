@@ -22,6 +22,7 @@ export function useAnalytics() {
       return apiFetch<Analytics>('/api/analytics', { token });
     },
     enabled: !!user && !!session,
+    staleTime: 2 * 60 * 1000,
   });
 
   return {

@@ -34,7 +34,8 @@ Per [Gemini Google Search docs](https://ai.google.dev/gemini-api/docs/google-sea
 - `ALLOWED_COURSE_HOSTS` — list of allowed domains
 - `ALLOWED_DOMAINS_INSTRUCTION` — prompt text instructing the model to use only these domains
 - `isAllowedCourseHost(url)` — validates URL host
-- `isValidCourseUrl(url)` — validates URL format (full path, not homepage)
+- `isBrowseOrCategoryPage(url)` — returns true for browse/category pages (e.g. coursera.org/browse/...) to reject
+- `isValidCourseUrl(url)` — validates URL format (full path, not homepage, not browse/category)
 - `getPlatformDomain(platform)` — maps display names (e.g. "Udemy", "LinkedIn Learning") to allowed hosts
 
 **Validation points:**

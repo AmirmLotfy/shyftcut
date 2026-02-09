@@ -26,9 +26,9 @@ Get a personalized 12-week career roadmap with real course links in 90 sec. Gemi
 
 ## About the project (Markdown allowed)
 
-![Shyftcut — Your 90-second career shift, powered by Gemini 3](https://github.com/AmirmLotfy/shyftcut/raw/main/Shyftcut-devpost-gemini.webp)
-
 **One quiz. One roadmap. Real courses.** Shyftcut turns career chaos into a clear 12-week plan—in 90 seconds. No more dead links or guesswork: every course URL is _real_, thanks to Gemini 3 and Google Search grounding.
+
+![Shyftcut — Your 90-second career shift, powered by Gemini 3](https://github.com/AmirmLotfy/shyftcut/raw/main/Shyftcut-devpost-gemini.webp)
 
 ---
 

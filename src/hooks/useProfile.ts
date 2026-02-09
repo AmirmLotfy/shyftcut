@@ -16,6 +16,7 @@ export function useProfile() {
       return apiFetch<unknown | null>('/api/profile', { token });
     },
     enabled: !!user && !!session,
+    staleTime: 2 * 60 * 1000,
   });
 
   const updateProfile = useMutation({

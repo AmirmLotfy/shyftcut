@@ -85,7 +85,7 @@ export default function Community() {
   const { t, language } = useLanguage();
   const { user, getAccessToken } = useAuth();
   const { toast } = useToast();
-  const { isPremium } = useSubscription();
+  const { isPremium, isLoading: isLoadingSubscription } = useSubscription();
   const { badges: userBadges } = useUserBadges();
   const queryClient = useQueryClient();
   const [targetCareer, setTargetCareer] = useState('');
@@ -268,6 +268,22 @@ export default function Community() {
     },
   });
 
+  if (isLoadingSubscription) {
+    return (
+      <>
+        <Helmet><title>Community | Shyftcut</title></Helmet>
+        <div className="container mx-auto max-w-app-content px-4 pb-24 pt-6 sm:px-6 sm:py-8">
+          <Skeleton className="mb-8 h-9 w-48" />
+          <Skeleton className="mb-4 h-5 w-72" />
+          <div className="grid gap-8 lg:grid-cols-2">
+            <Skeleton className="h-64 w-full rounded-xl" />
+            <Skeleton className="h-64 w-full rounded-xl" />
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!isPremium) {
     return (
       <>
@@ -427,7 +443,7 @@ export default function Community() {
                         <div className="min-w-0 flex-1">
                           <p className="font-medium truncate">{peer.display_name || (language === 'ar' ? 'مستخدم' : 'User')}</p>
                           <p className="text-xs text-muted-foreground">
-                            {[peer.target_career, peer.experience_level].filter(Boolean).join(' · ') || '—'}
+                            {[peer.job_title, peer.target_career, peer.experience_level].filter(Boolean).join(' · ') || '—'}
                           </p>
                           <p className="flex items-center gap-1 text-xs text-primary">
                             <Flame className="h-3 w-3" />

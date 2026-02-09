@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FileText, Briefcase, Loader2, ExternalLink, Crown } from 'lucide-react';
+import { FileText, Briefcase, Loader2, ExternalLink, Upload } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// pdf.js worker (CDN for reliable loading in Vite)
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+}
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiFetch, extractApiErrorMessage } from '@/lib/api';
 import { dashboardPaths } from '@/lib/dashboard-routes';
 import { PremiumGateCard } from '@/components/common/PremiumGateCard';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getCareerToolsBenefits } from '@/lib/premium-features';
 
 type CVAnalysis = {
@@ -36,16 +43,39 @@ type JobRow = {
   fetched_at?: string;
 };
 
+async function extractTextFromPdf(file: File): Promise<string> {
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument(buf).promise;
+  const texts: string[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
+    texts.push(pageText);
+  }
+  return texts.join('\n\n').trim();
+}
+
+async function extractTextFromFile(file: File): Promise<string> {
+  if (file.type === 'application/pdf') return extractTextFromPdf(file);
+  if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+    return file.text();
+  }
+  throw new Error('Unsupported format. Use PDF or TXT.');
+}
+
 export default function CareerTools() {
   const { language } = useLanguage();
   const { user, getAccessToken } = useAuth();
-  const { isPremium } = useSubscription();
+  const { isPremium, isLoading: isLoadingSubscription } = useSubscription();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const [cvPaste, setCvPaste] = useState('');
   const [cvAnalyzing, setCvAnalyzing] = useState(false);
+  const [cvUploading, setCvUploading] = useState(false);
   const [cvResult, setCvResult] = useState<CVAnalysis | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [jobsFinding, setJobsFinding] = useState(false);
 
@@ -95,6 +125,38 @@ export default function CareerTools() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCvUploading(true);
+    setCvResult(null);
+    try {
+      const text = await extractTextFromFile(file);
+      if (text.length < 50) {
+        toast({
+          title: language === 'ar' ? 'نص قصير جداً' : 'Text too short',
+          description: language === 'ar' ? 'لم يتم استخراج نص كافٍ. جرّب PDF نصي أو أضف المزيد يدوياً.' : 'Not enough text extracted. Try a text-based PDF or add more manually.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setCvPaste(text);
+      toast({
+        title: language === 'ar' ? 'تم التحميل' : 'File loaded',
+        description: language === 'ar' ? `تم استخراج ${text.length.toLocaleString()} حرفاً من الملف` : `Extracted ${text.length.toLocaleString()} characters from file`,
+      });
+    } catch (err) {
+      toast({
+        title: language === 'ar' ? 'خطأ' : 'Error',
+        description: err instanceof Error ? err.message : (language === 'ar' ? 'تعذر قراءة الملف. استخدم PDF أو TXT.' : 'Could not read file. Use PDF or TXT.'),
+        variant: 'destructive',
+      });
+    } finally {
+      setCvUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const handleFindJobs = async () => {
     setJobsFinding(true);
     try {
@@ -122,6 +184,22 @@ export default function CareerTools() {
   };
 
   const isAr = language === 'ar';
+
+  if (isLoadingSubscription) {
+    return (
+      <>
+        <Helmet><title>Career Tools | Shyftcut</title></Helmet>
+        <div className="container mx-auto max-w-app-content space-y-8 px-4 py-8 pb-24">
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-5 w-72" />
+          <div className="grid gap-6 sm:grid-cols-2">
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (!isPremium) {
     return (
@@ -162,12 +240,33 @@ export default function CareerTools() {
               {isAr ? 'تحليل السيرة الذاتية' : 'CV Analysis'}
             </CardTitle>
             <CardDescription>
-              {isAr ? 'الصق نص سيرتك الذاتية واحصل على نقاط القوة والفجوات والتوصيات' : 'Paste your CV text and get strengths, gaps, and recommendations'}
+              {isAr ? 'الصق نص سيرتك الذاتية أو ارفع ملف PDF/TXT واحصل على نقاط القوة والفجوات والتوصيات' : 'Paste your CV text or upload a PDF/TXT file and get strengths, gaps, and recommendations'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,application/pdf,text/plain"
+              className="sr-only"
+              aria-hidden
+              onChange={handleFileUpload}
+            />
             <div className="space-y-2">
-              <Label htmlFor="cv-paste">{isAr ? 'نص السيرة الذاتية' : 'CV text'}</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="cv-paste">{isAr ? 'نص السيرة الذاتية' : 'CV text'}</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={cvUploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  {cvUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {cvUploading ? (isAr ? 'جاري الاستخراج...' : 'Extracting...') : (isAr ? 'رفع PDF أو TXT' : 'Upload PDF or TXT')}
+                </Button>
+              </div>
               <Textarea
                 id="cv-paste"
                 value={cvPaste}

@@ -22,6 +22,7 @@ export function useStudyStreak() {
       return res ?? { current_streak: 0, longest_streak: 0, last_activity_date: null, activity_dates: [] };
     },
     enabled: !!user && !!session,
+    staleTime: 2 * 60 * 1000,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['study-streak', user?.id] });
