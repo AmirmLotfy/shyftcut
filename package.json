@@ -26,6 +26,7 @@
     "secrets:cleanup:legacy": "node scripts/cleanup-legacy-vercel-secrets.mjs --dry-run",
     "secrets:cleanup:legacy:live": "node scripts/cleanup-legacy-vercel-secrets.mjs",
     "add:gemini-test-user": "node scripts/add-gemini-test-user.mjs",
+    "reset:gemini-usage": "node scripts/reset-gemini-user-usage.mjs",
     "supabase:cron:vault": "node scripts/setup-cron-vault.mjs",
     "deploy:all": "node scripts/deploy-all.mjs",
     "i18n:export-arabic": "node scripts/export-arabic-sources.mjs",
